@@ -1,0 +1,298 @@
+COMPLETE ROLLBACK - Execute all steps in order:
+
+══════════════════════════════════════════════════════════════════════
+STEP 0: PREFLIGHT SAFETY SWEEPS (Do these first)
+══════════════════════════════════════════════════════════════════════
+
+# Find all debug print statements across the codebase
+echo "🔍 Scanning for debug prints..."
+grep -RIn "print(\s*'\[DEBUG\]" lib || echo "✅ No [DEBUG] prints found"
+grep -RIn "print(\s*'\[DBG\]" lib || echo "✅ No [DBG] prints found"
+grep -RIn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" lib || echo "✅ No separator lines found"
+
+# Check for leftover onTap: callsites (should be none if code is clean)
+echo ""
+echo "🔍 Checking for leftover onTap: in KemeticDayButton callsites..."
+grep -RIn "KemeticDayButton\(" lib | grep -E "onTap\s*:" || echo "✅ No onTap: callsites found (clean)"
+
+# Count gregorianDate occurrences before rollback
+echo ""
+echo "🔍 Counting gregorianDate fields before rollback..."
+grep -RIn "gregorianDate:\s*'" lib/widgets/kemetic_day_info.dart | wc -l
+
+══════════════════════════════════════════════════════════════════════
+STEP 1: CODE CHANGES (Do these manually or with find/replace)
+══════════════════════════════════════════════════════════════════════
+
+File: lib/features/calendar/calendar_page.dart
+────────────────────────────────────────────
+Change #1 (around line 4570):
+FIND:
+                  child: ShaderMask(
+                    shaderCallback: (bounds) => _goldGloss.createShader(bounds),
+                    blendMode: BlendMode.srcIn,
+                    child: MonthNameText(
+                      getMonthById(kMonth).displayFull,
+                      style: _monthTitleGold.copyWith(color: Colors.white),
+                    ),
+                  ),
+
+REPLACE:
+                  child: MonthNameText(
+                    getMonthById(kMonth).displayFull,
+                    style: _monthTitleGold,
+                  ),
+
+────────────────────────────────────────────
+Change #2 (around line 4941):
+FIND:
+                    child: ShaderMask(
+                      shaderCallback: (bounds) => _goldGloss.createShader(bounds),
+                      blendMode: BlendMode.srcIn,
+                      child: MonthNameText(
+                        'Heriu Renpet (ḥr.w rnpt)',
+                        style: _monthTitleGold.copyWith(color: Colors.white),
+                      ),
+                    ),
+
+REPLACE:
+                    child: MonthNameText(
+                      'Heriu Renpet (ḥr.w rnpt)',
+                      style: _monthTitleGold.copyWith(color: Colors.white),
+                    ),
+
+══════════════════════════════════════════════════════════════════════
+
+File: lib/widgets/kemetic_day_info.dart
+────────────────────────────────────────────
+Change #3 (around line 9930-9948): Remove debug prints from _showDropdown()
+FIND:
+  void _showDropdown() {
+    // DEBUG: Log long-press attempts
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('[DEBUG] Long-press detected');
+    print('[DEBUG] Day key: ${widget.dayKey}');
+    
+    final RenderBox? renderBox = _buttonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) {
+      print('[DEBUG] ERROR: renderBox is null');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      return;
+    }
+    
+    final position = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+    
+    // DEBUG: Log position info
+    print('[DEBUG] Button position: $position');
+    print('[DEBUG] Button size: $size');
+
+REPLACE:
+  void _showDropdown() {
+    final RenderBox? renderBox = _buttonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) {
+      return;
+    }
+    
+    final position = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+
+────────────────────────────────────────────
+Change #4 (around line 9855-9869): Remove debug prints from KemeticDayDropdownController.show()
+FIND:
+    final dayInfo = KemeticDayData.getInfoForDay(dayKey);
+    
+    // DEBUG: Log lookup result
+    print('[DEBUG] Looking up card for: $dayKey');
+    print('[DEBUG] Card found: ${dayInfo != null}');
+    
+    if (dayInfo == null) {
+      print('[DEBUG] ❌ No card data for: $dayKey');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      return;
+    }
+    
+    print('[DEBUG] ✅ Card data exists for: $dayKey');
+    print('[DEBUG] Card kemeticDate: ${dayInfo.kemeticDate}');
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+REPLACE:
+    final dayInfo = KemeticDayData.getInfoForDay(dayKey);
+    
+    if (dayInfo == null) {
+      return;
+    }
+
+────────────────────────────────────────────
+Change #5: Remove any remaining debug prints found in other files
+(If preflight found prints in other files, remove them manually)
+
+══════════════════════════════════════════════════════════════════════
+STEP 1.5: VERIFY CODE CHANGES
+══════════════════════════════════════════════════════════════════════
+
+# Check for unused imports/variables after ShaderMask removal
+echo "🔍 Checking for unused imports/variables..."
+flutter analyze lib/features/calendar/calendar_page.dart
+
+# Verify no leftover debug prints
+echo ""
+echo "🔍 Verifying debug prints are removed..."
+grep -RIn "print(\s*'\[DEBUG\]" lib || echo "✅ All [DEBUG] prints removed"
+grep -RIn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" lib || echo "✅ All separator lines removed"
+
+══════════════════════════════════════════════════════════════════════
+STEP 2: CLEAR CACHE
+══════════════════════════════════════════════════════════════════════
+
+flutter clean
+rm -rf build .dart_tool
+flutter pub get
+
+Then in browser:
+- Open DevTools (F12)
+- Application → Service Workers → Unregister
+- Application → Storage → Clear site data
+- Close browser tab
+
+══════════════════════════════════════════════════════════════════════
+STEP 3: REVERT DATES (Run this Python script)
+══════════════════════════════════════════════════════════════════════
+
+# Default run (safe - aborts if backup exists):
+python3 - << 'PY'
+import re, datetime, sys, pathlib, shutil, time
+
+root = pathlib.Path('.')
+targets = list(root.rglob('kemetic_day_info.dart'))
+if not targets:
+    print("ERROR: Could not find kemetic_day_info.dart"); sys.exit(1)
+target = targets[0]
+print(f"🗂  Target file: {target}")
+
+# Check for --force flag
+force = "--force" in sys.argv
+
+TARGET_SLUGS = {'renwet', 'hnsw', 'henti', 'paipi', 'ipt'}
+MONTHS = {m.lower(): i for i, m in enumerate(['', 'January','February','March','April','May','June','July','August','September','October','November','December'])}
+
+def parse_date(s):
+    m = re.match(r'([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})$', s.strip())
+    if not m: return None
+    mon, day, yr = m.group(1).lower(), int(m.group(2)), int(m.group(3))
+    mi = MONTHS.get(mon)
+    return datetime.date(yr, mi, day) if mi else None
+
+def fmt_date(d):
+    # Portable date formatting (works on macOS/Linux/Windows)
+    return d.strftime('%B %d, %Y').replace(' 0', ' ')
+
+# Preflight count
+text = target.read_text(encoding='utf-8')
+preflight_count = len(re.findall(r"gregorianDate:\s*'", text))
+print(f"📊 Preflight: Found {preflight_count} gregorianDate fields")
+
+pattern = re.compile(r"(?P<key>[A-Za-z]+_\d+_\d+)'\s*:\s*KemeticDayInfo\([^)]*?gregorianDate:\s*'(?P<date>[^']+)'", re.DOTALL)
+
+backup = target.with_suffix(target.suffix + '.rollback.bak')
+
+# Handle backup with --force support
+if backup.exists() and not force:
+    print(f"⚠️  Backup already exists: {backup}")
+    print("   Re-run with --force to proceed (a timestamped backup will be created).")
+    sys.exit(1)
+
+if force and backup.exists():
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    backup = target.with_suffix(target.suffix + f".rollback.{ts}.bak")
+    print(f"🔄 Force mode: Creating timestamped backup: {backup}")
+
+if not backup.exists():
+    shutil.copy2(target, backup)
+    print(f"📦 Backup created: {backup}")
+else:
+    print(f"📦 Using existing backup: {backup}")
+
+total_changed = 0
+preview_logged = False
+
+def do_repl(m):
+    nonlocal total_changed, preview_logged
+    key, date_str = m.group('key'), m.group('date')
+    slug = key.split('_', 1)[0].lower()
+    if slug not in TARGET_SLUGS: return m.group(0)
+    d = parse_date(date_str)
+    if not d: return m.group(0)
+    if not (datetime.date(2025, 10, 1) <= d <= datetime.date(2026, 2, 28)):
+        return m.group(0)
+    new_d = d - datetime.timedelta(days=9)
+    total_changed += 1
+    if not preview_logged:
+        print(f"🔎 Sample: '{date_str}' → '{fmt_date(new_d)}'")
+        preview_logged = True
+    return m.group(0).replace(date_str, fmt_date(new_d))
+
+new_text = pattern.sub(do_repl, text)
+
+if total_changed == 0:
+    print("⚠️  0 changes found. Already reverted OR wrong date range.")
+    print("    Check if dates are already in Oct 7-Nov 5 range (pre-chat state).")
+    print("    Aborting write for safety.")
+    sys.exit(2)
+if total_changed > 200:
+    print(f"⚠️  {total_changed} changes found (expected ~120).")
+    print("    This is unexpectedly high. Aborting write for safety.")
+    sys.exit(2)
+
+if new_text != text:
+    target.write_text(new_text, encoding='utf-8')
+    print(f"✅ {total_changed} dates reverted")
+
+# Verify postflight count matches (same number of fields, dates changed)
+postflight_count = len(re.findall(r"gregorianDate:\s*'", new_text))
+if postflight_count != preflight_count:
+    print(f"⚠️  WARNING: Field count changed from {preflight_count} to {postflight_count}")
+else:
+    print(f"✅ Postflight: {postflight_count} gregorianDate fields (unchanged count)")
+
+print(f"\n💾 Backup: {backup}")
+print(f"📝 To restore: cp {backup} {target}")
+PY
+
+# If backup exists and you need to re-run, use:
+# python3 - << 'PY' ... PY --force
+
+══════════════════════════════════════════════════════════════════════
+STEP 4: FINAL BUILD & TEST
+══════════════════════════════════════════════════════════════════════
+
+flutter clean
+flutter pub get
+flutter run -d chrome --web-renderer html &
+HTML_PID=$!
+sleep 5
+kill $HTML_PID 2>/dev/null || true
+sleep 2
+flutter run -d chrome
+
+══════════════════════════════════════════════════════════════════════
+STEP 5: HARD RELOAD (CRITICAL - Do this in browser)
+══════════════════════════════════════════════════════════════════════
+
+After app opens in browser:
+1. Open DevTools (F12)
+2. Hard reload: Cmd+Shift+R (Mac) or Ctrl+Shift+R (Windows/Linux)
+   This ensures no stale CanvasKit or service worker cache remains.
+
+══════════════════════════════════════════════════════════════════════
+VERIFICATION
+══════════════════════════════════════════════════════════════════════
+
+In browser (after hard reload):
+✓ Console - should be clean (no debug spam)
+✓ Month headers - plain text (no gold gradient)
+✓ Tap any day - opens day view (works)
+✓ Long-press day - dropdown appears (works)
+✓ Check dates - months 8-11 back to Oct 7, Nov 6, etc. (original wrong dates)
+
+══════════════════════════════════════════════════════════════════════

@@ -1,0 +1,9 @@
+feat(calendar): finalize leap drift & DST; lock Year-1 scope and slugs
+
+- Y3 epagomenal corrected to Mar 15–20, 2028
+- Y4 start corrected to Mar 21, 2028; Y8 to Mar 22, 2032
+- DST (LA) fixed: Mar 9 / Nov 2, 2025
+- Add loud Year-1 banner to day cards
+- Add leap drift docstring to converter
+- Enforce canonical slugs (henti/paipi)
+- Golden tests: anchors, leap, DST, boundaries, slugs

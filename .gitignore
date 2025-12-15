@@ -1,0 +1,7 @@
+# Supabase secrets & temp
+.env
+.env.local
+SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_ANON_KEY
+supabase/.temp
+supabase/config.toml
