@@ -14,7 +14,7 @@ async function callAnthropicModel(
 ) {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) {
-    console.error("⚠️ ANTHROPIC_API_KEY missing — using mock response");
+    console.log("⚠️ ANTHROPIC_API_KEY missing — using mock response");
     return {
       content: [{
         text: JSON.stringify({
@@ -45,10 +45,10 @@ async function callAnthropicModel(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    console.error("📡 Calling Anthropic API:");
-    console.error("   Model:", modelId);
-    console.error("   URL:", ANTHROPIC_API_URL);
-    console.error("   Has API key:", !!apiKey);
+    console.log("📡 Calling Anthropic API:");
+    console.log("   Model:", modelId);
+    console.log("   URL:", ANTHROPIC_API_URL);
+    console.log("   Has API key:", !!apiKey);
 
     const res = await fetch(ANTHROPIC_API_URL, {
       method: "POST",
@@ -63,13 +63,13 @@ async function callAnthropicModel(
 
     clearTimeout(timeoutId);  // Clear timeout on success
 
-    console.error("📬 Anthropic API Response:");
-    console.error("   Status:", res.status);
-    console.error("   OK:", res.ok);
+    console.log("📬 Anthropic API Response:");
+    console.log("   Status:", res.status);
+    console.log("   OK:", res.ok);
 
     if (!res.ok) {
       const text = await res.text();
-      console.error("   Error body:", text);
+      console.log("   Error body:", text);
       throw new Error(
         `Anthropic API error: ${res.status} ${res.statusText} - ${text}`
       );
@@ -82,7 +82,7 @@ async function callAnthropicModel(
     
     // Check if it's a timeout error
     if (error.name === 'AbortError' || error.message?.includes('aborted')) {
-      console.error("❌ Claude API timeout after 45 seconds");
+      console.log("❌ Claude API timeout after 45 seconds");
       throw new Error('AI generation timed out. Please try again.');
     }
     
@@ -90,6 +90,149 @@ async function callAnthropicModel(
   }
 }
 const MAX_RETRIES = 1;
+
+const FLOW_CONTRACT_V3 = `You generate a FLOW: a structured schedule template across a date range.
+
+DEFINITION
+- A FLOW is a container of NOTES distributed across a date range.
+- Each NOTE represents a scheduled event (or all-day container) for a specific day_index.
+- Multiple NOTES may share the same day_index to represent multiple events on the same day.
+
+OUTPUT FORMAT (STRICT)
+Return ONLY valid JSON matching this schema:
+{
+  "flowName": string (non-empty),
+  "overview": { "title": string, "summary": string } (optional),
+  "notes": [
+    {
+      "day_index": number (>=0),
+      "title": string (non-empty),
+      "details": string (non-empty),
+      "allDay": boolean,
+      "startsAt": "HH:MM" (required if allDay=false),
+      "endsAt": "HH:MM" (required if allDay=false),
+      "chips": number[] (optional, values 1-10)
+    }
+  ]
+}
+
+HARD REQUIREMENTS
+- notes must cover EVERY day in the date range: include at least one note for each day_index from 0 to N-1.
+- day_index is 0-based from the startDate (0 = first day).
+- You MAY create multiple notes for the same day_index when appropriate.
+- If allDay=false: startsAt/endsAt must be 24h "HH:MM" and endsAt must be later than startsAt.
+- Prefer rounded times (e.g., 07:00, 12:00, 18:00). Avoid random minutes.
+- If chips are omitted, that is acceptable.
+
+INTERPRETATION MODES
+You will be given MODE and scheduling hints.
+- MODE=DICTATION: The user is dictating items/times. Do not expand with extra activities. Only structure faithfully.
+- MODE=ELABORATION: The user gave goals/theme. Create a practical schedule with reasonable defaults.
+
+SOURCE_TEXT
+If SOURCE_TEXT is provided:
+- Treat it as authoritative content. Reuse its phrasing and structure when possible.
+- Do not invent quotes or claim the text says things it does not.
+
+NO EXTRA TEXT
+- No markdown, no commentary, no preface, no trailing notes. JSON only.`;
+
+const FLOW_RULES_PACK_V1_2 = `RULES PACK v1.2
+
+SCHEDULING INTERPRETATION
+- If SCHEDULE_MODE=SPECIFIC_DAYS: Only schedule the main activity on those days.
+  Non-scheduled days still require at least one note/day_index: use a short Maintain/Rest note.
+- If SCHEDULE_MODE=DAILY: schedule the main activity daily.
+- If SCHEDULE_MODE=INTERVAL: schedule the main activity every INTERVAL_N days; non-scheduled days get Maintain/Rest.
+
+TIME-OF-DAY DEFAULTS (unless user specifies times)
+- workout: 07:00–08:00
+- body/health routines: 08:00–08:30
+- business/deep work: 09:00–11:00
+- reflection/journaling: 20:00–20:30
+
+MULTI-EVENT PER DAY
+- If MULTI_EVENT_OK=true, create 2 notes/day_index when appropriate:
+  main session + evening mental-only anchor.
+- Do not create more than 3 notes per day_index unless the user explicitly requests it.
+
+DETAILS WRITING STYLE (CRITICAL)
+- Write details like a natural ChatGPT message the user would actually want in their calendar.
+- Do NOT use labeled sections or headings (no "Arrival:", "Mental Rehearsal:", etc).
+- Do NOT use meta phrases like "This reinforces..." or "Why this works..." or "Journal Anchor:".
+  If you explain why, do it as a single natural sentence and vary it across days.
+- Avoid generic grounding filler (e.g., "take a deep breath", "relax your shoulders") unless it’s domain-specific and concrete.
+- Keep it practical, specific, and execution-ready.
+- Use domain specifics: tools, workspace, ingredients, instrument, IDE, file names, temperatures, durations, reps, etc.
+
+DOMAIN DEPTH RULE (MAIN SESSION ONLY)
+For the FIRST note of each day_index (the main session when MULTI_EVENT_OK=true):
+- Make the first note 20–35% longer than the second note.
+- Include at least:
+  * 1 precise technical cue (body position, tool angle, timing, grip, footwork, heat level, voltage, syntax, etc. depending on domain).
+  * 1 measurable constraint (reps, duration, tempo, speed, weight, count, time block, success target).
+  * 1 adjustment instruction (what to modify if execution breaks down).
+- Reference real-world performance conditions where relevant (fatigue, pressure, speed, environmental variables, constraints).
+- Do NOT add theory explanations, labeled sections, teaching paragraphs, motivational speeches, or generic filler.
+- Maintain the same natural, calendar-native tone. The goal is credibility through specificity, not verbosity.
+
+EVENING NOTE DEPTH LIMIT
+For the SECOND note of each day_index (evening / reflection):
+- Keep it concise.
+- Do NOT add additional technical depth or measurable constraints.
+- Focus only on consolidation, reframing, memory peg, or future-self journaling as already defined.
+- Keep it tight and emotionally integrative.
+
+EXPERTISE ESCALATION RULE
+Across the full flow:
+- Early days = foundational technical control.
+- Middle days = layered complexity and constraints.
+- Final days = integration under realistic performance conditions.
+- Expertise should compound naturally across day_index. Do not repeat the same technical cue twice in the flow.
+
+INVISIBLE STRUCTURE (MUST BE PRESENT, MUST NOT LOOK LIKE A TEMPLATE)
+In MODE=ELABORATION, each MAIN SESSION note must include all of these ingredients, but NOT always in the same order and NOT always as separate blocks:
+- Setup/context that makes the task concrete.
+- A next-60-seconds cue that reduces hesitation (can be a mental rep OR a micro-check OR a decision).
+- Clear actions the user can execute without guessing (with concrete specifics).
+- A one-line close prompt that captures a win + one adjustment (or what to try next time).
+
+Rotation rule (forces variety across days):
+- Rotate which ingredient leads the note by day_index:
+  day_index%4==0: Setup leads
+  day_index%4==1: Steps lead
+  day_index%4==2: Close leads
+  day_index%4==3: Next-60-seconds cue leads
+
+MODE=DICTATION
+- Keep details literal and minimal; do not add extra activities or coaching.
+
+ANTI-MECHANICAL VARIATION (HARD)
+- Never repeat the exact same sentence in two different notes (including evening notes).
+- Never start two consecutive day_index notes with the same 3-word phrase.
+- Avoid recurring openers like "Set up:", "Today's focus:", "Do this first:".
+- Vary sentence rhythm and length. Some notes tight/direct. Some slightly descriptive.
+- Vary formatting across days (numbered steps, bullets, compact paragraph), but keep clarity.
+- Avoid motivational cliches.
+
+SECOND NOTE (when MULTI_EVENT_OK=true)
+Create an evening note most days (20:00–20:30 by default). It must be mental-only (no physical tasks), 5–12 minutes, and must not look templated.
+
+Evening note formats (rotate; do not use the same format two nights in a row):
+A) Tiny recap (3–4 sentences): what mattered / what shifted / what to try next.
+B) Future-self postcard (4–6 sentences): speak from the future, name one specific win from today.
+C) Replay the hardest 10 seconds: rewrite the approach in one clean sentence, then one vivid image cue.
+D) Memory peg (optional): one exaggerated image tied to ONE concept from today, explained simply.
+
+Memory cues must be simple: familiar place, one room, one object, one concept. No recurring phrase "memory palace".
+
+PATTERNING RULE
+- Keep start time consistent across days unless user specifies otherwise.
+- Do NOT repeat ritual text daily.
+- If you include a start/end cue, keep it to one short line and keep it domain-specific.
+
+CHIPS
+- If chips are included, set chips = [(day_index % 10) + 1] unless the user provides a specific decan day.`;
 
 // ---- LLM JSON schema for ai_generate_flow ----
 type LLMNote = {
@@ -100,6 +243,7 @@ type LLMNote = {
   startsAt: string;        // "HH:MM" 24h
   endsAt: string;          // "HH:MM" 24h
   chips?: number[];        // decan day chips 1–10 (used by the model, NOT stored in DB)
+  location?: string;
 };
 
 type LLMOverview = {
@@ -228,177 +372,19 @@ function buildAnthropicMessages(userPrompt) {
 }
 
 function buildSystemPrompt(): string {
-  return `
+  return `${FLOW_CONTRACT_V3}
 
-You are the **Ma'at Flow Architect**.
+${FLOW_RULES_PACK_V1_2}
 
-You design 7–30 day lifestyle FLOWS for the Ma'at Living Calendar App.
-
-A **Flow** = a sequence of daily, actionable tasks tied to specific days in a date range.
-The app converts your JSON into scheduled events.
-
-You MUST obey this JSON schema EXACTLY (no extra fields, no comments):
-
-{
-  "flowName": "string",
-  "overview": {
-    "title": "string",
-    "summary": "string"
-  },
-  "notes": [
-    {
-      "day_index": 0,
-      "title": "string",
-      "details": "string",
-      "allDay": true,
-      "startsAt": "HH:MM",
-      "endsAt": "HH:MM",
-      "chips": [1, 2, 3]
-    }
-  ]
+PRIORITY OVERRIDE:
+If any rule conflicts, prioritize: (1) natural non-templated writing, (2) zero repeated sentences/phrases, (3) no headings/labels, over all other stylistic guidance.`;
 }
 
-Rules:
-- Output **ONLY** valid JSON that matches this schema. No markdown, no prose, no explanations.
-- \`day_index\` is 0-based from the user's startDate (0 = first day, 1 = second day, etc).
-- \`chips\` is a list of **decan day numbers 1–10** that the day belongs to. If unclear, use the 1–10 pattern blindly by cycling: (day_index % 10) + 1.
-- \`allDay\`:
-  - true  → ignore \`startsAt\`/\`endsAt\` (can be "00:00").
-  - false → \`startsAt\` and \`endsAt\` MUST be "HH:MM" 24h time.
-- Times must make sense: \`endsAt\` later than \`startsAt\`.
-- Every day in the requested date range should have **at least one note**.
-
-ALWAYS RESPECT:
-- The provided date range (start_date, end_date).
-- The FLOW_TYPE you receive. If FLOW_TYPE=workout, you MUST only generate training-related notes (no Lunch, Dinner, chores) unless the user explicitly includes meals.
-- Any user preferences:
-  - If they mention "weekdays only", only schedule on Monday–Friday.
-  - If they mention specific times (e.g., 7pm, mornings), use those for startsAt/endsAt.
-  - If they say "3 days per week", space notes across the range accordingly.
-
-GENERAL STYLE RULES
-- Never be vague or motivational only.
-- Every \`details\` field must be rich and step-by-step:
-  - Lists of actions
-  - Quantities, durations, measurements, or examples
-  - Clear "how to", not "remember to…".
-- Use short paragraphs or bullet-like lines separated by newlines; avoid giant walls of text.
-
-IF THE USER GIVES SOURCE MATERIAL
-- The request may include a \`source_text\` with raw notes / book pages / chat logs.
-- Boil that down into a **structured flow**:
-  - Preserve the important ideas and sequencing.
-  - Turn high-level advice into concrete daily tasks.
-  - Respect any explicit constraints (weekdays only, mornings only, etc).
-
-WEEKDAY / TIME CONSTRAINTS
-- If the user mentions weekdays (Mon–Fri, weekends only, etc.), or specific times:
-  - Respect those when assigning \`day_index\` and \`startsAt\`/\`endsAt\`.
-  - If they say "weekdays only", leave weekend days empty or use reflection / review tasks that fit the theme.
-
-HAIR / BODY / HEALTH FLOWS (EXAMPLE STYLE)
-- For goals like "regrow hair", "improve sleep", "detox", etc:
-  - Include protocols, recipes, dosages where reasonable (e.g. "drink 16 oz warm water with lemon").
-  - Reference safe, common-sense practices (hydration, nutrition, gentle routines).
-  - Each day should feel like a **mini protocol**, not a reminder.
-
-WORKOUT / TRAINING FLOWS (STRICT RULES)
-When the user asks for any **workout, lifting, training, sport practice, or physical routine**:
-
-1. Each training day MUST include:
-   - 3–6 distinct exercises.
-   - For each exercise: **sets, reps, and rest** (e.g. "3 × 10–12 reps, 60–90 sec rest").
-   - Any needed equipment (dumbbells, barbell, bands, bodyweight).
-   - A clear goal for the session (e.g. "Hypertrophy for shoulders and triceps", "Technique-focused drum practice").
-
-2. Program design:
-   - Use simple, real-world programming principles:
-     - Upper/Lower, Push/Pull/Legs, full-body, or skill practice blocks.
-     - Slight progression over the days (more volume, tempo, or intensity).
-     - At least one lighter / recovery day in a 7+ day flow.
-
-3. DETAILS LENGTH (NON-NEGOTIABLE):
-   - \`details\` MUST contain **at least 4 separate action lines**.
-   - Use line breaks (\`\n\`) or \`1)\`, \`2)\`, \`3)\` style numbering.
-   - Never write a single short sentence like "Increase intensity with weights."  
-     That is INVALID. Expand it into concrete instructions.
-
-4. TOPIC DISCIPLINE:
-   - If the user's description is clearly about a **workout or training plan only**, do **NOT** add unrelated notes like "Lunch", "Dinner", "Meetings", or random chores.
-   - Only include nutrition / lifestyle tasks if the user explicitly mentions wanting meals / diet in this particular flow.
-
-5. EXAMPLES (FOLLOW FORMAT & DETAIL LEVEL, NOT THE CONTENT):
-
-Example 1 – Strength Workout Flow (short, 3 days shown):
-
-{
-  "flowName": "Upper/Lower Strength Split",
-  "overview": {
-    "title": "Upper/Lower Strength & Core – 4 Week Template",
-    "summary": "A simple, progressive 4-week plan focusing on basic compound lifts, joint-friendly accessory work, and consistent core training. Two upper days, two lower days per week. Each session lasts 45–60 minutes."
-  },
-  "notes": [
-    {
-      "day_index": 0,
-      "title": "Day 1 – Upper Body Strength",
-      "details": "Warm-up: 5–8 min brisk walk or cycle.\\n\\n1) Bench Press – 4 × 5–6 reps, 2–3 min rest. Choose a weight that feels heavy but repeatable with clean form.\\n2) Bent-Over Barbell Row – 4 × 6–8 reps, 2 min rest. Keep back flat and pull bar to lower ribs.\\n3) Seated Dumbbell Shoulder Press – 3 × 8–10 reps, 90 sec rest.\\n4) Lat Pulldown or Pull-ups – 3 × 6–10 reps, 90 sec rest.\\n5) Plank – 3 × 30–45 sec holds, 45 sec rest.\\n\\nCool-down: 5 min easy stretching for chest, shoulders, and upper back.",
-      "allDay": false,
-      "startsAt": "18:00",
-      "endsAt": "19:00",
-      "chips": [1]
-    },
-    {
-      "day_index": 2,
-      "title": "Day 3 – Lower Body & Core",
-      "details": "Warm-up: 5–8 min light bike or incline walk.\\n\\n1) Back Squat or Goblet Squat – 4 × 6–8 reps, 2–3 min rest.\\n2) Romanian Deadlift – 3 × 8–10 reps, 2 min rest.\\n3) Walking Lunges – 3 × 10–12 steps per leg, 90 sec rest.\\n4) Calf Raises – 3 × 12–15 reps, 60–90 sec rest.\\n5) Hanging Knee Raises – 3 × 12–15 reps, 60 sec rest.\\n\\nCool-down: 5 min stretching for quads, hamstrings, and hips.",
-      "allDay": false,
-      "startsAt": "18:00",
-      "endsAt": "19:00",
-      "chips": [3]
-    },
-    {
-      "day_index": 4,
-      "title": "Day 5 – Upper Volume & Core",
-      "details": "Warm-up: 5–8 min brisk walk or jump rope.\\n\\n1) Incline Dumbbell Press – 4 × 8–10 reps, 90 sec rest.\\n2) One-arm Dumbbell Row – 3 × 10–12 reps per arm, 90 sec rest.\\n3) Lateral Raises – 3 × 12–15 reps, 60 sec rest.\\n4) Tricep Rope Pushdowns – 3 × 10–12 reps, 60–90 sec rest.\\n5) Cable or Band Face Pulls – 3 × 15 reps, 60 sec rest.\\n6) Side Plank – 3 × 20–30 sec per side, 45 sec rest.\\n\\nCool-down: 5 min stretching for shoulders and upper back.",
-      "allDay": false,
-      "startsAt": "18:00",
-      "endsAt": "19:00",
-      "chips": [5]
-    }
-  ]
+async function getPromptFingerprint(systemPrompt?: string): Promise<string> {
+  const prompt = systemPrompt ?? buildSystemPrompt();
+  return sha256Hex(prompt);
 }
 
-Example 2 – Hair/Body Care Flow (structure only, not for copying content):
-
-{
-  "flowName": "30-Day Hair Growth & Scalp Reset",
-  "overview": {
-    "title": "Scalp Reset and Growth Stimulation",
-    "summary": "Thirty days of rotating scalp detox, circulation work, microneedling, and nutrition so the follicles get both external and internal support. Weekly cycles repeat with small progressions rather than random tasks."
-  },
-  "notes": [
-    {
-      "day_index": 0,
-      "title": "Day 1 – Deep Scalp Reset",
-      "details": "1) Mix detox mask: 2 tbsp bentonite clay + 1 tbsp apple cider vinegar + 1 tbsp aloe gel + a little water until paste-like.\\n2) Apply only to scalp, avoiding hair length. Leave on 10–12 minutes, then rinse thoroughly.\\n3) Wash with rosemary shampoo bar, focusing massage on the scalp, not the ends.\\n4) Drink 16 oz warm water with lemon in the morning; aim for 64 oz of water across the day.\\n5) Supplements: Vitamin D3 2000 IU and Zinc 15–30 mg with food, unless medically contraindicated.\\n\\nGoal: Remove buildup, open follicles, and hydrate from inside.",
-      "allDay": false,
-      "startsAt": "09:00",
-      "endsAt": "10:00",
-      "chips": [1]
-    }
-  ]
-}
-
-JSON OUTPUT REQUIREMENTS
-- Do NOT include trailing commas.
-- Do NOT include comments or explanations outside the JSON.
-- Do NOT wrap JSON in backticks.
-- If the user's request is extremely short, still generate a full, rich flow that matches the date range.
-
-Your job: Given description, date range, timezone, and optional source_text, return **one JSON object** exactly matching the schema above, with detailed, real-world tasks for each day.
-
-`;
-}
 
 function extractAnthropicText(data) {
   if (!data) return "";
@@ -430,47 +416,309 @@ function stripCodeFences(input) {
   return fenced;
 }
 
+const DAY_ORDER = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+const DAY_LOOKUP: Record<string, string> = {
+  sun: "SUN",
+  sunday: "SUN",
+  mon: "MON",
+  monday: "MON",
+  tue: "TUE",
+  tues: "TUE",
+  tuesday: "TUE",
+  wed: "WED",
+  weds: "WED",
+  wednesday: "WED",
+  thu: "THU",
+  thur: "THU",
+  thurs: "THU",
+  thursday: "THU",
+  fri: "FRI",
+  friday: "FRI",
+  sat: "SAT",
+  saturday: "SAT",
+};
+
+function isValidTimeString(value?: string | null): boolean {
+  if (!value || typeof value !== "string") return false;
+  return /^([01]?\d|2[0-3]):[0-5]\d$/.test(value.trim());
+}
+
+function timeToMinutes(value?: string | null): number | null {
+  if (!isValidTimeString(value)) return null;
+  const [h, m] = value.split(":").map((n) => parseInt(n, 10));
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return h * 60 + m;
+}
+
+function detectExplicitTimes(text: string): boolean {
+  if (!text) return false;
+  const timePattern = /\b(\d{1,2}:\d{2}|\d{1,2}\s?(?:am|pm))\b/i;
+  return timePattern.test(text);
+}
+
+function looksListLike(text: string): boolean {
+  if (!text) return false;
+  const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const bulletLines = lines.filter((l) => /^[-*•\d]/.test(l));
+  const shortLines = lines.filter((l) => l.length > 0 && l.length <= 60);
+  const commaChunks = text.split(",").map((c) => c.trim()).filter(Boolean);
+  return (
+    bulletLines.length >= 2 ||
+    shortLines.length >= 3 ||
+    (commaChunks.length >= 3 && text.length <= 240)
+  );
+}
+
+function inferMode(description: string, sourceText?: string): "DICTATION" | "ELABORATION" {
+  const lower = (description || "").toLowerCase();
+  const hasDictationCue = /(just\s+add|put\s+this\s+in|log\s+this|schedule\s+these)/i.test(lower);
+  const hasExplicitTimes = detectExplicitTimes(description);
+  const listy = looksListLike(description);
+  const structuredSource = !!sourceText && sourceText.length > 400 && /\n/.test(sourceText);
+
+  if (hasExplicitTimes || hasDictationCue || listy || structuredSource) {
+    return "DICTATION";
+  }
+  return "ELABORATION";
+}
+
+type ScheduleInference = {
+  scheduleMode: "DAILY" | "SPECIFIC_DAYS" | "INTERVAL";
+  specificDays: string[];
+  intervalN?: number;
+};
+
+function normalizeSpecificDays(days: Set<string>): string[] {
+  const ordered = DAY_ORDER.filter((d) => days.has(d));
+  return ordered;
+}
+
+function inferSchedule(description: string): ScheduleInference {
+  const lower = (description || "").toLowerCase();
+  const specificDays = new Set<string>();
+
+  if (/\bweekdays?\b/.test(lower)) {
+    ["MON", "TUE", "WED", "THU", "FRI"].forEach((d) => specificDays.add(d));
+  }
+  if (/\bweekends?\b/.test(lower)) {
+    ["SAT", "SUN"].forEach((d) => specificDays.add(d));
+  }
+  if (/\bmwf\b/i.test(description)) {
+    ["MON", "WED", "FRI"].forEach((d) => specificDays.add(d));
+  }
+  if (/\btth\b/i.test(description) || /\bt\/?th\b/i.test(description)) {
+    ["TUE", "THU"].forEach((d) => specificDays.add(d));
+  }
+
+  for (const [token, day] of Object.entries(DAY_LOOKUP)) {
+    const re = new RegExp(`\\b${token}\\b`, "i");
+    if (re.test(description)) specificDays.add(day);
+  }
+
+  let intervalN: number | undefined;
+  if (specificDays.size === 0) {
+    const intervalMatch = lower.match(/every\s+(other|\d+)\s+days?/i);
+    if (intervalMatch) {
+      intervalN = intervalMatch[1].toLowerCase() === "other"
+        ? 2
+        : parseInt(intervalMatch[1], 10);
+    }
+  }
+
+  if (specificDays.size > 0) {
+    return {
+      scheduleMode: "SPECIFIC_DAYS",
+      specificDays: normalizeSpecificDays(specificDays),
+    };
+  }
+
+  if (intervalN && Number.isFinite(intervalN) && intervalN > 0) {
+    return { scheduleMode: "INTERVAL", specificDays: [], intervalN };
+  }
+
+  return { scheduleMode: "DAILY", specificDays: [] };
+}
+
+function hasExplicitMultiEventRequest(text: string): boolean {
+  if (!text) return false;
+  return /(two\s+(times|sessions)\s+a\s+day|twice\s+a\s+day|morning\s+and\s+evening|am\s+and\s+pm|both\s+morning\s+and\s+night|split\s+into\s+am\/pm)/i.test(
+    text,
+  );
+}
+
+function inferMultiEventOk(
+  mode: "DICTATION" | "ELABORATION",
+  flowType: "workout" | "body" | "business" | "generic",
+  description: string,
+): boolean {
+  if (hasExplicitMultiEventRequest(description)) return true;
+  if (mode === "DICTATION") return false;
+
+  // Always allow two anchors for these established categories
+  if (flowType === "workout" || flowType === "body" || flowType === "business") return true;
+
+  // For generic flows, only allow two anchors when intent is clearly learning/skill-building
+  const learningIntent =
+    /(learn|learning|practice|skill|study|train|training|get better|improve|master|drill|retention|memory|reps|mental reps|visualize|visualization)/i.test(
+      description,
+    );
+
+  // Avoid accidentally forcing two anchors for simple "plan my dinners" type requests
+  const recipeLike =
+    /(recipe|recipes|meal plan|meals|dinner|dinners|menu|shopping list)/i.test(description);
+
+  if (recipeLike) return false;
+
+  return learningIntent;
+}
+
+function inferTimePreference(description: string): "morning" | "midday" | "evening" | "none" {
+  if (!description) return "none";
+  const lower = description.toLowerCase();
+  if (/\bmorn(ing)?\b/.test(lower) || /\bdawn\b/.test(lower)) return "morning";
+  if (/\bevening\b|\bnight\b/.test(lower)) return "evening";
+  if (/\bafternoon\b|\bmidday\b/.test(lower)) return "midday";
+
+  const timeMatch = description.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  if (timeMatch) {
+    let hour = parseInt(timeMatch[1], 10);
+    const minutesPresent = typeof timeMatch[2] === "string";
+    const meridiem = timeMatch[3]?.toLowerCase();
+    if (meridiem === "pm" && hour < 12) hour += 12;
+    if (meridiem === "am" && hour === 12) hour = 0;
+    if (!meridiem && !minutesPresent) return "none";
+    if (hour < 11) return "morning";
+    if (hour < 16) return "midday";
+    return "evening";
+  }
+
+  return "none";
+}
+
+function dayNameFromIndex(startDateStr: string, dayIndex: number): string | null {
+  const startMs = Date.parse(startDateStr);
+  if (Number.isNaN(startMs)) return null;
+  const targetMs = startMs + dayIndex * 24 * 60 * 60 * 1000;
+  const dayNum = new Date(targetMs).getUTCDay();
+  return DAY_ORDER[dayNum] ?? null;
+}
+
+function isRestNote(title?: string, details?: string): boolean {
+  const text = `${title ?? ""} ${details ?? ""}`.toLowerCase();
+  return /(maintain|rest|recover|journal|reflection|check[- ]?in|review)/i.test(text);
+}
+
+function validateSpecificDays(
+  notes: LLMNote[],
+  startDate: string,
+  allowedDays: string[],
+): { ok: boolean; violations: number } {
+  if (!allowedDays || allowedDays.length === 0) return { ok: true, violations: 0 };
+  const allowed = new Set(allowedDays);
+  let violations = 0;
+
+  for (const n of notes || []) {
+    if (!Number.isInteger(n?.day_index)) continue;
+    const dayName = dayNameFromIndex(startDate, n.day_index);
+    if (!dayName || allowed.has(dayName)) continue;
+    if (!isRestNote(n.title, n.details)) violations += 1;
+  }
+
+  return { ok: violations === 0, violations };
+}
+
 // ✅ REFACTOR: Removed all date/time helper functions
 // Flutter is now the only source of truth for all date calculations
 
-// ✅ REFACTOR: Transform LLMFlow -> ParsedFlow (no date calculations)
-// Flutter will compute all actual dates from day_index + startDate
-// ✅ Always use sequential day_index (0, 1, 2...) - never trust LLM's day_index
+// ✅ Transform LLMFlow -> ParsedFlow with trust-but-verify day_index handling
 function transformLLMFlowToParsedFlow(
   llm: LLMFlow,
-  startDateStr: string  // kept for logging only, not used in calculations
+  startDateStr: string,  // kept for logging/validation only
+  dateRangeDays: number,
 ): ParsedFlow {
   const overviewTitle = llm.overview?.title ?? null;
   const overviewSummary = llm.overview?.summary ?? null;
-  const notes = llm.notes ?? [];
+  const notes = Array.isArray(llm.notes) ? llm.notes : [];
 
-  // ✅ Simplified: Always use sequential indices (0, 1, 2...)
-  // Never trust LLM's day_index - it's unreliable and causes date drift
-  const parsedNotes: ParsedNote[] = notes.map((n: LLMNote, idx: number) => {
+  const isValidDayIndex = (value: unknown) =>
+    Number.isInteger(value) && value >= 0 && value < dateRangeDays;
+
+  const buildParsedNote = (n: LLMNote, dayIndex: number): ParsedNote => {
     const rawAllDay = typeof n.allDay === "boolean" ? n.allDay : false;
-
-    // Extract time strings if LLM provided them (but ignore any dates)
-    const startTime = n.startsAt && n.startsAt.includes(":")
-      ? n.startsAt
-      : rawAllDay
-      ? null  // all-day events don't need times
-      : null;  // Flutter will set defaults if needed
-
-    const endTime = n.endsAt && n.endsAt.includes(":")
-      ? n.endsAt
-      : rawAllDay
-      ? null
-      : null;
+    const startTime = isValidTimeString(n.startsAt) ? n.startsAt : null;
+    const endTime = isValidTimeString(n.endsAt) ? n.endsAt : null;
 
     return {
-      day_index: idx,  // ✅ Always sequential, never trust LLM
-      title: n.title?.trim() || `Day ${idx + 1}`,
+      day_index: dayIndex,
+      title: n.title?.trim() || `Day ${dayIndex + 1}`,
       details: (n.details ?? "").toString().trim(),
       all_day: rawAllDay,
-      start_time: startTime,
-      end_time: endTime,
+      start_time: rawAllDay ? null : startTime,
+      end_time: rawAllDay ? null : endTime,
       location: n.location?.trim() || null,
     };
+  };
+
+  let validCount = 0;
+  for (const n of notes) {
+    if (isValidDayIndex(n?.day_index)) validCount += 1;
+  }
+
+  const mostlyInvalid = notes.length > 0 && validCount / notes.length < 0.5;
+  let parsedNotes: ParsedNote[] = [];
+
+  if (mostlyInvalid) {
+    parsedNotes = notes.map((n: LLMNote, idx: number) => {
+      const safeIndex = dateRangeDays > 0 ? idx % dateRangeDays : idx;
+      return buildParsedNote(n, safeIndex);
+    });
+  } else {
+    const invalidBucket: LLMNote[] = [];
+    const used = new Set<number>();
+
+    for (const n of notes) {
+      if (isValidDayIndex(n?.day_index)) {
+        parsedNotes.push(buildParsedNote(n, n.day_index));
+        used.add(n.day_index);
+      } else {
+        invalidBucket.push(n);
+      }
+    }
+
+    const missing = [];
+    for (let i = 0; i < dateRangeDays; i++) {
+      if (!used.has(i)) missing.push(i);
+    }
+
+    let fallbackIdx = parsedNotes.length % Math.max(dateRangeDays, 1);
+    for (const n of invalidBucket) {
+      const target = missing.length > 0 ? missing.shift()! : fallbackIdx;
+      parsedNotes.push(buildParsedNote(n, target));
+      used.add(target);
+      fallbackIdx = (fallbackIdx + 1) % Math.max(dateRangeDays, 1);
+    }
+  }
+
+  const seen = new Set(parsedNotes.map((n) => n.day_index));
+  for (let i = 0; i < dateRangeDays; i++) {
+    if (!seen.has(i)) {
+      parsedNotes.push({
+        day_index: i,
+        title: `Day ${i + 1} – Maintain`,
+        details: "Maintain momentum with an all-day placeholder.",
+        all_day: true,
+        start_time: null,
+        end_time: null,
+        location: null,
+      });
+    }
+  }
+
+  parsedNotes.sort((a, b) => {
+    if (a.day_index !== b.day_index) return a.day_index - b.day_index;
+    const aMinutes = timeToMinutes(a.start_time) ?? Number.MAX_SAFE_INTEGER;
+    const bMinutes = timeToMinutes(b.start_time) ?? Number.MAX_SAFE_INTEGER;
+    return aMinutes - bMinutes;
   });
 
   return {
@@ -482,7 +730,10 @@ function transformLLMFlowToParsedFlow(
 }
 
 
-function validateParsedFlow(flow: ParsedFlow): { ok: boolean; error?: string } {
+function validateParsedFlow(
+  flow: ParsedFlow,
+  dateRangeDays?: number,
+): { ok: boolean; error?: string } {
   if (!flow || typeof flow !== "object")
     return { ok: false, error: "Parsed content is not an object" };
 
@@ -498,12 +749,19 @@ function validateParsedFlow(flow: ParsedFlow): { ok: boolean; error?: string } {
 
     if (
       typeof n.day_index !== "number" ||
+      !Number.isInteger(n.day_index) ||
       n.day_index < 0 ||
       !Number.isFinite(n.day_index)
     ) {
       return {
         ok: false,
         error: `notes[${i}].day_index is required and must be a non-negative number`,
+      };
+    }
+    if (typeof dateRangeDays === "number" && n.day_index >= dateRangeDays) {
+      return {
+        ok: false,
+        error: `notes[${i}].day_index must be within the requested range`,
       };
     }
 
@@ -516,6 +774,20 @@ function validateParsedFlow(flow: ParsedFlow): { ok: boolean; error?: string } {
     if (typeof n.all_day !== "boolean")
       return { ok: false, error: `notes[${i}].all_day must be a boolean` };
 
+    if (!n.all_day) {
+      if (!isValidTimeString(n.start_time)) {
+        return { ok: false, error: `notes[${i}].start_time must be HH:MM when all_day is false` };
+      }
+      if (!isValidTimeString(n.end_time)) {
+        return { ok: false, error: `notes[${i}].end_time must be HH:MM when all_day is false` };
+      }
+      const startMinutes = timeToMinutes(n.start_time);
+      const endMinutes = timeToMinutes(n.end_time);
+      if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
+        return { ok: false, error: `notes[${i}].end_time must be later than start_time` };
+      }
+    }
+
     if (n.start_time != null && typeof n.start_time !== "string")
       return { ok: false, error: `notes[${i}].start_time must be a string if provided` };
 
@@ -526,7 +798,93 @@ function validateParsedFlow(flow: ParsedFlow): { ok: boolean; error?: string } {
       return { ok: false, error: `notes[${i}].location must be a string if provided` };
   }
 
+  if (typeof dateRangeDays === "number" && Number.isFinite(dateRangeDays) && dateRangeDays > 0) {
+    const covered = new Set(flow.notes.map((n) => n.day_index));
+    for (let i = 0; i < dateRangeDays; i++) {
+      if (!covered.has(i)) {
+        return { ok: false, error: `Missing coverage for day_index ${i}` };
+      }
+    }
+  }
+
   return { ok: true };
+}
+
+function validateLLMFlowOutput(
+  llm: LLMFlow | null,
+  dateRangeDays: number,
+): { ok: boolean; errors: string[] } {
+  const errors: string[] = [];
+  if (!llm || typeof llm !== "object") return { ok: false, errors: ["LLM output missing"] };
+
+  if (typeof llm.flowName !== "string" || llm.flowName.trim() === "") {
+    errors.push("Missing flowName");
+  }
+
+  if (!Array.isArray(llm.notes) || llm.notes.length === 0) {
+    errors.push("notes must be a non-empty array");
+    return { ok: errors.length === 0, errors };
+  }
+
+  const covered = new Set<number>();
+
+  for (const [i, n] of llm.notes.entries()) {
+    if (!n || typeof n !== "object") {
+      errors.push(`notes[${i}] is not an object`);
+      continue;
+    }
+
+    if (!Number.isInteger(n.day_index) || n.day_index < 0 || n.day_index >= dateRangeDays) {
+      errors.push(`notes[${i}].day_index invalid`);
+    } else {
+      covered.add(n.day_index);
+    }
+
+    if (typeof n.title !== "string" || n.title.trim() === "") {
+      errors.push(`notes[${i}].title missing`);
+    }
+    if (typeof n.details !== "string" || n.details.trim() === "") {
+      errors.push(`notes[${i}].details missing`);
+    }
+    if (typeof n.allDay !== "boolean") {
+      errors.push(`notes[${i}].allDay must be boolean`);
+    }
+    if (n.allDay === false) {
+      if (!isValidTimeString(n.startsAt)) errors.push(`notes[${i}].startsAt invalid`);
+      if (!isValidTimeString(n.endsAt)) errors.push(`notes[${i}].endsAt invalid`);
+      const startMinutes = timeToMinutes(n.startsAt);
+      const endMinutes = timeToMinutes(n.endsAt);
+      if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
+        errors.push(`notes[${i}].endsAt must be later than startsAt`);
+      }
+    }
+  }
+
+  for (let i = 0; i < dateRangeDays; i++) {
+    if (!covered.has(i)) errors.push(`Missing day_index ${i}`);
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
+// Minimal post-processing: only normalize legacy headings and fill truly empty notes.
+function enforceRichStructure(flow: ParsedFlow) {
+  const normalizeOldHeadings = (text: string) =>
+    (text ?? "").replace(/^\s*Orientation:\s*$/im, "Arrival:");
+
+  flow.notes = flow.notes.map((n) => {
+    const details = normalizeOldHeadings((n.details ?? "").trim());
+
+    // If the note is empty, provide a single prompt; otherwise leave model output untouched.
+    if (!details) {
+      return {
+        ...n,
+        details: "Write one sentence: what is the next obvious move, and what would make it easier?",
+      };
+    }
+
+    return { ...n, details };
+  });
 }
 
 function calculateCostCents(model, tokensIn, tokensOut) {
@@ -546,6 +904,11 @@ function hexColorToBigInt(hexColor) {
 }
 
 Deno.serve(async (req) => {
+  console.log("AI_GENERATE_FLOW_BUILD=2026-02-12_0905A");
+  const systemPrompt = buildSystemPrompt();
+  const promptFingerprint = await getPromptFingerprint(systemPrompt);
+  const promptFingerprintShort = promptFingerprint.slice(0, 12);
+  console.log(`[ai_generate_flow] PROMPT_VERSION=${promptFingerprintShort}`);
   const origin = req.headers.get("origin") ?? "*";
 
   if (req.method === "OPTIONS") {
@@ -576,9 +939,36 @@ Deno.serve(async (req) => {
 
     const { description, startDate, endDate, flowName, flowColor, timezone, source_text } =
       body;
+    const forceRefresh = body?.force_refresh === true;
+    console.log("[ai_generate_flow] PROMPT_VERSION:", promptFingerprintShort);
+    console.log("[ai_generate_flow] force_refresh:", forceRefresh);
     if (!description || !startDate || !endDate) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": origin,
+          },
+        }
+      );
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const dateRangeDays = Math.floor(
+      (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1;
+
+    if (
+      Number.isNaN(start.getTime()) ||
+      Number.isNaN(end.getTime()) ||
+      !Number.isFinite(dateRangeDays) ||
+      dateRangeDays <= 0
+    ) {
+      return new Response(
+        JSON.stringify({ error: "Invalid date range" }),
         {
           status: 400,
           headers: {
@@ -650,7 +1040,7 @@ Deno.serve(async (req) => {
     // Quota/rate limits removed - let OpenAI handle rate limiting
 
     // 🔧 EXTENSIVE AUTH DEBUG LOGGING
-    console.error("=== AUTH DEBUG START ===");
+    console.log("=== AUTH DEBUG START ===");
     
     // Log all headers that contain 'auth'
     const allHeaders = {};
@@ -659,17 +1049,17 @@ Deno.serve(async (req) => {
         allHeaders[key] = value;
       }
     }
-    console.error("🔍 All request headers with 'auth':", allHeaders);
+    console.log("🔍 All request headers with 'auth':", allHeaders);
     
     // __authHeader already extracted above - reuse it
-    console.error("🔍 Auth header present:", !!__authHeader);
-    console.error("🔍 Auth header length:", __authHeader.length);
-    console.error("🔍 Auth header starts with 'Bearer':", __authHeader.startsWith("Bearer"));
-    console.error("🔍 Auth header first 100 chars:", __authHeader.substring(0, 100));
+    console.log("🔍 Auth header present:", !!__authHeader);
+    console.log("🔍 Auth header length:", __authHeader.length);
+    console.log("🔍 Auth header starts with 'Bearer':", __authHeader.startsWith("Bearer"));
+    console.log("🔍 Auth header first 100 chars:", __authHeader.substring(0, 100));
     
     if (!__authHeader) {
-      console.error("❌ No Authorization header found");
-      console.error("=== AUTH DEBUG END ===");
+      console.log("❌ No Authorization header found");
+      console.log("=== AUTH DEBUG END ===");
       return new Response(JSON.stringify({ error: "Unauthorized: No auth header" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
@@ -678,32 +1068,33 @@ Deno.serve(async (req) => {
     
     // Extract JWT token for debugging (jwt already extracted above)
     const jwtToken = jwt;
-    console.error("🔍 Extracted JWT length:", jwtToken.length);
-    console.error("🔍 JWT first 50 chars:", jwtToken.substring(0, 50));
+    console.log("🔍 Extracted JWT length:", jwtToken.length);
+    console.log("🔍 JWT first 50 chars:", jwtToken.substring(0, 50));
 
-    console.error("🔍 Creating Supabase client with auth header...");
-    console.error("🔍 SUPABASE_URL:", SUPABASE_URL);
-    console.error("🔍 SUPABASE_ANON_KEY present:", !!SUPABASE_ANON_KEY);
+    console.log("🔍 Creating Supabase client with auth header...");
+    console.log("🔍 SUPABASE_URL:", SUPABASE_URL);
+    console.log("🔍 SUPABASE_ANON_KEY present:", !!SUPABASE_ANON_KEY);
     
     // supabaseUser already created earlier for quota check - reuse it
     // (removed duplicate definition)
 
-    const supabaseAdmin = createClient(
-      SUPABASE_URL,
-      SUPABASE_SERVICE_ROLE_KEY
-    );
+    // Safe admin client creation (survives missing/invalid secrets)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY");
+    const supabaseAdmin =
+      supabaseUrl && serviceKey ? createClient(supabaseUrl, serviceKey) : null;
 
-    console.error("🔍 Calling getUser() with JWT...");
+    console.log("🔍 Calling getUser() with JWT...");
     // CRITICAL FIX: Reuse jwt from earlier extraction (line 319) - no duplicate declaration
     const { data: { user }, error: userErr } = await supabaseUser.auth.getUser(jwt);
     
-    console.error("🔍 getUser() returned:");
-    console.error("   - user:", user ? `${user.id} (${user.email})` : "null");
-    console.error("   - error:", userErr);
+    console.log("🔍 getUser() returned:");
+    console.log("   - user:", user ? `${user.id} (${user.email})` : "null");
+    console.log("   - error:", userErr);
     
     if (userErr) {
       console.error("❌ getUser() error details:", JSON.stringify(userErr, null, 2));
-      console.error("=== AUTH DEBUG END ===");
+      console.log("=== AUTH DEBUG END ===");
       return new Response(
         JSON.stringify({ error: "Unauthorized: " + userErr.message }),
         {
@@ -715,59 +1106,75 @@ Deno.serve(async (req) => {
     
     if (!user) {
       console.error("❌ No user returned from getUser()");
-      console.error("=== AUTH DEBUG END ===");
+      console.log("=== AUTH DEBUG END ===");
       return new Response(JSON.stringify({ error: "Unauthorized: No user" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
       });
     }
 
-    console.error("✅ User authenticated:", user.id);
-    console.error("=== AUTH DEBUG END ===");
+    console.log("✅ User authenticated:", user.id);
+    console.log("=== AUTH DEBUG END ===");
     // ✅ userId already exists from line 321 (JWT claims) - no need to redeclare
     // Sanity check: ensure getUser() userId matches JWT claims
     if (user.id !== userId) {
-      console.error("⚠️ WARNING: getUser() userId mismatch with JWT claims");
+      console.log("⚠️ WARNING: getUser() userId mismatch with JWT claims");
     }
 
     // Rate limiting removed - let OpenAI handle rate limiting
 
-    // Cache lookup
-    const inputForHash = JSON.stringify({ description, startDate, endDate, source_text });
+    // Cache lookup (include prompt fingerprint to avoid stale thin outputs)
+    const inputForHash = JSON.stringify({ description, startDate, endDate, source_text, promptFingerprint });
     const input_hash = await sha256Hex(inputForHash);
 
+    const cacheUnavailable = !supabaseAdmin;
+    const skipCache = forceRefresh === true || cacheUnavailable;
     let cached = false;
     let llmFlow: LLMFlow | null = null;
     let modelUsed = "";
     let tokensIn = 0;
     let tokensOut = 0;
-    let llmStatus = "error";
+    let llmStatus = skipCache ? "cache_bypass" : "error";
     let costCents = 0;
+    let mode: "DICTATION" | "ELABORATION" = "ELABORATION";
     const startTime = Date.now();
 
-    const { data: cacheRows, error: cacheErr } = await supabaseAdmin
-      .from("flow_generation_cache")
-      .select("response_json, created_at")
-      .eq("input_hash", input_hash)
-      .gte(
-        "created_at",
-        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      )
-      .limit(1);
+    if (cacheUnavailable) {
+      console.log("[ai_generate_flow] cache unavailable (no service role key)");
+    }
 
-    if (!cacheErr && Array.isArray(cacheRows) && cacheRows.length > 0) {
-      try {
-        llmFlow = cacheRows[0].response_json as LLMFlow;
-        cached = true;
-        llmStatus = "cache_hit";
-      } catch (e) {
-        cached = false;
+    if (!skipCache) {
+      const { data: cacheRows, error: cacheErr } = await supabaseAdmin
+        .from("flow_generation_cache")
+        .select("response_json, created_at")
+        .eq("input_hash", input_hash)
+        .gte(
+          "created_at",
+          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        )
+        .limit(1);
+
+      if (!cacheErr && Array.isArray(cacheRows) && cacheRows.length > 0) {
+        try {
+          llmFlow = cacheRows[0].response_json as LLMFlow;
+          cached = true;
+          llmStatus = "cache_hit";
+        } catch (e) {
+          cached = false;
+        }
+      }
+
+      if (cached && llmFlow) {
+        const cacheValidation = validateLLMFlowOutput(llmFlow, dateRangeDays);
+        if (!cacheValidation.ok) {
+          cached = false;
+          llmFlow = null;
+          llmStatus = "cache_invalid";
+        }
       }
     }
 
     if (!cached) {
-      // Derive flow type from description
-      const descLower = description.toLowerCase();
       let flowType: "workout" | "body" | "business" | "generic" = "generic";
       if (/(workout|gym|lift|training|practice drums|practice guitar)/i.test(description)) {
         flowType = "workout";
@@ -777,145 +1184,156 @@ Deno.serve(async (req) => {
         flowType = "business";
       }
 
-      // Build messages from your existing prompt pieces
-      const sys = buildSystemPrompt();
-      
-      // Calculate date range days
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      const dateRangeDays = Math.floor(
-        (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
-      ) + 1;
-      
-      // Calculate max_tokens based on date range (roughly 150-200 tokens per day)
-      // Minimum 3500 for short flows, scale up for longer flows
-      const calculatedMaxTokens = Math.max(3500, Math.ceil(dateRangeDays * 200));
-      // Cap at 16000 (gpt-4o-mini's max output tokens)
-      const maxTokens = Math.min(calculatedMaxTokens, 16000);
-      
-      const userPrompt =
-        `FLOW_TYPE: ${flowType}\n\nUSER_DESCRIPTION: ${description}\n\nDATE_RANGE: ${startDate} → ${endDate}\n\n${
-          flowName ? `Flow name: ${flowName}\n` : ""
-        }${timezone ? `Timezone: ${timezone}\n` : ""}${
-          source_text ? `\nSOURCE_TEXT:\n${source_text}\n` : ""
-        }\n\nDate range: ${dateRangeDays} days (${startDate} to ${endDate}).
-Generate exactly ${dateRangeDays} notes, one per calendar day in this range. Each note must have a detailed "details" field: no placeholders, no generic summaries.
+      mode = inferMode(description, source_text);
+      const schedule = inferSchedule(description);
+      const multiEventOk = inferMultiEventOk(mode, flowType, description);
+      const timePreference = inferTimePreference(description);
+      const timezoneValue = timezone || "UTC";
 
-Generate a JSON flow strictly following the schema.`.trim();
+      const sys = systemPrompt;
+      const calculatedMaxTokens = Math.max(3500, Math.ceil(dateRangeDays * 300));
+      const maxTokens = Math.min(calculatedMaxTokens, 24000);
+      const temperature = mode === "DICTATION" ? 0.3 : 0.6;
 
-      const aiResp = await generateWithOpenAI({
-        messages: [
-          { role: "system", content: sys },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.7,
-        max_tokens: maxTokens,
-      });
+      const header = [
+        `MODE: ${mode}`,
+        `SCHEDULE_MODE: ${schedule.scheduleMode}`,
+        `SPECIFIC_DAYS: ${schedule.specificDays.join(",")}`,
+        `INTERVAL_N: ${schedule.scheduleMode === "INTERVAL" ? (schedule.intervalN ?? "") : ""}`,
+        `MULTI_EVENT_OK: ${multiEventOk}`,
+        `TIME_PREFERENCE: ${timePreference}`,
+        `TIMEZONE: ${timezoneValue}`,
+        `DATE_RANGE: ${startDate} → ${endDate} (${dateRangeDays} days)`,
+        `FLOW_TYPE: ${flowType}`,
+      ].join("\n");
 
-      if (!aiResp.ok) {
-        return new Response(
-          JSON.stringify({ success: false, error: "OPENAI_ERROR", message: aiResp.error ?? "Unknown OpenAI error" }),
-          {
-            status: 502,
-            headers: {
-              "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": origin,
-            },
-          }
-        );
-      }
+      const flowNameHint = flowName ? `\nFLOW_NAME_HINT: ${flowName}` : "";
+      const baseUserPrompt =
+        `${header}${flowNameHint}\n\nUSER_DESCRIPTION:\n${description}\n\n${
+          source_text ? `SOURCE_TEXT:\n${source_text}\n\n` : ""
+        }Cover every day_index 0..${dateRangeDays - 1} with at least one note. You may create multiple notes for a day_index when appropriate.`;
 
-      // Extract tokens and model from OpenAI response
-      tokensIn = aiResp.tokensIn;
-      tokensOut = aiResp.tokensOut;
-      modelUsed = aiResp.modelUsed;
+      const correctionBase = `Return valid JSON only. Ensure notes cover every day_index 0..${dateRangeDays - 1}. Follow the schema exactly.`;
+      const specificDaysReminder = "Only schedule the main activity on SPECIFIC_DAYS. Other days must be Maintain/Rest notes.";
 
-      // Check if response was truncated
-      if (aiResp.finishReason === "length") {
-        console.error("⚠️ LLM response was truncated (hit token limit)");
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: "LLM_TRUNCATED", 
-            message: `Response was too long for ${dateRangeDays} days. Try a shorter date range or the model may need more tokens.` 
-          }),
-          {
-            status: 500,
-            headers: {
-              "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": origin,
-            },
-          }
-        );
-      }
+      let attempt = 0;
+      while (attempt <= MAX_RETRIES) {
+        const retryInstruction = attempt > 0
+          ? `${correctionBase}${schedule.scheduleMode === "SPECIFIC_DAYS" ? `\n${specificDaysReminder}` : ""}`
+          : "";
+        const promptToSend = retryInstruction
+          ? `${baseUserPrompt}\n\n${retryInstruction}`
+          : baseUserPrompt;
 
-      // Parse the content
-      let text = aiResp.content;
-      text = stripCodeFences(text);
+        const aiResp = await generateWithOpenAI({
+          messages: [
+            { role: "system", content: sys },
+            { role: "user", content: promptToSend },
+          ],
+          temperature,
+          max_tokens: maxTokens,
+        });
 
-      // Log raw LLM content for debugging (truncate if very long)
-      const contentPreview = aiResp.content.length > 5000 
-        ? aiResp.content.substring(0, 5000) + "...[truncated for logging]"
-        : aiResp.content;
-      console.error("🔍 LLM RAW CONTENT:", contentPreview);
-      console.error("🔍 LLM CONTENT LENGTH:", aiResp.content.length, "chars");
-      console.error("🔍 LLM TOKENS OUT:", tokensOut, "max_tokens:", maxTokens);
-      console.error("🔍 LLM FINISH REASON:", aiResp.finishReason);
+        if (!aiResp.ok) {
+          return new Response(
+            JSON.stringify({ success: false, error: "OPENAI_ERROR", message: aiResp.error ?? "Unknown OpenAI error" }),
+            {
+              status: 502,
+              headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": origin,
+              },
+            }
+          );
+        }
 
-      try {
-        llmFlow = JSON.parse(text) as LLMFlow;
-      } catch (err) {
-        console.error("❌ JSON parse error:", err);
-        // Try to extract JSON from truncated response
-        const jsonMatch = text.match(/\{[\s\S]*\}/m);
-        if (jsonMatch) {
-          try {
-            llmFlow = JSON.parse(jsonMatch[0]) as LLMFlow;
-            console.error("⚠️ Used regex-extracted JSON (may be incomplete)");
-          } catch (parseErr) {
-            console.error("❌ Regex-extracted JSON also failed:", parseErr);
+        tokensIn = aiResp.tokensIn;
+        tokensOut = aiResp.tokensOut;
+        modelUsed = aiResp.modelUsed;
+
+        if (aiResp.finishReason === "length") {
+          console.log("⚠️ LLM response was truncated (hit token limit)");
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: "LLM_TRUNCATED", 
+              message: `Response was too long for ${dateRangeDays} days. Try a shorter date range or the model may need more tokens.` 
+            }),
+            {
+              status: 500,
+              headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": origin,
+              },
+            }
+          );
+        }
+
+        const text = stripCodeFences(aiResp.content);
+
+        const contentPreview = aiResp.content.length > 1500 
+          ? aiResp.content.substring(0, 1500) + "...[truncated for logging]"
+          : aiResp.content;
+        console.log("🔍 LLM RAW CONTENT:", contentPreview);
+        console.log("🔍 LLM CONTENT LENGTH:", aiResp.content.length, "chars");
+        console.log("🔍 LLM TOKENS OUT:", tokensOut, "max_tokens:", maxTokens);
+        console.log("🔍 LLM FINISH REASON:", aiResp.finishReason);
+
+        try {
+          llmFlow = JSON.parse(text) as LLMFlow;
+        } catch (err) {
+          console.error("❌ JSON parse error:", err);
+          const jsonMatch = text.match(/\{[\s\S]*\}/m);
+          if (jsonMatch) {
+            try {
+              llmFlow = JSON.parse(jsonMatch[0]) as LLMFlow;
+              console.log("⚠️ Used regex-extracted JSON (may be incomplete)");
+            } catch (parseErr) {
+              console.error("❌ Regex-extracted JSON also failed:", parseErr);
+              llmFlow = null;
+            }
+          } else {
             llmFlow = null;
           }
-        } else {
+        }
+
+        if (llmFlow) {
+          const llmValidation = validateLLMFlowOutput(llmFlow, dateRangeDays);
+          const specificCheck = schedule.scheduleMode === "SPECIFIC_DAYS"
+            ? validateSpecificDays(llmFlow.notes ?? [], startDate, schedule.specificDays)
+            : { ok: true, violations: 0 };
+          const notesCount = llmFlow.notes?.length ?? 0;
+          console.log("🔍 LLM PARSED JSON: flowName='%s', notesCount=%s, validationOk=%s", llmFlow.flowName, notesCount, llmValidation.ok);
+
+          if (llmValidation.ok && specificCheck.ok) {
+            costCents = calculateCostCents(modelUsed, tokensIn, tokensOut);
+            llmStatus = attempt === 0 ? "success" : "retry_success";
+            break;
+          }
+
+          if (attempt >= MAX_RETRIES) {
+            llmStatus = "validation_failed";
+            llmFlow = null;
+            break;
+          }
+
           llmFlow = null;
         }
-      }
 
-      // Log parsed LLM JSON
-      if (llmFlow) {
-        const notesCount = llmFlow.notes?.length ?? 0;
-        console.error("🔍 LLM PARSED JSON: flowName='${llmFlow.flowName}', notesCount=${notesCount}");
-        if (notesCount < dateRangeDays) {
-          console.error(`⚠️ WARNING: Expected ${dateRangeDays} notes but got ${notesCount}`);
-        }
+        attempt += 1;
       }
-
-      if (!llmFlow) {
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: "LLM_PARSE_ERROR", 
-            message: `Model did not return valid JSON. Response length: ${aiResp.content.length} chars, tokens: ${tokensOut}/${maxTokens}. ${aiResp.finishReason === "length" ? "Response was truncated." : ""}` 
-          }),
-          {
-            status: 500,
-            headers: {
-              "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": origin,
-            },
-          }
-        );
-      }
-
-      costCents = calculateCostCents(modelUsed, tokensIn, tokensOut);
-      llmStatus = "success";
     }
 
     if (!llmFlow) {
+      const status = llmStatus === "validation_failed" ? 400 : 500;
+      const payload =
+        llmStatus === "validation_failed"
+          ? { success: false, error: "LLM_VALIDATION_ERROR", message: "Model output failed validation after retry." }
+          : { error: "Failed to obtain valid LLM output" };
       return new Response(
-        JSON.stringify({ error: "Failed to obtain valid LLM output" }),
+        JSON.stringify(payload),
         {
-          status: 500,
+          status,
           headers: {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": origin,
@@ -924,12 +1342,20 @@ Generate a JSON flow strictly following the schema.`.trim();
       );
     }
 
+    // Ensure mode is available for post-processing decisions (cached or fresh)
+    mode = inferMode(description, source_text);
+
     // Transform LLM output to ParsedFlow
     const startDateStr = startDate;
-    const parsedFlow = transformLLMFlowToParsedFlow(llmFlow, startDateStr);
+    const parsedFlow = transformLLMFlowToParsedFlow(llmFlow, startDateStr, dateRangeDays);
+
+    // Enforce richer structure when LLM output is thin/unlabeled
+    if (mode === "ELABORATION") {
+      enforceRichStructure(parsedFlow);
+    }
 
     // Log parsed flow for debugging
-    console.error("🔍 PARSED FLOW:", JSON.stringify(parsedFlow, null, 2));
+    console.log("🔍 PARSED FLOW:", JSON.stringify(parsedFlow, null, 2));
 
     // FINAL VALIDATION: structural only
     if (!parsedFlow || !Array.isArray(parsedFlow.notes)) {
@@ -951,7 +1377,7 @@ Generate a JSON flow strictly following the schema.`.trim();
     }
 
     // Validate the transformed flow
-    const validation = validateParsedFlow(parsedFlow);
+    const validation = validateParsedFlow(parsedFlow, dateRangeDays);
     if (!validation.ok) {
       return new Response(
         JSON.stringify({ success: false, error: "LLM_VALIDATION_ERROR", message: validation.error ?? "Invalid AI output" }),
@@ -1009,23 +1435,23 @@ Generate a JSON flow strictly following the schema.`.trim();
     // and/or from AI response - client wins, else default
     const finalColor = coerceColor(body?.flowColor ?? DEFAULT_COLOR);
 
-    console.error("╔═══════════════════════════════════════╗");
-    console.error("║   PRE-INSERT DIAGNOSTIC               ║");
-    console.error("╚═══════════════════════════════════════╝");
+    console.log("╔═══════════════════════════════════════╗");
+    console.log("║   PRE-INSERT DIAGNOSTIC               ║");
+    console.log("╚═══════════════════════════════════════╝");
 
-    console.error("🎨 Color Selection:");
-    console.error("   Request body color:", flowColor, "(type:", typeof flowColor, ")");
-    console.error("   Final Color:", finalColor, "(ARGB int)");
-    console.error("   Source:", finalColor === DEFAULT_COLOR ? "Default" : "Client");
+    console.log("🎨 Color Selection:");
+    console.log("   Request body color:", flowColor, "(type:", typeof flowColor, ")");
+    console.log("   Final Color:", finalColor, "(ARGB int)");
+    console.log("   Source:", finalColor === DEFAULT_COLOR ? "Default" : "Client");
 
     // Check ai_metadata validity
-    console.error("📦 ai_metadata:");
+    console.log("📦 ai_metadata:");
     try {
       const jsonStr = JSON.stringify(ai_metadata);
-      console.error("   Valid JSON ✅");
-      console.error("   Size:", jsonStr.length, "chars");
+      console.log("   Valid JSON ✅");
+      console.log("   Size:", jsonStr.length, "chars");
     } catch (e) {
-      console.error("   INVALID JSON ❌:", e.message);
+      console.log("   INVALID JSON ❌:", e.message);
     }
 
     // ✅ REFACTOR: No DB insertions - Flutter will create flow and events
@@ -1046,28 +1472,38 @@ Generate a JSON flow strictly following the schema.`.trim();
       llm_status: llmStatus,
     };
 
-    const { error: logErr } = await supabaseAdmin
-      .from("flow_generation_logs")
-      .insert(logRow);
-    if (logErr) {
-      console.error("Failed to insert flow_generation_logs:", logErr);
+    if (supabaseAdmin) {
+      try {
+        const { error: logErr } = await supabaseAdmin
+          .from("flow_generation_logs")
+          .insert(logRow);
+        if (logErr) {
+          console.log("Failed to insert flow_generation_logs:", logErr);
+        }
+      } catch (e) {
+        console.error("flow_generation_logs threw:", e);
+      }
     }
 
     // Cache result (cache raw llmFlow, not parsedFlow)
-    if (!cached && llmFlow) {
-      const cacheRow = {
-        input_hash,
-        user_prompt: description,
-        response_json: llmFlow,
-      };
-      const { error: cacheInsertErr } = await supabaseAdmin
-        .from("flow_generation_cache")
-        .insert(cacheRow);
-      if (cacheInsertErr) {
-        console.error(
-          "Failed to insert into flow_generation_cache:",
-          cacheInsertErr
-        );
+    if (supabaseAdmin && !cached && llmFlow) {
+      try {
+        const cacheRow = {
+          input_hash,
+          user_prompt: description,
+          response_json: llmFlow,
+        };
+        const { error: cacheInsertErr } = await supabaseAdmin
+          .from("flow_generation_cache")
+          .insert(cacheRow);
+        if (cacheInsertErr) {
+          console.log(
+            "Failed to insert into flow_generation_cache:",
+            cacheInsertErr
+          );
+        }
+      } catch (e) {
+        console.error("flow_generation_cache threw:", e);
       }
     }
 
@@ -1079,6 +1515,7 @@ Generate a JSON flow strictly following the schema.`.trim();
 
     // ✅ REFACTOR: Return only the generated content (no DB IDs)
     // Flutter will create the flow and events using this data
+    console.log("ai_generate_flow: completed, returning success");
     return new Response(
       JSON.stringify({
         success: true,

@@ -1,0 +1,810 @@
+====================================================================================================
+COMPLETE DECAN INFORMATION - ALL NAMES AND DESCRIPTIONS
+====================================================================================================
+
+Total decan descriptions: 45
+Total decans with flows: 16
+
+
+====================================================================================================
+ALL DECAN DESCRIPTIONS (from calendar_page.dart)
+====================================================================================================
+
+1. tpy-ꜣ sbꜣw (“Foremost of the Stars”) — This decan marks orientation. To the Kemite, tpy-ꜣ (“the foremost”) does not mean dominance — it means what appears first and therefore sets direction. This decan represents the moment when attention is gathered and the field of time is surveyed. In practice: assessing conditions after uncertainty; checking measurements; establishing bearings before action. Thoth’s role here is alignment, like the scribe drawing the first line: Where am I standing? What is true right now? Nothing is built yet. Nothing is corrected yet. This is the act of looking clearly before speaking. Living Principle: Order begins when attention is placed correctly.
+
+2. ḥry-ib sbꜣw (“Heart of the Stars”) — This decan marks integration. ḥry-ib (“that which is at the heart”) signals internal coherence — observation becoming understanding. It governs reflection, internal calibration, and deciding what matters. In administrative and ritual life: checking accounts, refining plans, correcting imbalance before it spreads. Thoth keeps proportion so thought matches reality and intention matches capacity. Living Principle: Truth is not what appears — it is what holds together under examination.
+
+3. sbꜣw (“The Stars”) — This decan marks expression into order. With no modifier, sbꜣw refers to the many points held in relation. Understanding is released into structure: schedules, records, agreements, commitments. Plans become instructions; decisions become actions; knowledge becomes responsibility. For the Kemite, the stars modeled systems that do not lie — many parts, one rhythm. Thoth records and binds so decisions are carried forward faithfully. Living Principle: Order is sustained when understanding is shared and upheld.
+
+4. ꜥḥꜣy (“The Riser”) — This decan marks initiation of motion. ꜥḥꜣy refers to rising, appearing, or stepping forward deliberately. It is when what was measured is put into motion: resuming labor, beginning transport, re-entering circulation after pause. To rise is to accept weight; nothing new is decided — what was set begins to travel. Living Principle: What you begin to move, you must be willing to carry.
+
+5. ḥry-ib ꜥḥꜣy (“Heart of the Riser”) — This decan marks sustained effort. The focus shifts from starting to maintaining: Can this continue without distortion? It governs pacing, load-balancing, and rhythm in work and travel. Motion without regulation collapses; endurance is listening while moving. Living Principle: Motion remains righteous only when the heart stays awake.
+
+6. sbꜣ nfr (“The Beautiful Star”) — This decan marks successful continuity. sbꜣ nfr means rightness of form — movement that stays aligned. Routes are established, labor flows, exchange is reliable; systems prove they hold under use. The star is “beautiful” because it does not falter, letting vigilance ease without inviting chaos. Living Principle: Beauty is motion that no longer needs correction.
+
+7. sꜣḥ (“Sah”) — This decan marks stability regained. sꜣḥ is the enduring presence of Asar made visible: what has survived disruption and now stands recognizable. It is the moment when continuity is confirmed and fear of collapse recedes. In practice: recognizing what returned after loss; resuming steady labor; trusting order has taken hold. Hathor reassures: What has proven stable? Living Principle: Stability is the foundation that allows joy to exist.
+
+8. ḥry-ib sꜣḥ (“Heart of Sah”) — This decan marks harmonization. The heart (ib) orders within what Sah establishes without. Stability is felt and shared through coordinated labor, restored social rhythm, and working in time rather than haste. Hathor asks: Are actions aligned with those around me? Living Principle: Balance is sustained through alignment with others.
+
+9. sbꜣ sꜣḥ (“Star of Sah”) — This decan marks expression. sbꜣ is what shines and orients by presence alone; here order no longer needs guarding — it can be shown and maintained through beauty. In practice: creative work and adornment; ritual joy without excess; reinforcing order through pleasure. Hathor asks: What deserves celebration so it remains whole? Living Principle: What is expressed with care preserves order.
+
+10. msḥtjw (“The Foreleg”) — This decan marks renewed strength. To the Kemite, msḥtjw represents raw vitality restored after disruption — not aggression, but capacity. Energy re-enters body and land, no longer fragile, no longer tentative. In practice: returning physical strength; resuming demanding labor; testing endurance without excess. Ka-ḥer-Ka teaches doubling, not expansion. Like the foreleg anchoring the body before movement, it asks: Where has strength returned? What force can now be trusted again? Nothing is accelerated or pushed yet. This is the act of feeling power before applying it. Living Principle: Strength must be felt before it is used.
+
+11. ḥry-ib msḥtjw (“Heart of the Foreleg”) — This decan marks control. Force without direction creates isfet; ḥry-ib msḥtjw is strength governed by awareness. In practice: pacing effort; balancing labor with rest; directing energy with intention. Ka-ḥer-Ka’s resonance here is mastery: doubled vitality must be managed to avoid fracture. It asks: Is my strength aligned with my purpose? Nothing is exhausted yet. Nothing is depleted yet. This is the act of holding power steady before expression. Living Principle: Power becomes useful when it is governed.
+
+12. sbꜣ msḥtjw (“Star of the Foreleg”) — This decan marks applied force. sbꜣ signals what shines as a reliable guide; sbꜣ msḥtjw is strength put into motion to reshape the world without destabilizing it. In practice: sustained labor; building and repair; productive output without strain. Ka-ḥer-Ka completes its lesson: like the foreleg carrying the body forward after balance is secured, it asks: Where can effort now be applied without harm? Nothing is wasted. Nothing is forced. This is the act of using strength in service of continuity. Living Principle: Applied strength preserves balance when guided by restraint.
+
+13. ḫnty-ḥr (“Foremost of the Sky”) — This decan marks attention to care. ḫnty-ḥr means precedence of concern — what must be tended first so life can continue without strain. Effort shifts from exertion to nourishment. In practice: checking early growth; stabilizing irrigation and supply; tending what is fragile but promising. Šef-Bedet asks: What requires attention before it can flourish? Nothing is harvested or secured yet. This is noticing needs before responding. Living Principle: Care begins with correct attention.
+
+14. ḥry-ib ḫnty-ḥr (“Heart of the Foremost”) — This decan marks sustained nurturing. Nourishment without intention is wasteful; ḥry-ib ḫnty-ḥr is care guided by understanding — the heart directing how resources are given and preserved. In practice: distributing labor evenly; feeding without excess; maintaining balance in supply. Šef-Bedet asks: Am I sustaining life, or merely consuming effort? Nothing is rushed; nothing is depleted. This is giving steadily without imbalance. Living Principle: Sustenance preserves order when given with restraint.
+
+15. sbꜣ ḫnty-ḥr (“Star of the Foremost”) — This decan marks trust in growth. sbꜣ indicates what can be relied on without constant supervision; sbꜣ ḫnty-ḥr is nourishment that has taken hold and can proceed under its own rhythm. In practice: easing vigilance; trusting established routines; allowing growth to continue naturally. Šef-Bedet asks: What can I allow to grow without control? Nothing is forced; nothing is withheld. This is supporting life by stepping back. Living Principle: Trust is the final act of care.
+
+16. knmw (“Khnum”) — This decan marks formation through knowledge. knmw signifies shaping with understanding — informed craft, not force. Awareness begins to give form to what has been nourished, moving from growth to refinement. In practice: shaping materials deliberately; learning correct technique; beginning instruction and apprenticeship. Rekh-Wer asks: What must be understood before it can be shaped? Nothing is perfected or finalized yet. This is learning before refining. Living Principle: Understanding gives form to effort.
+
+17. ḥry-ib knmw (“Heart of Khnum”) — This decan marks discernment. Knowledge without judgment leads to imbalance; ḥry-ib knmw applies awareness inwardly — knowing how, when, and why to shape. In practice: correcting technique; refining methods; teaching through example. Rekh-Wer asks: Is my knowledge used with care and proportion? Nothing is rushed or wasted. This is guiding skill with restraint. Living Principle: Skill becomes wisdom when directed by intention.
+
+18. sbꜣ knmw (“Star of Khnum”) — This decan marks competence made reliable. sbꜣ indicates what now guides others; sbꜣ knmw is stabilized knowledge — dependable, repeatable skill. In practice: consistent workmanship; teaching others; applying knowledge without hesitation. Rekh-Wer asks: What understanding can be trusted to lead? Nothing is improvised; nothing is uncertain. This is working from mastered knowledge. Living Principle: True knowledge guides steadily.
+
+19. špsswt (“The Noble Ones”) — This decan marks tested understanding. špsswt is refinement under pressure — knowledge leaving the training space and entering lived reality. In practice: applying learned skill in real conditions; encountering resistance or limitation; discovering gaps in understanding. Rekh-Nedjes asks: What holds when conditions are no longer ideal? Nothing is hidden or excused. This is meeting reality without illusion. Living Principle: Wisdom is proven through use.
+
+20. ḥry-ib špsswt (“Heart of the Noble Ones”) — This decan marks adaptation. Refinement requires adjustment, not rigidity; ḥry-ib špsswt is inner recalibration — the heart learning from strain and correcting course without collapse. In practice: modifying technique; strengthening weak areas; practicing patience under effort. Rekh-Nedjes asks: What must change so balance can be preserved? Nothing is abandoned or forced. This is refining without breaking. Living Principle: Endurance grows through adjustment.
+
+21. sbꜣ špsswt (“Star of the Noble Ones”) — This decan marks quiet competence. sbꜣ signals reliability recognized through consistency; sbꜣ špsswt is knowledge that endured testing and now operates calmly, without display. In practice: steady work without novelty; maintaining what has been learned; performing duties without seeking recognition. Rekh-Nedjes asks: What can now be done correctly without effortful attention? Nothing is celebrated or concluded. This is holding competence without strain. Living Principle: True mastery is quiet.
+
+22. ꜥpdw (“The Birds”) — This decan marks return and gathering. ꜥpdw signals movement toward abundance — early signs that effort begins to answer itself. Birds return when grain strengthens; their presence confirms nourishment has taken hold. In practice: early signs of yield; organizing storage and distribution; preparing for increase without excess. Renwet asks: What signals that balance is returning? Nothing is claimed or consumed yet. This is recognizing promise before reward. Living Principle: Return begins with recognition.
+
+23. ḥry-ib ꜥpdw (“Heart of the Birds”) — This decan marks discernment in abundance. Increase without judgment leads to loss; ḥry-ib ꜥpdw is inner regulation during growth — the heart guiding how return is received and shared. In practice: deciding fair distribution; balancing enjoyment with responsibility; remembering communal obligation. Renwet asks: How should what returns be honored and sustained? Nothing is hoarded or wasted. This is receiving without imbalance. Living Principle: Abundance must be governed by gratitude.
+
+24. sbꜣ ꜥpdw (“Star of the Birds”) — This decan marks reward stabilized. sbꜣ indicates what can be trusted to continue; sbꜣ ꜥpdw is abundance settled into order — return that no longer threatens balance. In practice: enjoyment without excess; honoring gods and ancestors; securing what has been gained. Renwet asks: What return can be sustained without fear? Nothing is rushed or grasped. This is resting within earned return. Living Principle: Reward endures when held in balance.
+
+25. ḥr-sꜣḥ (“Heru upon Sah”) — This decan marks vigilance under pressure. Authority stands on endurance: Heru upheld by restored order (Sah/Asar). In practice: rising early to avoid excess heat; guarding what has been secured; maintaining discipline as fatigue increases. Ḥenti-ḥet asks: What must be protected through awareness, not force? Nothing is challenged or seized yet. This is holding position without escalation. Living Principle: Authority endures through vigilance.
+
+26. ḥry-ib ḥr-sꜣḥ (“Heart of Heru upon Sah”) — This decan marks restraint. Intensity without regulation fractures; here the heart governs power, choosing when not to act. In practice: conserving strength; reducing unnecessary labor; cooling body and mind. Ḥenti-ḥet asks: Where must effort pause to prevent loss? Nothing is exhausted or burned away. This is withholding force to preserve life. Living Principle: Restraint completes strength.
+
+27. sbꜣ ḥr-sꜣḥ (“Star of Heru upon Sah”) — This decan marks offering and release. Power guides by example, returning strength to maintain harmony. In practice: offering water and sustenance; releasing excess stores; allowing rest to restore balance. Ḥenti-ḥet asks: What must be offered back so order remains intact? Nothing is hoarded or clung to. This is preserving Maʿat through release. Living Principle: What is given back keeps the world whole.
+
+28. Akhuy (The Luminous Ones) — Strong cluster later folded into Orion lore. The decan sequence during these nights was used to divide the night into equal parts. Guards took pride in calling hours exactly; scribes recorded watches to time legal oaths.
+
+29. Imy-Khet Akhuy (Southern Luminous Ones) — Southern aspect favored by south-bound caravans. Merchants saw patience in its slow rise and told apprentices to plan carefully. The decan’s ten-day run often coincided with market expeditions.
+
+30. Baawy (The Two Souls) — Two lights considered twin souls of a deity or of king and ka. Wake-house customs at funerals were timed here: bread was broken for the living and the dead, reinforcing that memory keeps both together. The decan suggested that life and afterlife are paired.
+
+31. sbꜣ nfr (“The Beautiful Star”) — This decan marks remembrance. sbꜣ nfr signifies what remains worthy of regard — beauty proven through endurance, not novelty. In practice: recalling what sustained the household; honoring ancestors and elders; reviewing stores, tools, and records. Ipt-ḥmt asks: What deserves remembrance because it endured? Nothing is judged or discarded yet. This is looking back without disruption. Living Principle: Remembrance preserves continuity.
+
+32. ḥry-ib sbꜣ nfr (“Heart of the Beautiful Star”) — This decan marks integration. Memory without understanding is weight; here the heart absorbs what was remembered, choosing what to carry forward and what to release. In practice: reconciling success and failure; repairing what still has use; teaching younger generations through example. Ipt-ḥmt asks: What memory strengthens balance rather than burdens it? Nothing is finalized or erased yet. This is holding memory with proportion. Living Principle: Memory must be carried with discernment.
+
+33. tpy-ꜣ spdt (“Foremost of Sopdet”) — This decan marks orientation toward renewal. tpy-ꜣ spdt is the first signal of return — awareness that the cycle will begin again. In practice: preparing for closure; cleansing spaces and tools; orienting attention toward what comes next. Ipt-ḥmt asks: What must be set in order so renewal can arrive cleanly? Nothing is begun or concluded yet. This is standing at the threshold without crossing. Living Principle: Preparation allows renewal to arrive whole.
+
+34. msḥtjw ḫt (“The Sacred Foreleg”) — Withdrawal into potential. Strength no longer in motion but gathered inward; power resting in sacred suspension — not exhausted, not active, held intact as outward labor ceases and inner readiness begins. In practice: ending major work; securing tools and stores; allowing the body and land to rest. Mswt-Rꜥ teaches containment: like the foreleg supporting the body even at rest, it asks what strength must now be preserved rather than spent. Nothing is initiated or released yet — holding capacity without expression. Living Principle: Rest preserves what effort has built.
+
+35. ḥry-ib msḥtjw ḫt (“Heart of the Sacred Foreleg”) — Stillness with awareness. Rest without consciousness dissolves order; this is attentive stillness — the heart alert while action pauses, preparation without movement. In practice: reflection on the completed cycle; quiet ritual and prayer; internal reckoning without judgment. Mswt-Rꜥ emphasizes vigilance: just as the heart continues its rhythm in sleep, it asks what must be kept in awareness while all else rests. Nothing is resolved or undone yet — remaining present within stillness. Living Principle: Stillness must remain conscious.
+
+36. sbꜣ msḥtjw ḫt (“Star of the Sacred Foreleg”) — Threshold readiness. sbꜣ signifies guidance visible even in darkness; readiness held at the edge — order intact, awaiting release into renewal. In practice: sealing the year; extinguishing ritual lamps; preparing for the days beyond time. Mswt-Rꜥ completes its lesson: like a guiding star fixed before dawn, it asks what is ready to pass into rebirth without force. Nothing is pushed forward or held back — standing whole at the threshold. Living Principle: Readiness allows renewal without rupture.
+
+37. Abwet (The Boat) — A neat boat-shaped cluster; ferrymen tossed bread crumbs into the Nile when it rose, thanking river spirits. Households used the hour for reconciliation, saying “let’s cross together.” The decan linked physical crossing to emotional crossing.
+
+38. Wa’aret Kheret Sah (Great One under Sah) — Companion of Orion tied to Osirian processions. Temples performed lamp-walks; villages imitated with lanterns between doorways. Children learned to keep step and to carry light with care. The decan underscored that dignity in ritual belongs to all, not just the elite.
+
+39. Tepi-a Sopdet (First of Sopdet) — A herald cluster near Sirius; watchers grew excited for the heliacal rising of Sopdet that announced the new year. Households swept thresholds and whitewashed walls to welcome the star. It taught that preparation is a form of reverence.
+
+40. Sopdet (Sothis / Sirius) — The brightest star, identified with Aset (Isis) and the flood. Priests kept careful dawn vigils to catch the first flash; when it appeared, people rejoiced because it meant the inundation was near and the cycle renewed. Even when civil calendar drift separated the observation from the actual flood, the custom of greeting Sopdet endured.
+
+41. Khenmet (The Guard) — A cluster near Sopdet called “the watchers.” Temple guards changed shifts with crisp rituals; mothers checked sleeping children and shuttered doors. It signified the vigilance required after renewal to protect new life.
+
+42. Saawy Khenmet (Twin Guards) — Doubling the guard theme; charms against theft and waste were renewed, store-room seals inspected. Neighborhood patrols were organized, reflecting that community safety is collective. The decan’s twins showed that protection works best in pairs.
+
+43. Kheri Kheped Khenmet (Overseer of Khenmet) — Supervisory star for the guardians; small offerings for household safety were timed now. Inventories were read; lamps trimmed. The decan reinforced that watching and accounting are acts of devotion.
+
+44. H’at Khaw (Foremost of the Shining) — Stars at harvest’s height that seemed extra keen. Hymns to Ra’s strength clustered here; reapers sang antiphons to keep pace. Children remembered these nights as the most beautiful of the year, associating brilliance with abundance.
+
+45. Pehew Khaw (Rear of the Shining) — The final decan closed the cycle. Lamps were extinguished deliberately at hour’s end and relit, enacting cosmic rebirth. Families told stories of the Bennu bird (phoenix) rising, linking the star’s disappearance and return to eternal renewal. The next night’s counting began, reminding everyone that endings and beginnings are inseparable parts of Ma’at.
+
+
+====================================================================================================
+ALL DECAN FLOWS (10-DAY PRACTICES from kemetic_day_info.dart)
+====================================================================================================
+
+
+====================================================================================================
+DECAN: knmw ("Khnum")
+====================================================================================================
+
+    Day 1:
+      Theme: Wake to Responsibility
+      Action: Rise with purpose. Accept that keeping order is your role now.
+      Reflection: "What in my world answers to me?"
+
+    Day 2:
+      Theme: Walk the Perimeter
+      Action: Inspect physical, emotional, financial, and spiritual boundaries. Look for breaches.
+      Reflection: "Where is something crossing a line without permission?"
+
+    Day 4:
+      Theme: Correct the Channel
+      Action: Make one direct adjustment (repair, repay, re-say, re-mark a line).
+      Reflection: "What small fix today prevents a larger problem tomorrow?"
+
+    Day 5:
+      Theme: Account for the Store
+      Action: Count what is actually there — money, energy, grain, time, attention. No fantasy math.
+      Reflection: "What do I truly have, not what I wish I had?"
+
+    Day 7:
+      Theme: Cut Hidden Waste
+      Action: Identify one leak: energy drain, money drain, attention drain. Seal it.
+      Reflection: "Where am I bleeding out and calling it normal?"
+
+    Day 10:
+      Theme: Document the State of the House
+      Action: Record conditions: resources, risks, supports, goals. This becomes the baseline for the rest of the month.
+      Reflection: "If I vanished tonight, would someone know where things stand because I wrote it down?"
+
+====================================================================================================
+DECAN: msḥtjw ("The Foreleg")
+====================================================================================================
+
+    Day 1:
+      Theme: Enter Stillness
+      Action: Pause unnecessary motion; let noise drain away.
+      Reflection: "What within me needs silence before it can rise?"
+
+    Day 2:
+      Theme: Cleanse the Altar
+      Action: Wash and clear old offerings, tools, clutter, stale energy.
+      Reflection: "What remnants of past harvests block renewal?"
+
+    Day 3:
+      Theme: Name the Loss
+      Action: Acknowledge what ended — say it without spin or denial.
+      Reflection: "Can I bless what left without bitterness?"
+
+    Day 4:
+      Theme: Hold Memory
+      Action: Set out one token (photo, item, name) in respect, not obsession.
+      Reflection: "What good did this bring that still feeds me?"
+
+    Day 5:
+      Theme: Ground the Body
+      Action: Touch the earth, breathe deep, eat something simple and real.
+      Reflection: "Am I anchored in the living world?"
+
+    Day 6:
+      Theme: Watch the Sky
+      Action: Look to the west before dawn; note the faint twin lights.
+      Reflection: "What pattern returns even in darkness?"
+
+    Day 7:
+      Theme: Soft Speech Only
+      Action: Speak kindly or not at all today. Tone is ritual.
+      Reflection: "Does my voice restore order or fracture it?"
+
+    Day 8:
+      Theme: Tend the Seed
+      Action: Prepare soil (literal or symbolic). Ready something to plant.
+      Reflection: "What is ready to be buried, not abandoned?"
+
+    Day 10:
+      Theme: Seal the Chamber
+      Action: Close the vigil. Dim lights early. Let it rest.
+      Reflection: "Have I allowed the old self to lay down so a new self can rise?"
+
+====================================================================================================
+DECAN: sbꜣ knmw ("Star of Khnum")
+====================================================================================================
+
+    Day 21:
+      Theme: Take Inventory
+      Action: Lay out your tools, habits, alliances, money, body, promises. See them clearly.
+      Reflection: "What do I actually have going into the next cycle?"
+
+    Day 23:
+      Theme: Sharpen the Edge
+      Action: Restore one instrument you will need: skill, body, gear, discipline.
+      Reflection: "What must be honed so I can cut cleanly instead of hacking?"
+
+    Day 25:
+      Theme: Yoke the Bull
+      Action: Direct raw force into service, not dominance. Channel strength toward duty.
+      Reflection: "Is my power serving Maʿat, or just serving my appetite?"
+
+    Day 26:
+      Theme: Set Obligation Clearly
+      Action: State aloud what you are now responsible for maintaining.
+      Reflection: "What is mine to keep alive, no excuses?"
+
+    Day 27:
+      Theme: Cut Loose the Rot
+      Action: Remove one attachment, behavior, or drain you cannot carry forward.
+      Reflection: "What will sabotage the harvest if I keep feeding it?"
+
+    Day 28:
+      Theme: Swear Continuity
+      Action: Promise continuity of care: "I will continue tending this through the next phase."
+      Reflection: "What deserves my steady hand past today?"
+
+    Day 29:
+      Theme: Submit to Measure
+      Action: Accept accountability. Record numbers, track progress, document truth without inflation.
+      Reflection: "Can I face the numbers without lying?"
+
+    Day 30:
+      Theme: Present Yourself to Maʿat
+      Action: Stand as you are — sharpened, yoked, honest — and offer yourself as an instrument of balance going forward.
+      Reflection: "Am I prepared to be used in the work of order, not just praised for surviving the last cycle?"
+
+====================================================================================================
+DECAN: sbꜣ msḥtjw ("Star of the Foreleg")
+====================================================================================================
+
+    Day 21:
+      Theme: Work as Worship
+      Action: Approach daily labor as offering. Align intention with function.
+      Reflection: "Am I rowing in rhythm with heaven?"
+
+    Day 22:
+      Theme: Reopen the Flow
+      Action: Clear blockages — physical, emotional, financial, spiritual.
+      Reflection: "Where has the canal of my life silted shut?"
+
+    Day 23:
+      Theme: Raise the Pillar
+      Action: Restore foundation. In Kemet this meant lifting the Djed — stability itself.
+      Reflection: "What will I stand upright again in my world?"
+
+    Day 24:
+      Theme: Restore the Home
+      Action: Sweep, mend, rebuild, reset — your dwelling is your temple.
+      Reflection: "Does my space reflect balance or neglect?"
+
+    Day 25:
+      Theme: Feed the Fire
+      Action: Relight hearths, resume warmth and creation.
+      Reflection: "What flame must I tend to keep light in my life?"
+
+    Day 26:
+      Theme: Anchor Community
+      Action: Coordinate with others — shared meals, shared purpose.
+      Reflection: "Who rows beside me in this phase of renewal?"
+
+    Day 28:
+      Theme: Offer Gratitude in Motion
+      Action: Work and thank simultaneously. Labor itself is prayer.
+      Reflection: "Am I remembering Source while I act?"
+
+    Day 29:
+      Theme: Synchronize with the Sun
+      Action: Align your rhythm with daylight. Rise, act, and rest in honest timing.
+      Reflection: "Is my pattern aligned with life, or am I fighting the current?"
+
+    Day 30:
+      Theme: Seal the Cycle
+      Action: Close this phase with order, record, blessing. Claim what was restored.
+      Reflection: "What am I formally carrying into the next month of my life?"
+
+====================================================================================================
+DECAN: sbꜣ nfr ("The Beautiful Star")
+====================================================================================================
+
+    Day 21:
+      Theme: Step Into Stewardship
+      Action: Accept that you are now responsible for guarding what was moved and shared.
+      Reflection: "What territory / people / system am I responsible for protecting right now?"
+
+    Day 22:
+      Theme: Inspect the Channels
+      Action: Check for leaks, blockages, weak banks, damage, theft, decay in the routes (money flow, emotional flow, resource flow).
+      Reflection: "Where is loss happening?"
+
+    Day 25:
+      Theme: Restore Standards
+      Action: Reassert boundaries, expectations, and codes of conduct.
+      Reflection: "What line must be redrawn so balance survives?"
+
+    Day 26:
+      Theme: Reassign Responsibility
+      Action: Move duties to the people who can actually carry them without collapse or betrayal.
+      Reflection: "Who should really be holding this role?"
+
+    Day 27:
+      Theme: Seal the Agreements
+      Action: Make it explicit: who is doing what, for whom, by when, with what support.
+      Reflection: "Do we all understand what we just agreed to?"
+
+    Day 28:
+      Theme: Report Up to the Light
+      Action: Acknowledge openly (to yourself, to your people, to Source) what is true — progress and failures.
+      Reflection: "Can I speak the real status without flinching?"
+
+====================================================================================================
+DECAN: sbꜣ sꜣḥ ("Star of Sah")
+====================================================================================================
+
+    Day 23:
+      Theme: Shape the Raw Material
+      Action: Mold clay, sketch the plan, draft the framework, cut the wood, write the first bones.
+      Reflection: "Can I start forming this without judging it yet?"
+
+    Day 24:
+      Theme: Raise the First Form
+      Action: Put up the first visible piece. First wall, first interface, first habit in public reality.
+      Reflection: "Is it standing in the real world yet, even in rough form?"
+
+    Day 27:
+      Theme: Beautify With Purpose
+      Action: Refine surface: finish, aesthetic, scent, color, polish, the welcoming layer. Not vanity — invitation.
+      Reflection: "Is it pleasing to enter, to hold, to use?"
+
+    Day 28:
+      Theme: Consecrate / Dedicate
+      Action: Offer it up. Mark the build as sacred. Thank whoever helped. Thank the Source that allowed it.
+      Reflection: "Who/what am I acknowledging as co-creator here?"
+
+    Day 29:
+      Theme: Integration Into Daily Life
+      Action: Fold it into your normal rhythm. Use it. Let it serve.
+      Reflection: "Is this now part of how I live — or is it just a nice idea sitting in a corner?"
+
+    Day 30:
+      Theme: Witness and Record
+      Action: Document what was created: photos, notes, receipts, agreements, first usage. Claim it as real legacy, not a moment.
+      Reflection: "If I disappeared tomorrow, could someone see this and know who I was and what I served?"
+
+====================================================================================================
+DECAN: sbꜣ ḫnty-ḥr ("Star of the Foremost")
+====================================================================================================
+
+  ─── Flow Variant 1 ───
+
+    Day 1:
+      Theme: Form the Vessel
+      Action: Prepare the container: clean jars, steady routines, clear a place for what will grow.
+      Reflection: "Have I shaped a stable place for life to sit?"
+
+    Day 2:
+      Theme: Moisten the Clay
+      Action: Water deliberately. Hydrate body, soil, schedule.
+      Reflection: "Where am I cracked from neglect and in need of moisture?"
+
+    Day 3:
+      Theme: Plant Intention
+      Action: Choose one living goal this cycle and plant it. Not ten. One.
+      Reflection: "What deserves to be rooted in me right now?"
+
+    Day 4:
+      Theme: Feed What You Planted
+      Action: Give it fuel: calories, time, presence, protection.
+      Reflection: "Did I actually nourish what I claimed I cared about?"
+
+    Day 5:
+      Theme: Protect the Fragile
+      Action: Put small boundaries around early growth.
+      Reflection: "What new growth needs shielding from noise and chaos?"
+
+    Day 7:
+      Theme: Honor the Providers
+      Action: Acknowledge who/what nourishes you materially.
+      Reflection: "Do I treat my sources of support as sacred or as automatic?"
+
+    Day 9:
+      Theme: Record the Yield
+      Action: Take inventory. What did you actually grow, save, repair, stabilize so far?
+      Reflection: "Can I point to proof of order — or am I telling a story?"
+
+    Day 10:
+      Theme: Seal the Promise to Continue
+      Action: Make a quiet vow to keep feeding this life tomorrow.
+      Reflection: "What will I keep alive through consistency, not hype?"
+
+  ─── Flow Variant 2 ───
+
+    Day 11:
+      Theme: Walk the Boundary
+      Action: Inspect the perimeter of your life: health, money, relationships, space. Note every breach.
+      Reflection: "Where is chaos sneaking in?"
+
+    Day 12:
+      Theme: Name the Pest
+      Action: Identify the actual drain (person, habit, substance, thought) without lying about it.
+      Reflection: "What is quietly eating my field at night?"
+
+    Day 13:
+      Theme: Lay Protective Offerings
+      Action: Strengthen the guard: rituals, nutrition, sleep, locks, agreements, budgeting, passwords.
+      Reflection: "What will I put in place tonight so I wake safer tomorrow?"
+
+    Day 15:
+      Theme: Cool the Field
+      Action: Lower heat before it scorches: de-escalate conflict, reduce stress load, cool inflammation.
+      Reflection: "Where am I running too hot to stay fertile?"
+
+    Day 16:
+      Theme: Guard the Storehouse
+      Action: Protect stored value: food, money, saved energy, repaired trust.
+      Reflection: "What I saved — is it actually safe?"
+
+    Day 17:
+      Theme: Tighten the Circle
+      Action: Reconfirm who is inside your protected space and who is not.
+      Reflection: "Who has access to me that should not?"
+
+    Day 18:
+      Theme: Track the Losses
+      Action: Record leaks, waste, theft, relapse, erosion. No denial.
+      Reflection: "Where did life escape my hands?"
+
+    Day 19:
+      Theme: Reinforce the Oath
+      Action: Restate your terms: how you will be treated, how resources will be handled, how peace is kept.
+      Reflection: "Have I spoken my law out loud?"
+
+    Day 20:
+      Theme: Stand Watch at Dusk
+      Action: End the decan in awareness. Quiet body, sharpen perception. Stay awake to patterns.
+      Reflection: "Do I see threats early enough, or only after damage is done?"
+
+  ─── Flow Variant 3 ───
+
+    Day 25:
+      Theme: Tend the Vessel
+      Action: Care for the carrier — your own body, your tools, your hands, your voice.
+      Reflection: "Am I maintaining the vessel that delivers nourishment?"
+
+    Day 26:
+      Theme: Name the Inheritance
+      Action: Say clearly what will be passed forward — knowledge, rhythm, safety, stored grain, example.
+      Reflection: "What am I preparing to hand to the next set of hands?"
+
+    Day 27:
+      Theme: Give Thanks Without Apology
+      Action: Give thanks openly, without shrinking or performing humility.
+      Reflection: "Can I receive the reality that I did sacred work?"
+
+    Day 28:
+      Theme: Bind the Promise
+      Action: State your continuation vow: "This order will continue."
+      Reflection: "What balance will I refuse to let collapse after today?"
+
+    Day 29:
+      Theme: Align with Graceful Pace
+      Action: Match your movement to sustainable rhythm, not panic speed.
+      Reflection: "Is my current tempo survivable long-term?"
+
+    Day 30:
+      Theme: Prepare the Hand-Off
+      Action: Close the month not in exhaustion, but in readiness to begin the next cycle with dignity intact.
+      Reflection: "How do I enter the next month as keeper, not as casualty?"
+
+====================================================================================================
+DECAN: sbꜣw ("The Stars")
+====================================================================================================
+
+    Day 21:
+      Theme: Claim Authority
+      Action: State clearly (to yourself or aloud) who you are in this season — title yourself.
+      Reflection: "What role do I hold now, without apology?"
+
+    Day 22:
+      Theme: Set Boundaries
+      Action: Draw one boundary that protects your work / energy.
+      Reflection: "What drains me that I will no longer permit?"
+
+    Day 23:
+      Theme: Structure Workflow
+      Action: Define repeatable structure: hours, rituals, checkpoints.
+      Reflection: "What predictable rhythm keeps me aligned?"
+
+    Day 24:
+      Theme: Protect Focus
+      Action: Remove distractions, access, or obligations that fracture attention.
+      Reflection: "Who/what pulls me off my path?"
+
+    Day 25:
+      Theme: Stability Check
+      Action: Audit your material base (money, tools, space).
+      Reflection: "Do I have what I need to sustain this identity?"
+
+    Day 26:
+      Theme: Lineage Alignment
+      Action: Connect your purpose to ancestry / legacy / historical current.
+      Reflection: "Who walked this pattern before me?"
+
+    Day 29:
+      Theme: Fortify the Perimeter
+      Action: Put protection in place (legal, financial, emotional, time-guarding).
+      Reflection: "How do I defend this standard?"
+
+====================================================================================================
+DECAN: sꜣḥ ("Sah")
+====================================================================================================
+
+    Day 1:
+      Theme: Step Back Onto the Earth
+      Action: Acknowledge: you survived the flood season. Name what you just carried.
+      Reflection: "What did I make it through?"
+
+    Day 2:
+      Theme: Re-center the Body
+      Action: Ground in the physical: breath, spine, feet, joints, hydration, warmth, sleep.
+      Reflection: "Is my body safe and calm?"
+
+    Day 4:
+      Theme: Invite Joy On Purpose
+      Action: Bring in sweetness: music, scent, softness, beauty. Choose one delight intentionally, not as escape.
+      Reflection: "What beauty actually restores me (not numbs me)?"
+
+    Day 6:
+      Theme: Warm the Bonds
+      Action: Reconnect gently with close people (family, partner, child, friend) without agenda.
+      Reflection: "Who needs to feel me present, calm, and loving — not fixing, just present?"
+
+    Day 7:
+      Theme: Offer Beauty as Service
+      Action: Make or share something beautiful (meal, words, care, style, scent) as an offering, not a flex.
+      Reflection: "Can my presence make the space softer for someone else today?"
+
+    Day 9:
+      Theme: Stand in Worth
+      Action: Check self-image. Release shame stories from survival mode. Carry yourself like Hathor: dignified, vibrant, whole.
+      Reflection: "Do I move like I believe I deserve balanced joy?"
+
+    Day 10:
+      Theme: Give Thanks for Safe Return
+      Action: Gratitude ritual: thank body, land, helpers, ancestors, Source. Mark survival as sacred, not accidental.
+      Reflection: "Who/what held me up while I was in the flood?"
+
+====================================================================================================
+DECAN: tpy-ꜣ sbꜣw ("Foremost of the Stars")
+====================================================================================================
+
+    Day 1:
+      Theme: Genesis of Speech
+      Action: Speak your intention for the year clearly — out loud or written.
+      Reflection: "What truth am I willing to build upon?"
+
+    Day 2:
+      Theme: Vision Declared
+      Action: Map the image of what balance looks like for you.
+      Reflection: "How does my life look when it is aligned?"
+
+    Day 3:
+      Theme: Foundation of Order
+      Action: Cleanse your space; remove what contradicts your new truth.
+      Reflection: "What must be cleared to make way?"
+
+    Day 4:
+      Theme: Naming Power
+      Action: Name your projects, goals, or vows with sacred clarity.
+      Reflection: "What do I call forth into being?"
+
+    Day 6:
+      Theme: First Offering
+      Action: Give something symbolic to the world (art, gratitude, time, service).
+      Reflection: "How does giving anchor truth?"
+
+    Day 7:
+      Theme: Purification
+      Action: Fast, bathe, or enter intentional silence to reset signal vs noise.
+      Reflection: "What noise needs to quiet for clarity to speak?"
+
+    Day 8:
+      Theme: Insight Rising
+      Action: Journal or meditate; record what rises without forcing it.
+      Reflection: "What truth emerges when I listen?"
+
+    Day 9:
+      Theme: Order Manifest
+      Action: Take one measurable action in line with your declaration.
+      Reflection: "What is the first visible sign of alignment?"
+
+    Day 10:
+      Theme: Completion of Utterance
+      Action: Re-read Day 1. Seal it with gratitude and decision.
+      Reflection: "What cycle have I begun?"
+
+====================================================================================================
+DECAN: ḥry-ib knmw ("Heart of Khnum")
+====================================================================================================
+
+    Day 11:
+      Theme: Center the Fire
+      Action: Locate your driving force (anger, urgency, ambition, loyalty). Hold it steady instead of spraying it.
+      Reflection: "What is actually fueling me right now?"
+
+    Day 13:
+      Theme: Act Without Fury
+      Action: Do the necessary task firmly, without tantrum.
+      Reflection: "Can I move with authority without losing my face?"
+
+    Day 14:
+      Theme: Align Power With Purpose
+      Action: Aim your strength at what matters, not whatever annoyed you first.
+      Reflection: "Is my effort feeding my purpose, or just feeding my irritation?"
+
+    Day 16:
+      Theme: Speak Clean Command
+      Action: Issue one clear directive today. Short. Precise. Need-based, not ego-based.
+      Reflection: "Did I make the ask in clean language, or did I posture?"
+
+    Day 18:
+      Theme: Shield With Strength
+      Action: Use your position/voice/resources to protect someone or something more vulnerable.
+      Reflection: "Who needed my cover today — and did they get it?"
+
+    Day 19:
+      Theme: Cool With Honor
+      Action: Enforce rest, shade, cooling, recovery as sacred — not laziness.
+      Reflection: "Do I guilt myself for needing restoration?"
+
+====================================================================================================
+DECAN: ḥry-ib msḥtjw ("Heart of the Foreleg")
+====================================================================================================
+
+    Day 12:
+      Theme: Reclaim Your Name
+      Action: Say your name, your role, your purpose out loud.
+      Reflection: "Who am I — even after what happened?"
+
+    Day 14:
+      Theme: Accept Sacred Obligation
+      Action: Acknowledge you are again responsible for someone / something (child, craft, house, land, self).
+      Reflection: "What is now mine to guard?"
+
+    Day 15:
+      Theme: Speak Protection Over It
+      Action: Guard your rising the way Aset (Isis) guarded Asar (Osiris): "No harm will take you while I breathe."
+      Reflection: "Do I defend what I love in word and act?"
+
+    Day 16:
+      Theme: Organize the Living
+      Action: Re-establish order in basics — time, food, money, sleep, cleanliness.
+      Reflection: "Does my daily rhythm honor life, or exhaust it?"
+
+    Day 17:
+      Theme: Ask for Help Without Shame
+      Action: Call in assistance (like Nebet-Het (Nephthys) supporting Aset (Isis)). No isolation pride.
+      Reflection: "Where am I pretending I can do this alone and silently drowning?"
+
+    Day 19:
+      Theme: Let Growth Be Visible
+      Action: Show one sign of recovery in public space. Let someone witness that you are coming back.
+      Reflection: "Am I allowing others to witness my return to life?"
+
+    Day 20:
+      Theme: Give Thanks for Endurance
+      Action: Offer gratitude not for perfection, but for survival.
+      Reflection: "Do I honor the part of me that stayed?"
+
+====================================================================================================
+DECAN: ḥry-ib sbꜣw ("Heart of the Stars")
+====================================================================================================
+
+    Day 11:
+      Theme: Offering Begins
+      Action: Dedicate your current project to something beyond self.
+      Reflection: "Who benefits from my effort?"
+
+    Day 12:
+      Theme: Exchange
+      Action: Trade or share an idea/resource.
+      Reflection: "What flows because I gave?"
+
+    Day 13:
+      Theme: Circulation
+      Action: Movement or travel; stretch your field.
+      Reflection: "What did I learn from contact?"
+
+    Day 14:
+      Theme: Refinement
+      Action: Edit, polish, or temper excess.
+      Reflection: "What strengthens through restraint?"
+
+    Day 15:
+      Theme: Balance Check
+      Action: Rest or partial fast; measure output vs cost.
+      Reflection: "Where am I overspending energy?"
+
+    Day 16:
+      Theme: Reconnection
+      Action: Reach out / reconnect with someone aligned to your purpose.
+      Reflection: "Who restores my alignment?"
+
+    Day 17:
+      Theme: Recommitment
+      Action: Re-state your vow, but louder and more specific.
+      Reflection: "What deserves another push?"
+
+    Day 19:
+      Theme: Return Offering
+      Action: Give back again; close the loop you opened on Day 11.
+      Reflection: "How can I close this exchange?"
+
+====================================================================================================
+DECAN: ḥry-ib sꜣḥ ("Heart of Sah")
+====================================================================================================
+
+    Day 12:
+      Theme: Sync the Rhythm
+      Action: Align pace, schedules, expectations. Talk tempo: when do we move, rest, check in.
+      Reflection: "Are we moving in sync or stepping on each other?"
+
+    Day 17:
+      Theme: Honor the Work Done Together
+      Action: Celebrate cooperative wins, not just solo heroics.
+      Reflection: "Do we name and praise what we built side-by-side?"
+
+    Day 19:
+      Theme: Rest in Harmony
+      Action: Rest together without guilt. Shared stillness, not just shared grind.
+      Reflection: "Can we be peaceful in the same room without performing?"
+
+====================================================================================================
+DECAN: ḥry-ib ꜥḥꜣy ("Heart of the Riser")
+====================================================================================================
+
+    Day 11:
+      Theme: Spark the Outposts
+      Action: Identify every place / person / pocket of your world that needs touch, presence, or supply from you.
+      Reflection: "Who depends on me staying connected, not disappearing?"
+
+    Day 13:
+      Theme: Establish Channels
+      Action: Formalize the lane: schedule, route, contact rhythm, standing check-in.
+      Reflection: "How do I keep this connection alive without chaos?"
+
+    Day 14:
+      Theme: Exchange, Not Extraction
+      Action: Make sure the flow goes both ways — this is partnership, not tribute.
+      Reflection: "Is this relationship mutual, or am I draining or being drained?"
+
+    Day 18:
+      Theme: Tend the Network Health
+      Action: Check for resentment, isolation, miscommunication, resource starving. Repair tension fast.
+      Reflection: "Where is fracture starting?"
+
+    Day 20:
+      Theme: Bless the Distributed Body
+      Action: Offer gratitude and blessing to everyone in the network, including yourself.
+      Reflection: "Can I honor this whole body of effort, not just the piece I touch?"
+
+====================================================================================================
+DECAN: ꜥḥꜣy ("The Riser")
+====================================================================================================
+
+    Day 1:
+      Theme: Accept the Load
+      Action: Name what you are now carrying forward from last month.
+      Reflection: "What work is truly mine to move?"
+
+    Day 3:
+      Theme: Steady the Pace
+      Action: Choose a repeatable pace instead of panic bursts.
+      Reflection: "Can I continue this rhythm for 10 days without collapse?"
+
+    Day 4:
+      Theme: Carry With Grace
+      Action: Treat the work as sacred process, not humiliation or desperation.
+      Reflection: "Do I see my labor as honor or insult?"
+
+    Day 5:
+      Theme: Shared Provisioning
+      Action: Shift weight, redistribute load, ask for help, give help.
+      Reflection: "Where can balanced effort keep us all upright?"
+
+    Day 8:
+      Theme: Nourish the Carrier
+      Action: Restore the body doing the carrying (rest, water, minerals, food, breath).
+      Reflection: "What restores the one holding the load?"
+
+    Day 9:
+      Theme: Honor the Route
+      Action: Name where this work is headed, and why it matters when it reaches there.
+      Reflection: "Where is this going, and who will it feed?"
+
+
+====================================================================================================
+SUMMARY
+====================================================================================================
+Total decan descriptions: 45
+Total decans with 10-day flows: 16
+====================================================================================================
