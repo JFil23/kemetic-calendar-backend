@@ -2,6 +2,13 @@ import { createClient } from "npm:@supabase/supabase-js@2.27.0";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
+const SNAPSHOT_VERSION =
+  Deno.env.get("FLOW_SNAPSHOT_VERSION") ?? "v0";
+const SCHEMA_VERSION =
+  Deno.env.get("FLOW_SCHEMA_VERSION") ?? "flowspec_v1";
+const POLICY_VERSION =
+  Deno.env.get("FLOW_POLICY_VERSION") ?? "dm_v1";
+const OUTCOME_VECTOR_LIMIT = 6;
 
 // Add timeout protection for API calls
 async function callAnthropicModel(
@@ -127,7 +134,12 @@ HARD REQUIREMENTS
 INTERPRETATION MODES
 You will be given MODE and scheduling hints.
 - MODE=DICTATION: The user is dictating items/times. Do not expand with extra activities. Only structure faithfully.
-- MODE=ELABORATION: The user gave goals/theme. Create a practical schedule with reasonable defaults.
+- MODE=ELABORATION: The user gave goals/theme. Create a practical schedule with reasonable defaults, written as a domain expert: each MAIN SESSION note must be specific, execution-ready, and include at least one technical cue, one measurable target, and one adjustment.
+In MODE=ELABORATION, each MAIN SESSION note must follow this internal order (unlabeled):
+(1) opener with concrete setup + control
+(2) short rehearsal cue
+(3) 3–7 actionable steps
+(4) one-line note-to-self close (win + adjustment).
 
 SOURCE_TEXT
 If SOURCE_TEXT is provided:
@@ -151,6 +163,16 @@ TIME-OF-DAY DEFAULTS (unless user specifies times)
 - business/deep work: 09:00–11:00
 - reflection/journaling: 20:00–20:30
 
+TIME PLACEMENT RULES (CRITICAL)
+Choose event times that match the user’s intent and real-world context.
+If the flow is about meals:
+  breakfast: 07:00–08:00
+  lunch: 12:00–13:00
+  dinner: 18:00–19:30
+The second daily note (reflection / recap / mental reps / evening note) must always be in the evening:
+  20:00–20:30 by default (or 20:00–20:12 if brief).
+Keep start times consistent across days unless the user implies otherwise.
+
 MULTI-EVENT PER DAY
 - If MULTI_EVENT_OK=true, create 2 notes/day_index when appropriate:
   main session + evening mental-only anchor.
@@ -158,30 +180,32 @@ MULTI-EVENT PER DAY
 
 DETAILS WRITING STYLE (CRITICAL)
 - Write details like a natural ChatGPT message the user would actually want in their calendar.
-- Do NOT use labeled sections or headings (no "Arrival:", "Mental Rehearsal:", etc).
+- Avoid big labeled sections/headings. Micro-structure is allowed (1–4 bullets, short numbered steps). Avoid repeating the same label pattern across days.
 - Do NOT use meta phrases like "This reinforces..." or "Why this works..." or "Journal Anchor:".
   If you explain why, do it as a single natural sentence and vary it across days.
 - Avoid generic grounding filler (e.g., "take a deep breath", "relax your shoulders") unless it’s domain-specific and concrete.
 - Keep it practical, specific, and execution-ready.
 - Use domain specifics: tools, workspace, ingredients, instrument, IDE, file names, temperatures, durations, reps, etc.
 
-DOMAIN DEPTH RULE (MAIN SESSION ONLY)
-For the FIRST note of each day_index (the main session when MULTI_EVENT_OK=true):
-- Make the first note 20–35% longer than the second note.
-- Include at least:
-  * 1 precise technical cue (body position, tool angle, timing, grip, footwork, heat level, voltage, syntax, etc. depending on domain).
-  * 1 measurable constraint (reps, duration, tempo, speed, weight, count, time block, success target).
-  * 1 adjustment instruction (what to modify if execution breaks down).
-- Reference real-world performance conditions where relevant (fatigue, pressure, speed, environmental variables, constraints).
-- Do NOT add theory explanations, labeled sections, teaching paragraphs, motivational speeches, or generic filler.
-- Maintain the same natural, calendar-native tone. The goal is credibility through specificity, not verbosity.
+EXPERT MAIN SESSION RULE (MAIN SESSION ONLY)
+Required structure
+- Opener block before any list.
+- Steps list (≥3 items).
+- Final 1-line close.
+
+Required content density
+- ≥1 measurable element (number, unit, duration, range, count, tolerance).
+- ≥1 adjustment instruction.
+- ≥1 domain artifact.
+
+Technical craft (when TECHNICAL_CRAFT=true)
+- If the description implies equipment, measurements, physical components, code, instruments, or procedural skill-building, require ≥3 of: specific parts/values; tool/meter setting; expected output range; safety constraint; debug fork; logging/documentation output.
+- Do not enumerate domains; TECHNICAL_CRAFT is set by the handler.
 
 EVENING NOTE DEPTH LIMIT
-For the SECOND note of each day_index (evening / reflection):
 - Keep it concise.
 - Do NOT add additional technical depth or measurable constraints.
-- Focus only on consolidation, reframing, memory peg, or future-self journaling as already defined.
-- Keep it tight and emotionally integrative.
+- Evening note is never the main-session note; exclude it from main-session structure validation and repair.
 
 EXPERTISE ESCALATION RULE
 Across the full flow:
@@ -189,20 +213,6 @@ Across the full flow:
 - Middle days = layered complexity and constraints.
 - Final days = integration under realistic performance conditions.
 - Expertise should compound naturally across day_index. Do not repeat the same technical cue twice in the flow.
-
-INVISIBLE STRUCTURE (MUST BE PRESENT, MUST NOT LOOK LIKE A TEMPLATE)
-In MODE=ELABORATION, each MAIN SESSION note must include all of these ingredients, but NOT always in the same order and NOT always as separate blocks:
-- Setup/context that makes the task concrete.
-- A next-60-seconds cue that reduces hesitation (can be a mental rep OR a micro-check OR a decision).
-- Clear actions the user can execute without guessing (with concrete specifics).
-- A one-line close prompt that captures a win + one adjustment (or what to try next time).
-
-Rotation rule (forces variety across days):
-- Rotate which ingredient leads the note by day_index:
-  day_index%4==0: Setup leads
-  day_index%4==1: Steps lead
-  day_index%4==2: Close leads
-  day_index%4==3: Next-60-seconds cue leads
 
 MODE=DICTATION
 - Keep details literal and minimal; do not add extra activities or coaching.
@@ -216,7 +226,9 @@ ANTI-MECHANICAL VARIATION (HARD)
 - Avoid motivational cliches.
 
 SECOND NOTE (when MULTI_EVENT_OK=true)
-Create an evening note most days (20:00–20:30 by default). It must be mental-only (no physical tasks), 5–12 minutes, and must not look templated.
+- Create an evening note most days (20:00–20:30 by default). It must be mental-only (no physical tasks), 5–12 minutes, and must not look templated.
+- Even day_index → memory peg or replay (formats C or D).
+- Odd day_index → recap or future-self (formats A or B).
 
 Evening note formats (rotate; do not use the same format two nights in a row):
 A) Tiny recap (3–4 sentences): what mattered / what shifted / what to try next.
@@ -281,6 +293,255 @@ type ParsedFlow = {
     prompt?: string;
   };
 };
+
+type OutcomeVectorV1 = {
+  vector_version?: string;
+  window_start?: string | null;
+  window_end?: string | null;
+  flow_id?: number | null;
+  origin_type?: string | null;
+  origin_generation_id?: string | null;
+  schedule_density?: number | null;
+  journal_density?: number | null;
+  events_total?: number | null;
+  events_completed?: number | null;
+  completion_ratio?: number | null;
+  badge_count?: number | null;
+  edit_count?: number | null;
+  edit_pressure?: number | null;
+  accepted_as_is?: boolean | null;
+  outcome_confidence?: string | null;
+  lower_bounds?: Record<string, boolean>;
+  journal_days?: number | null;
+  scheduled_days?: number | null;
+  n_days?: number | null;
+};
+
+type ConstraintsV1 = {
+  constraints_version: "constraints_v1";
+  eligible_vectors: number;
+  sample_days: number | null;
+  signals: {
+    avg_completion_ratio?: number;
+    avg_events_per_day?: number;
+    avg_edit_pressure?: number;
+  };
+  limits: {
+    max_events_per_day?: number;
+  };
+};
+
+function roundTo(value: number, places = 3): number {
+  const factor = 10 ** places;
+  return Math.round(value * factor) / factor;
+}
+
+function toNumber(value: any): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizeOutcomeVector(raw: any): OutcomeVectorV1 | null {
+  if (!raw || typeof raw !== "object") return null;
+  const vectorVersion = raw.vector_version ?? raw.vectorVersion;
+  if (vectorVersion && vectorVersion !== "ov_v1") return null;
+  const lowerBounds =
+    raw.lower_bounds && typeof raw.lower_bounds === "object"
+      ? raw.lower_bounds
+      : {};
+
+  return {
+    vector_version: (vectorVersion as string) ?? "ov_v1",
+    window_start: raw.window_start ?? raw.windowStart ?? null,
+    window_end: raw.window_end ?? raw.windowEnd ?? null,
+    flow_id: toNumber(raw.flow_id),
+    origin_type: raw.origin_type ?? null,
+    origin_generation_id: raw.origin_generation_id ?? null,
+    schedule_density: toNumber(raw.schedule_density),
+    journal_density: toNumber(raw.journal_density),
+    events_total: toNumber(raw.events_total),
+    events_completed: toNumber(raw.events_completed),
+    completion_ratio: toNumber(raw.completion_ratio),
+    badge_count: toNumber(raw.badge_count),
+    edit_count: toNumber(raw.edit_count),
+    edit_pressure: toNumber(raw.edit_pressure),
+    accepted_as_is:
+      typeof raw.accepted_as_is === "boolean" ? raw.accepted_as_is : null,
+    outcome_confidence:
+      typeof raw.outcome_confidence === "string"
+        ? raw.outcome_confidence
+        : null,
+    lower_bounds: lowerBounds,
+    journal_days: toNumber(raw.journal_days),
+    scheduled_days: toNumber(raw.scheduled_days),
+    n_days: toNumber(raw.n_days),
+  };
+}
+
+function averageSafe(values: Array<number | null | undefined>): number | null {
+  const nums = values.filter(
+    (v): v is number => typeof v === "number" && Number.isFinite(v),
+  );
+  if (nums.length === 0) return null;
+  const sum = nums.reduce((acc, n) => acc + n, 0);
+  return roundTo(sum / nums.length, 4);
+}
+
+function isVectorEligible(v: OutcomeVectorV1): boolean {
+  const nDays = typeof v.n_days === "number" ? v.n_days : null;
+  const eventsTotal =
+    typeof v.events_total === "number" ? v.events_total : 0;
+  const eventsCompleted =
+    typeof v.events_completed === "number" ? v.events_completed : 0;
+
+  if (eventsCompleted >= 3) return true;
+  if (nDays !== null && nDays >= 5 && eventsTotal >= 5) return true;
+  return false;
+}
+
+function deriveConstraintsV1(vectors: OutcomeVectorV1[]): ConstraintsV1 {
+  const all = vectors ?? [];
+
+  const capacityEligible = all.filter((v) => {
+    const nDays = toNumber(v.n_days);
+    const eventsTotal = toNumber(v.events_total);
+    const eventsCompleted = toNumber(v.events_completed);
+    if (eventsCompleted !== null && eventsCompleted >= 3) return true;
+    if (nDays !== null && nDays >= 5 && eventsTotal !== null && eventsTotal >= 5) return true;
+    return false;
+  });
+
+  const performanceEligible = all.filter((v) => {
+    const eventsCompleted = toNumber(v.events_completed);
+    return eventsCompleted !== null && eventsCompleted >= 1;
+  });
+
+  const sampleDaysRaw = capacityEligible.reduce((acc, v) => {
+    const n = typeof v.n_days === "number" ? v.n_days : 0;
+    return acc + (Number.isFinite(n) ? n : 0);
+  }, 0);
+  const sampleDays = sampleDaysRaw > 0 ? Math.min(sampleDaysRaw, 365) : null;
+
+  const avgEventsPerDay = averageSafe(
+    capacityEligible.map((v) => {
+      const total = toNumber(v.events_total);
+      const days = toNumber(v.n_days);
+      if (total === null || days === null || days <= 0) return null;
+      return total / days;
+    }),
+  );
+  const avgCompletion = averageSafe(
+    performanceEligible.map((v) => toNumber(v.completion_ratio)),
+  );
+  const avgEditPressure = averageSafe(
+    performanceEligible.map((v) => toNumber(v.edit_pressure)),
+  );
+
+  let maxEventsPerDay: number | null = null;
+  if (avgEventsPerDay !== null) {
+    maxEventsPerDay = Math.max(1, Math.min(4, Math.round(avgEventsPerDay)));
+  }
+
+  const hasPerformanceEvidence = performanceEligible.length > 0;
+  if (hasPerformanceEvidence) {
+    if (avgCompletion !== null && avgCompletion < 0.55) {
+      maxEventsPerDay = maxEventsPerDay === null ? 2 : Math.min(maxEventsPerDay, 2);
+    }
+    if (avgEditPressure !== null && avgEditPressure > 0.6) {
+      maxEventsPerDay = maxEventsPerDay === null ? 2 : Math.min(maxEventsPerDay, 2);
+    }
+  }
+  if (capacityEligible.length === 0) {
+    maxEventsPerDay = null;
+  }
+
+  const constraints: ConstraintsV1 = {
+    constraints_version: "constraints_v1",
+    eligible_vectors: capacityEligible.length,
+    sample_days: sampleDays,
+    signals: {},
+    limits: {},
+  };
+
+  if (avgEventsPerDay !== null) {
+    constraints.signals.avg_events_per_day = roundTo(avgEventsPerDay, 3);
+  }
+  if (hasPerformanceEvidence && avgCompletion !== null) {
+    constraints.signals.avg_completion_ratio = avgCompletion;
+  }
+  if (hasPerformanceEvidence && avgEditPressure !== null) {
+    constraints.signals.avg_edit_pressure = avgEditPressure;
+  }
+  if (maxEventsPerDay !== null) {
+    constraints.limits.max_events_per_day = maxEventsPerDay;
+  }
+
+  return constraints;
+}
+
+async function fetchOutcomeVectors(
+  supabaseClient: any,
+  userId: string,
+  limit: number = OUTCOME_VECTOR_LIMIT,
+): Promise<{ vectors: OutcomeVectorV1[]; status: "ok" | "error" | "unavailable" }> {
+  if (!supabaseClient || !userId) {
+    return { vectors: [], status: "unavailable" };
+  }
+  try {
+    const { data, error } = await supabaseClient
+      .rpc("get_recent_outcome_vectors", {
+        p_user_id: userId,
+        p_limit: limit,
+      });
+    if (error) {
+      console.log("⚠️ get_recent_outcome_vectors error:", error.message ?? error);
+      return { vectors: [], status: "error" };
+    }
+    if (!Array.isArray(data)) {
+      return { vectors: [], status: "error" };
+    }
+    const vectors = data
+      .map(normalizeOutcomeVector)
+      .filter((v): v is OutcomeVectorV1 => !!v);
+    return { vectors, status: "ok" };
+  } catch (err) {
+    console.log("⚠️ get_recent_outcome_vectors threw:", err?.message ?? err);
+    return { vectors: [], status: "error" };
+  }
+}
+
+type PrefsEnvelope = {
+  prefs_version?: string | null;
+  prefs?: {
+    preferred_hours?: number[];
+    avoid_hours?: number[];
+    [k: string]: any;
+  } | null;
+  computed_at?: string | null;
+  window_days?: number | null;
+  timezone?: string | null;
+} | null;
+
+async function fetchMyPreferences(supabaseClient: any): Promise<PrefsEnvelope> {
+  if (!supabaseClient) {
+    return null;
+  }
+  try {
+    const { data, error } = await supabaseClient.rpc("get_my_preferences");
+    if (error) {
+      console.log("⚠️ get_my_preferences error:", error.message ?? error);
+      return null;
+    }
+    if (!data) {
+      return null;
+    }
+    return data as PrefsEnvelope;
+  } catch (err) {
+    console.log("⚠️ get_my_preferences threw:", err?.message ?? err);
+    return null;
+  }
+}
 
 // ---- OpenAI helper (Deno fetch, no SDK) ----
 type OpenAIMessage = { role: "system" | "user" | "assistant"; content: string };
@@ -376,8 +637,13 @@ function buildSystemPrompt(): string {
 
 ${FLOW_RULES_PACK_V1_2}
 
-PRIORITY OVERRIDE:
-If any rule conflicts, prioritize: (1) natural non-templated writing, (2) zero repeated sentences/phrases, (3) no headings/labels, over all other stylistic guidance.`;
+PRIORITY ORDER (HIGHEST TO LOWEST). If a conflict occurs, drop lower-priority constraints first.
+1. Valid JSON + schema compliance
+2. Scheduling + day coverage
+3. MAIN SESSION structure + domain density
+4. Natural non-templated tone
+5. Anti-mechanical variation
+6. Avoidance of repeated phrasing`;
 }
 
 async function getPromptFingerprint(systemPrompt?: string): Promise<string> {
@@ -595,6 +861,13 @@ function inferTimePreference(description: string): "morning" | "midday" | "eveni
   return "none";
 }
 
+function detectTechnicalCraft(description: string): boolean {
+  if (!description) return false;
+  const technicalRe =
+    /(equipment|measurement|physical components|code|instruments|procedural|skill-building|voltage|current|resistance|circuit|multimeter|ohm|resistor|breadboard|script|\bide\b|drill|saw|recipe|ingredients|temperature|puck|stick)/i;
+  return technicalRe.test(description);
+}
+
 function dayNameFromIndex(startDateStr: string, dayIndex: number): string | null {
   const startMs = Date.parse(startDateStr);
   if (Number.isNaN(startMs)) return null;
@@ -625,6 +898,107 @@ function validateSpecificDays(
   }
 
   return { ok: violations === 0, violations };
+}
+
+function getMainSessionNote(notesForDay: ParsedNote[]): ParsedNote | null {
+  if (!Array.isArray(notesForDay) || notesForDay.length === 0) return null;
+  if (notesForDay.length === 1) return notesForDay[0];
+
+  const looksEvening = (note: ParsedNote) => {
+    const start = note.start_time?.trim();
+    if (start === "20:00" || start === "20:30") return true;
+    const title = (note.title ?? "").toLowerCase();
+    const eveningTitle = /\b(evening|recap|reflection|review|wind down|postcard|memory|peg|insight|journal)\b/;
+    return note.all_day === true && eveningTitle.test(title);
+  };
+
+  const mainCandidates = notesForDay.filter((n) => !looksEvening(n));
+  if (mainCandidates.length === 0) return null;
+  if (mainCandidates.length === 1) return mainCandidates[0];
+
+  const sorted = mainCandidates.slice().sort((a, b) => {
+    const aMinutes = timeToMinutes(a.start_time) ?? Number.MAX_SAFE_INTEGER;
+    const bMinutes = timeToMinutes(b.start_time) ?? Number.MAX_SAFE_INTEGER;
+    if (aMinutes !== bMinutes) return aMinutes - bMinutes;
+    const aLen = (a.details ?? "").length;
+    const bLen = (b.details ?? "").length;
+    return bLen - aLen;
+  });
+
+  return sorted[0] ?? null;
+}
+
+function validateMainSessionStructure(
+  parsedFlow: ParsedFlow,
+  technicalCraft: boolean,
+): { ok: boolean; failedDayIndices: number[] } {
+  if (!parsedFlow || !Array.isArray(parsedFlow.notes)) {
+    return { ok: false, failedDayIndices: [] };
+  }
+
+  const byDay = new Map<number, ParsedNote[]>();
+  for (const n of parsedFlow.notes) {
+    if (!n || !Number.isInteger(n.day_index)) continue;
+    const bucket = byDay.get(n.day_index) ?? [];
+    bucket.push(n);
+    byDay.set(n.day_index, bucket);
+  }
+
+  const bulletRe = /^([-*•]\s+|\d+\.\s+)/;
+  const failed: number[] = [];
+
+  for (const [dayIndex, notes] of byDay.entries()) {
+    const main = getMainSessionNote(notes);
+    if (!main) continue;
+
+    const details = (main.details ?? "").trim();
+    if (!details) {
+      failed.push(dayIndex);
+      continue;
+    }
+
+    const lines = details.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const firstBulletIdx = lines.findIndex((l) => bulletRe.test(l));
+    const openerBlock = firstBulletIdx === -1 ? lines.join(" ") : lines.slice(0, firstBulletIdx).join(" ");
+    const hasOpener = openerBlock.trim().length > 0 && /[.!?]/.test(openerBlock);
+
+    const stepCount = lines.filter((l) => bulletRe.test(l)).length;
+
+    const nonEmpty = lines.filter((l) => l.length > 0);
+    const lastLine = nonEmpty[nonEmpty.length - 1] ?? "";
+    const isLastBullet = bulletRe.test(lastLine);
+
+    const closeLines: string[] = [];
+    for (let i = nonEmpty.length - 1; i >= 0 && closeLines.length < 2; i--) {
+      const line = nonEmpty[i];
+      if (bulletRe.test(line)) break;
+      closeLines.unshift(line);
+    }
+
+    const adjustmentRe = /\b(if|next time|adjust|try|tighten|when\b.*\bthen|tweak|fallback|swap)\b/i;
+    const hasClose =
+      closeLines.length > 0 &&
+      closeLines.length <= 2 &&
+      !isLastBullet &&
+      adjustmentRe.test(closeLines.join(" "));
+
+    const hasDigit = /\d/.test(details);
+
+    let technicalOk = true;
+    if (technicalCraft) {
+      const expectedRe = /(expect|should read|target|range|~|±|tolerance|output|reading)/i;
+      const unitOrRangeRe =
+        /(\d+\s*-\s*\d+|\d+\s?(ms|s|sec|min|hr|hz|°c|c|f|kg|lbs|lb|mm|cm|v|w|%|rpm|mph|kph|bpm|ohm)|~|±)/i;
+      technicalOk = expectedRe.test(details) && unitOrRangeRe.test(details);
+    }
+
+    if (!(hasOpener && stepCount >= 3 && hasClose && hasDigit && technicalOk)) {
+      failed.push(dayIndex);
+    }
+  }
+
+  failed.sort((a, b) => a - b);
+  return { ok: failed.length === 0, failedDayIndices: failed };
 }
 
 // ✅ REFACTOR: Removed all date/time helper functions
@@ -887,6 +1261,101 @@ function enforceRichStructure(flow: ParsedFlow) {
   });
 }
 
+function applySensibleTimes(opts: {
+  notes: ParsedNote[];
+  mode: "DICTATION" | "ELABORATION";
+  flowType: string;
+  description: string;
+}): ParsedNote[] {
+  const { notes, mode, flowType, description } = opts;
+  if (!Array.isArray(notes)) return notes;
+  if (mode === "DICTATION") return notes;
+
+  const desc = (description || "").toLowerCase();
+  const ft = (flowType || "").toLowerCase();
+
+  const isMealFlow =
+    /\b(meal|meals|recipe|recipes|cook|cooking|dinner|lunch|breakfast|meal prep)\b/.test(desc) ||
+    /\b(food|nutrition)\b/.test(ft);
+
+  const wantsDinner =
+    /\b(dinner|dinners)\b/.test(desc) ||
+    /\bweek of dinners\b/.test(desc) ||
+    /\b(dinner recipes)\b/.test(desc);
+
+  const wantsLunch = /\blunch\b/.test(desc);
+  const wantsBreakfast = /\bbreakfast\b/.test(desc);
+
+  let mainStart = "09:00";
+  let mainEnd = "10:00";
+
+  if (isMealFlow) {
+    if (wantsDinner) {
+      mainStart = "18:00";
+      mainEnd = "19:00";
+    } else if (wantsLunch) {
+      mainStart = "12:00";
+      mainEnd = "12:45";
+    } else if (wantsBreakfast) {
+      mainStart = "07:00";
+      mainEnd = "07:45";
+    } else {
+      mainStart = "18:00";
+      mainEnd = "19:00";
+    }
+  } else if (/\bworkout|fitness|training\b/.test(ft) || /\bworkout|gym\b/.test(desc)) {
+    mainStart = "07:00";
+    mainEnd = "08:00";
+  } else if (/\bbusiness|deep work|work\b/.test(ft) || /\bdeep work|focus\b/.test(desc)) {
+    mainStart = "09:00";
+    mainEnd = "11:00";
+  } else if (/\bjournal|reflection\b/.test(ft)) {
+    mainStart = "20:00";
+    mainEnd = "20:30";
+  }
+
+  const isEveningTitle = (t: string) =>
+    /\b(evening|recap|reflection|review|mental reps|wind down|postcard|memory|peg|insight)\b/i.test(
+      t || "",
+    );
+
+  const grouped = new Map<number, ParsedNote[]>();
+  for (const n of notes) {
+    const di = Number.isFinite(n?.day_index) ? (n.day_index as number) : 0;
+    const bucket = grouped.get(di) ?? [];
+    bucket.push(n);
+    grouped.set(di, bucket);
+  }
+
+  const setNoteTime = (n: ParsedNote, start: string, end: string) => {
+    n.all_day = false;
+    n.start_time = start;
+    n.end_time = end;
+  };
+
+  const clampEvening = (n: ParsedNote) => setNoteTime(n, "20:00", "20:30");
+  const setMain = (n: ParsedNote) => setNoteTime(n, mainStart, mainEnd);
+
+  for (const [, dayNotes] of grouped.entries()) {
+    if (!Array.isArray(dayNotes) || dayNotes.length === 0) continue;
+
+    if (dayNotes.length === 1) {
+      setMain(dayNotes[0]);
+      continue;
+    }
+
+    dayNotes.sort((a, b) => (a.start_time || "").localeCompare(b.start_time || ""));
+
+    let evening = dayNotes.find((n) => isEveningTitle(n.title)) ?? dayNotes[dayNotes.length - 1];
+    const main = dayNotes.find((n) => n !== evening) ?? dayNotes[0];
+
+    clampEvening(evening);
+    setMain(main);
+  }
+
+  return notes;
+}
+
 function calculateCostCents(model, tokensIn, tokensOut) {
   if (model.includes("haiku")) {
     return Math.round(((tokensIn * 0.8 + tokensOut * 4.0) / 10000) * 100);
@@ -954,6 +1423,19 @@ Deno.serve(async (req) => {
         }
       );
     }
+
+    // ✅ Initialize immediately after required fields check (avoids TDZ)
+    let flowType: "workout" | "body" | "business" | "generic" = "generic";
+    if (/(workout|gym|lift|training|practice drums|practice guitar)/i.test(description)) {
+      flowType = "workout";
+    } else if (/(hair|skin|scalp|body care|detox)/i.test(description)) {
+      flowType = "body";
+    } else if (/(business|startup|marketing|sales|clients|leads)/i.test(description)) {
+      flowType = "business";
+    }
+    const technicalCraft = detectTechnicalCraft(description);
+    console.log("[ai_generate_flow] technicalCraft:", technicalCraft);
+    console.log("[ai_generate_flow] flowType:", flowType);
 
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -1121,11 +1603,12 @@ Deno.serve(async (req) => {
       console.log("⚠️ WARNING: getUser() userId mismatch with JWT claims");
     }
 
-    // Rate limiting removed - let OpenAI handle rate limiting
+    const generationId = crypto.randomUUID();
+    const snapshotVersion = SNAPSHOT_VERSION;
+    const schemaVersion = SCHEMA_VERSION;
+    const policyVersion = POLICY_VERSION;
 
-    // Cache lookup (include prompt fingerprint to avoid stale thin outputs)
-    const inputForHash = JSON.stringify({ description, startDate, endDate, source_text, promptFingerprint });
-    const input_hash = await sha256Hex(inputForHash);
+    // Rate limiting removed - let OpenAI handle rate limiting
 
     const cacheUnavailable = !supabaseAdmin;
     const skipCache = forceRefresh === true || cacheUnavailable;
@@ -1138,6 +1621,157 @@ Deno.serve(async (req) => {
     let costCents = 0;
     let mode: "DICTATION" | "ELABORATION" = "ELABORATION";
     const startTime = Date.now();
+    const dmPolicyVersion = "dm_v1";
+    let outcomeVectors: OutcomeVectorV1[] = [];
+    let constraintsJson: ConstraintsV1 = deriveConstraintsV1([]);
+    let constraintsFetchStatus: "ok" | "error" | "unavailable" | "skipped_personalization_off" = "unavailable";
+    let personalizationEnabled: boolean | null = null;
+    let prefsEnvelope: PrefsEnvelope = null;
+    let preferredHours: number[] = [];
+    let avoidHours: number[] = [];
+    let prefsVersion = "prefs_v1";
+    let prefsPromptSnippet: string | null = null;
+    let prefsUsed = false;
+
+    try {
+      const { data: profileRow, error: profileErr } = await supabaseUser
+        .from("profiles")
+        .select("personalization_enabled")
+        .eq("id", userId)
+        .maybeSingle();
+      if (profileErr) {
+        console.log("⚠️ personalization flag fetch error:", profileErr.message ?? profileErr);
+      } else {
+        personalizationEnabled = profileRow?.personalization_enabled ?? true;
+      }
+    } catch (err) {
+      console.log("⚠️ personalization flag fetch threw:", err?.message ?? err);
+    }
+
+    const personalizationDisabled = personalizationEnabled === false;
+
+    if (personalizationDisabled) {
+      outcomeVectors = [];
+      constraintsJson = deriveConstraintsV1([]);
+      constraintsFetchStatus = "skipped_personalization_off";
+      prefsEnvelope = null;
+      preferredHours = [];
+      avoidHours = [];
+      prefsPromptSnippet = null;
+      prefsVersion = "prefs_v1";
+      prefsUsed = false;
+    } else {
+      const outcomeResult = await fetchOutcomeVectors(
+        supabaseUser,
+        userId,
+        OUTCOME_VECTOR_LIMIT,
+      );
+      outcomeVectors = outcomeResult.vectors;
+      constraintsFetchStatus = outcomeResult.status;
+      constraintsJson = deriveConstraintsV1(outcomeVectors);
+
+      prefsEnvelope = await fetchMyPreferences(supabaseUser);
+      const prefs = prefsEnvelope?.prefs ?? null;
+      const sanitizeHours = (value: any): number[] => {
+        if (!Array.isArray(value)) return [];
+        const seen = new Set<number>();
+        const result: number[] = [];
+        for (const hourValue of value) {
+          const n = Number(hourValue);
+          if (!Number.isFinite(n)) continue;
+          const hour = Math.floor(n);
+          if (hour < 0 || hour > 23) continue;
+          if (seen.has(hour)) continue;
+          seen.add(hour);
+          result.push(hour);
+          if (result.length >= 6) break;
+        }
+        return result;
+      };
+
+      preferredHours = sanitizeHours(prefs?.preferred_hours);
+      avoidHours = sanitizeHours(prefs?.avoid_hours);
+      prefsVersion = prefsEnvelope?.prefs_version ?? prefs?.prefs_version ?? "prefs_v1";
+
+      let prefsSnippet = "";
+      if (preferredHours.length > 0 || avoidHours.length > 0) {
+        prefsSnippet = `DM_PREFERENCES (${prefsVersion}):`;
+        if (preferredHours.length > 0) {
+          prefsSnippet += `\n- PREFERRED_HOURS_LOCAL: ${preferredHours.join(",")}`;
+        }
+        if (avoidHours.length > 0) {
+          prefsSnippet += `\n- AVOID_HOURS_LOCAL: ${avoidHours.join(",")}`;
+        }
+      }
+      prefsPromptSnippet = prefsSnippet ? prefsSnippet.trim() : null;
+      prefsUsed = !!(prefsPromptSnippet && prefsPromptSnippet.length > 0);
+    }
+    const baseInputMeta: Record<string, any> = {
+      cache_bypass: skipCache,
+      cache_unavailable: cacheUnavailable,
+      constraints_vectors: outcomeVectors.length,
+      constraints_eligible: constraintsJson.eligible_vectors,
+      constraints_fetch_status: constraintsFetchStatus,
+      constraints_version: constraintsJson.constraints_version,
+    };
+    const prefsFetchStatus = personalizationDisabled
+      ? "skipped_personalization_off"
+      : (prefsEnvelope ? "ok" : "none");
+    const prefsSnippetForMeta = prefsUsed && prefsPromptSnippet
+      ? prefsPromptSnippet.trim().slice(0, 220)
+      : null;
+
+    baseInputMeta.prefs_fetch = prefsFetchStatus;
+    baseInputMeta.prefs_used = prefsUsed;
+    baseInputMeta.prefs_version = prefsUsed ? prefsVersion : null;
+    baseInputMeta.prefs_ph = prefsUsed ? preferredHours : [];
+    baseInputMeta.prefs_ah = prefsUsed ? avoidHours : [];
+    baseInputMeta.prefs_snippet = prefsSnippetForMeta;
+
+    // --- Phase 4: constraint-to-prompt decision (Option A) ---
+    const DM_USE_CONSTRAINTS = (Deno.env.get("DM_USE_CONSTRAINTS") ?? "false") === "true";
+    const maxEpd = constraintsJson?.limits?.max_events_per_day;
+    const constraintsEligible = (constraintsJson?.eligible_vectors ?? 0) >= 1;
+    const constraintsCanInject =
+      DM_USE_CONSTRAINTS &&
+      constraintsEligible &&
+      typeof maxEpd === "number" &&
+      Number.isFinite(maxEpd) &&
+      maxEpd >= 1;
+    let constraintsPromptSnippet: string | null = null;
+    if (constraintsCanInject) {
+      constraintsPromptSnippet =
+        `DM_CONSTRAINTS (constraints_v1):\n` +
+        `- MAX_EVENTS_PER_DAY: ${maxEpd}\n` +
+        `Follow this limit unless the user explicitly requests otherwise.`;
+    }
+    baseInputMeta.constraints_used = constraintsCanInject;
+    baseInputMeta.constraints_used_reason = !DM_USE_CONSTRAINTS
+      ? "kill_switch_off"
+      : (constraintsEligible < 1
+        ? "no_eligible_vectors"
+        : (typeof maxEpd !== "number" || !Number.isFinite(maxEpd) || maxEpd < 1
+          ? "no_limits"
+          : "eligible_vectors>=1 && max_events_per_day set"));
+    baseInputMeta.constraints_prompt_snippet =
+      constraintsPromptSnippet ? constraintsPromptSnippet.slice(0, 300) : null;
+
+    const constraintsFingerprint = constraintsCanInject
+      ? { v: constraintsJson.constraints_version, max_epd: maxEpd }
+      : { v: "none" };
+    const prefsFingerprint = prefsUsed
+      ? { v: prefsVersion, ph: preferredHours, ah: avoidHours }
+      : { v: "none" };
+    const inputForHash = JSON.stringify({
+      description,
+      startDate,
+      endDate,
+      source_text,
+      promptFingerprint,
+      constraints: constraintsFingerprint,
+      prefs: prefsFingerprint,
+    });
+    const input_hash = await sha256Hex(inputForHash);
 
     if (cacheUnavailable) {
       console.log("[ai_generate_flow] cache unavailable (no service role key)");
@@ -1146,12 +1780,17 @@ Deno.serve(async (req) => {
     if (!skipCache) {
       const { data: cacheRows, error: cacheErr } = await supabaseAdmin
         .from("flow_generation_cache")
-        .select("response_json, created_at")
+        .select("response_json, created_at, model_used, llm_status, prompt_fingerprint")
+        .eq("user_id", userId)
+        .eq("snapshot_version", snapshotVersion)
+        .eq("schema_version", schemaVersion)
+        .eq("policy_version", policyVersion)
         .eq("input_hash", input_hash)
         .gte(
           "created_at",
           new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
         )
+        .order("created_at", { ascending: false })
         .limit(1);
 
       if (!cacheErr && Array.isArray(cacheRows) && cacheRows.length > 0) {
@@ -1159,6 +1798,7 @@ Deno.serve(async (req) => {
           llmFlow = cacheRows[0].response_json as LLMFlow;
           cached = true;
           llmStatus = "cache_hit";
+          modelUsed = cacheRows[0].model_used ?? "cache";
         } catch (e) {
           cached = false;
         }
@@ -1175,15 +1815,6 @@ Deno.serve(async (req) => {
     }
 
     if (!cached) {
-      let flowType: "workout" | "body" | "business" | "generic" = "generic";
-      if (/(workout|gym|lift|training|practice drums|practice guitar)/i.test(description)) {
-        flowType = "workout";
-      } else if (/(hair|skin|scalp|body care|detox)/i.test(description)) {
-        flowType = "body";
-      } else if (/(business|startup|marketing|sales|clients|leads)/i.test(description)) {
-        flowType = "business";
-      }
-
       mode = inferMode(description, source_text);
       const schedule = inferSchedule(description);
       const multiEventOk = inferMultiEventOk(mode, flowType, description);
@@ -1191,8 +1822,12 @@ Deno.serve(async (req) => {
       const timezoneValue = timezone || "UTC";
 
       const sys = systemPrompt;
-      const calculatedMaxTokens = Math.max(3500, Math.ceil(dateRangeDays * 300));
-      const maxTokens = Math.min(calculatedMaxTokens, 24000);
+      // Clamp completion tokens to stay below the 16,384 cap of gpt-4o-mini.
+      // This prevents OpenAI from rejecting requests with "max_tokens is too large".
+      const modelMaxTokens = 14000;
+      const promptReserve = 1500;
+      const calculatedMaxTokens = Math.max(3500, Math.ceil(dateRangeDays * 500));
+      const maxTokens = Math.min(calculatedMaxTokens, modelMaxTokens);
       const temperature = mode === "DICTATION" ? 0.3 : 0.6;
 
       const header = [
@@ -1205,11 +1840,20 @@ Deno.serve(async (req) => {
         `TIMEZONE: ${timezoneValue}`,
         `DATE_RANGE: ${startDate} → ${endDate} (${dateRangeDays} days)`,
         `FLOW_TYPE: ${flowType}`,
+        `TECHNICAL_CRAFT: ${technicalCraft}`,
       ].join("\n");
 
       const flowNameHint = flowName ? `\nFLOW_NAME_HINT: ${flowName}` : "";
+      const constraintsBlock =
+        baseInputMeta.constraints_used && baseInputMeta.constraints_prompt_snippet
+          ? `\n\n${String(baseInputMeta.constraints_prompt_snippet)}\n`
+          : "\n\n";
+      const prefsBlock =
+        prefsUsed && prefsPromptSnippet ? `${prefsPromptSnippet}\n` : "";
+      const dmBlock = `${constraintsBlock}${prefsBlock}`;
       const baseUserPrompt =
-        `${header}${flowNameHint}\n\nUSER_DESCRIPTION:\n${description}\n\n${
+        `${header}${flowNameHint}${dmBlock}` +
+        `USER_DESCRIPTION:\n${description}\n\n${
           source_text ? `SOURCE_TEXT:\n${source_text}\n\n` : ""
         }Cover every day_index 0..${dateRangeDays - 1} with at least one note. You may create multiple notes for a day_index when appropriate.`;
 
@@ -1225,7 +1869,8 @@ Deno.serve(async (req) => {
           ? `${baseUserPrompt}\n\n${retryInstruction}`
           : baseUserPrompt;
 
-        const aiResp = await generateWithOpenAI({
+        let usedMaxTokens = maxTokens;
+        let aiResp = await generateWithOpenAI({
           messages: [
             { role: "system", content: sys },
             { role: "user", content: promptToSend },
@@ -1252,21 +1897,55 @@ Deno.serve(async (req) => {
         modelUsed = aiResp.modelUsed;
 
         if (aiResp.finishReason === "length") {
-          console.log("⚠️ LLM response was truncated (hit token limit)");
-          return new Response(
-            JSON.stringify({ 
-              success: false, 
-              error: "LLM_TRUNCATED", 
-              message: `Response was too long for ${dateRangeDays} days. Try a shorter date range or the model may need more tokens.` 
-            }),
-            {
-              status: 500,
-              headers: {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": origin,
-              },
-            }
-          );
+          console.log("⚠️ LLM response was truncated (hit token limit) — retrying with shorter main sessions");
+          const shortenedPrompt = `${promptToSend}\n\nShorten each MAIN SESSION by ~15% but preserve structure and domain artifacts. Keep each MAIN SESSION under 220 words.`;
+          const maxTokensRetry = Math.max(500, Math.floor(maxTokens * 0.85));
+          usedMaxTokens = maxTokensRetry;
+          const retryResp = await generateWithOpenAI({
+            messages: [
+              { role: "system", content: sys },
+              { role: "user", content: shortenedPrompt },
+            ],
+            temperature,
+            max_tokens: maxTokensRetry,
+          });
+
+          if (!retryResp.ok) {
+            return new Response(
+              JSON.stringify({ success: false, error: "OPENAI_ERROR", message: retryResp.error ?? "Unknown OpenAI error" }),
+              {
+                status: 502,
+                headers: {
+                  "Content-Type": "application/json",
+                  "Access-Control-Allow-Origin": origin,
+                },
+              }
+            );
+          }
+
+          tokensIn = retryResp.tokensIn;
+          tokensOut = retryResp.tokensOut;
+          modelUsed = retryResp.modelUsed;
+
+          if (retryResp.finishReason === "length") {
+            console.log("❌ Length retry also truncated");
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                error: "LLM_TRUNCATED", 
+                message: `Response was too long for ${dateRangeDays} days, even after shortening. Try a shorter date range.` 
+              }),
+              {
+                status: 500,
+                headers: {
+                  "Content-Type": "application/json",
+                  "Access-Control-Allow-Origin": origin,
+                },
+              }
+            );
+          }
+
+          aiResp = retryResp;
         }
 
         const text = stripCodeFences(aiResp.content);
@@ -1276,7 +1955,7 @@ Deno.serve(async (req) => {
           : aiResp.content;
         console.log("🔍 LLM RAW CONTENT:", contentPreview);
         console.log("🔍 LLM CONTENT LENGTH:", aiResp.content.length, "chars");
-        console.log("🔍 LLM TOKENS OUT:", tokensOut, "max_tokens:", maxTokens);
+        console.log("🔍 LLM TOKENS OUT:", tokensOut, "max_tokens:", usedMaxTokens);
         console.log("🔍 LLM FINISH REASON:", aiResp.finishReason);
 
         try {
@@ -1330,6 +2009,43 @@ Deno.serve(async (req) => {
         llmStatus === "validation_failed"
           ? { success: false, error: "LLM_VALIDATION_ERROR", message: "Model output failed validation after retry." }
           : { error: "Failed to obtain valid LLM output" };
+      if (supabaseAdmin) {
+        const failureLogRow = {
+          user_id: userId,
+          flow_id: null,
+          generation_id: generationId,
+          input_hash,
+          user_prompt_raw: description,
+          model_used: null,
+          tokens_in: 0,
+          tokens_out: 0,
+          cost_cents: 0,
+          duration_ms: Date.now() - startTime,
+          llm_status: llmStatus,
+          schema_version: schemaVersion,
+          policy_version: policyVersion,
+          range_start: startDate,
+          range_end: endDate,
+          snapshot_version: snapshotVersion,
+          prompt_fingerprint: promptFingerprint ?? null,
+          served_from_cache: false,
+          dm_policy_version: dmPolicyVersion,
+          constraints_json: constraintsJson,
+          state_snapshot: {},
+          context_summary: "llm_failure",
+          input_meta: baseInputMeta,
+        };
+        try {
+          const { error: failureLogErr } = await supabaseAdmin
+            .from("flow_generation_logs")
+            .insert(failureLogRow);
+          if (failureLogErr) {
+            console.log("Failed to insert failure flow_generation_logs:", failureLogErr);
+          }
+        } catch (e) {
+          console.error("flow_generation_logs failure insert threw:", e);
+        }
+      }
       return new Response(
         JSON.stringify(payload),
         {
@@ -1354,7 +2070,128 @@ Deno.serve(async (req) => {
       enforceRichStructure(parsedFlow);
     }
 
-    // Log parsed flow for debugging
+    parsedFlow.notes = applySensibleTimes({
+      notes: parsedFlow.notes,
+      mode,
+      flowType,
+      description,
+    });
+
+    let structureResult: { ok: boolean; failedDayIndices: number[] } = {
+      ok: true,
+      failedDayIndices: [],
+    };
+
+    if (mode === "ELABORATION") {
+      structureResult = validateMainSessionStructure(parsedFlow, technicalCraft);
+      console.log("🔍 MAIN SESSION STRUCTURE CHECK:", structureResult);
+
+      if (!structureResult.ok && structureResult.failedDayIndices.length > 0) {
+        const flowJsonForRepair = {
+          flowName: parsedFlow.flow_name,
+          overview: {
+            title: parsedFlow.overview_title,
+            summary: parsedFlow.overview_summary,
+          },
+          notes: parsedFlow.notes.map((n) => ({
+            day_index: n.day_index,
+            title: n.title,
+            details: n.details,
+            allDay: n.all_day,
+            startsAt: n.start_time ?? null,
+            endsAt: n.end_time ?? null,
+            location: n.location ?? null,
+          })),
+        };
+
+        const structureLines = [
+          "- Opener before any list (at least one full sentence).",
+          "- 3+ bullet/numbered steps.",
+          "- Close with 1–2 lines (not bullets) that capture a win + adjustment (keywords: if, next time, adjust, try, tighten, when...then).",
+          "- At least one measurable element (digit/unit/range).",
+        ];
+        if (technicalCraft) {
+          structureLines.push(
+            "- Include an expected/measurement phrase plus units/tolerance/range and ≥3 of: specific parts/values, tool/meter setting, expected output range, safety constraint, debug fork, logging/documentation output.",
+          );
+        }
+        structureLines.push("- If the note lacks a short rehearsal cue (first 60 seconds), add one.");
+
+        const repairPrompt = [
+          `Existing flow JSON (keep the shape, only change MAIN SESSION details for day_index: ${structureResult.failedDayIndices.join(", ")}):`,
+          JSON.stringify(flowJsonForRepair, null, 2),
+          "",
+          `User description: ${description}`,
+          "",
+          "Structure requirements for MAIN SESSION notes:",
+          structureLines.join("\n"),
+          "",
+          "Do NOT modify evening notes (the 20:00–20:30 mental note).",
+          "Rewrite ONLY the details field for the MAIN SESSION note on each listed day_index.",
+          "Return the FULL flow JSON unchanged except for those details fields.",
+        ].join("\n");
+
+        console.log("🔧 Triggering repair for day_index:", structureResult.failedDayIndices);
+
+        const repairResp = await generateWithOpenAI({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: repairPrompt },
+          ],
+          temperature: 0.4,
+          max_tokens: 2000,
+        });
+
+        if (repairResp.ok) {
+          const repairedText = stripCodeFences(repairResp.content);
+          let repairedFlow: LLMFlow | null = null;
+          try {
+            repairedFlow = JSON.parse(repairedText) as LLMFlow;
+          } catch {
+            const jsonMatch = repairedText.match(/\{[\s\S]*\}/m);
+            if (jsonMatch) {
+              try {
+                repairedFlow = JSON.parse(jsonMatch[0]) as LLMFlow;
+              } catch {
+                repairedFlow = null;
+              }
+            }
+          }
+
+          if (repairedFlow) {
+            const repairedParsed = transformLLMFlowToParsedFlow(
+              repairedFlow,
+              startDateStr,
+              dateRangeDays,
+            );
+            repairedParsed.notes = applySensibleTimes({
+              notes: repairedParsed.notes,
+              mode,
+              flowType,
+              description,
+            });
+
+            for (const dayIdx of structureResult.failedDayIndices) {
+              const existing = parsedFlow.notes.filter((n) => n.day_index === dayIdx);
+              const repaired = repairedParsed.notes.filter((n) => n.day_index === dayIdx);
+              const existingMain = getMainSessionNote(existing);
+              const repairedMain = getMainSessionNote(repaired);
+              if (existingMain && repairedMain && repairedMain.details) {
+                existingMain.details = (repairedMain.details ?? "").trim();
+              }
+            }
+
+            console.log("🔧 Repaired main-session details for day_index:", structureResult.failedDayIndices);
+          } else {
+            console.log("⚠️ Repair response could not be parsed; using original details");
+          }
+        } else {
+          console.log("⚠️ Repair request failed:", repairResp.error);
+        }
+      }
+    }
+
+    // Log parsed flow for debugging (post-repair)
     console.log("🔍 PARSED FLOW:", JSON.stringify(parsedFlow, null, 2));
 
     // FINAL VALIDATION: structural only
@@ -1462,14 +2299,27 @@ Deno.serve(async (req) => {
     const logRow = {
       user_id: userId,
       flow_id: null,  // ✅ Flutter creates the flow, not Edge
+      generation_id: generationId,
       input_hash,
       user_prompt_raw: description,
-      model_used: modelUsed,
+      model_used: cached ? (modelUsed || "cache") : modelUsed,
       tokens_in: tokensIn,
       tokens_out: tokensOut,
       cost_cents: costCents,
       duration_ms,
       llm_status: llmStatus,
+      schema_version: schemaVersion,
+      policy_version: policyVersion,
+      range_start: startDate,
+      range_end: endDate,
+      snapshot_version: snapshotVersion,
+      prompt_fingerprint: promptFingerprint ?? null,
+      served_from_cache: cached,
+      dm_policy_version: dmPolicyVersion,
+      constraints_json: constraintsJson,
+      state_snapshot: {},
+      context_summary: cached ? "cache_hit" : "fresh_gen",
+      input_meta: baseInputMeta,
     };
 
     if (supabaseAdmin) {
@@ -1489,13 +2339,23 @@ Deno.serve(async (req) => {
     if (supabaseAdmin && !cached && llmFlow) {
       try {
         const cacheRow = {
+          user_id: userId,
+          snapshot_version: snapshotVersion,
+          schema_version: schemaVersion,
+          policy_version: policyVersion,
           input_hash,
           user_prompt: description,
           response_json: llmFlow,
+          model_used: modelUsed || null,
+          llm_status: llmStatus || null,
+          prompt_fingerprint: promptFingerprint || null,
         };
         const { error: cacheInsertErr } = await supabaseAdmin
           .from("flow_generation_cache")
-          .insert(cacheRow);
+          .upsert(cacheRow, {
+            onConflict:
+              "user_id,snapshot_version,schema_version,policy_version,input_hash",
+          });
         if (cacheInsertErr) {
           console.log(
             "Failed to insert into flow_generation_cache:",
@@ -1529,6 +2389,10 @@ Deno.serve(async (req) => {
           model: modelUsed,
           prompt: description.substring(0, 200), // Truncate for response size
         },
+        generation_id: generationId,
+        schema_version: schemaVersion,
+        policy_version: policyVersion,
+        snapshot_version: snapshotVersion,
         modelUsed,
         cached,
       }),

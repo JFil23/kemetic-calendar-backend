@@ -3924,6 +3924,7 @@ CREATE TABLE public.profiles (
     email text,
     created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    onboarding_completed_at timestamp with time zone,
     handle text,
     display_name text,
     avatar_url text,
@@ -3948,6 +3949,13 @@ COMMENT ON COLUMN public.profiles.email IS 'user email';
 --
 
 COMMENT ON COLUMN public.profiles.created_at IS 'row created time (UTC)';
+
+
+--
+-- Name: COLUMN profiles.onboarding_completed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.profiles.onboarding_completed_at IS 'Timestamp when the user finished onboarding (v1).';
 
 
 --
@@ -4199,6 +4207,24 @@ CREATE TABLE public.push_subscriptions (
     auth text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: push_tokens; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.push_tokens (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    device_id text NOT NULL,
+    platform text NOT NULL,
+    token text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT push_tokens_platform_check CHECK ((platform = ANY (ARRAY['ios'::text, 'android'::text, 'web'::text])))
 );
 
 
@@ -5069,6 +5095,22 @@ ALTER TABLE ONLY public.push_subscriptions
 
 
 --
+-- Name: push_tokens push_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.push_tokens
+    ADD CONSTRAINT push_tokens_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: push_tokens push_tokens_device_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.push_tokens
+    ADD CONSTRAINT push_tokens_device_id_key UNIQUE (device_id);
+
+
+--
 -- Name: reminders reminders_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5909,6 +5951,10 @@ CREATE INDEX idx_profiles_email_lower ON public.profiles USING btree (lower(emai
 --
 
 CREATE INDEX idx_profiles_handle ON public.profiles USING btree (handle);
+-- Name: idx_profiles_onboarding_completed_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_profiles_onboarding_completed_at ON public.profiles USING btree (onboarding_completed_at);
 
 
 --
@@ -6007,6 +6053,20 @@ CREATE INDEX nutrition_items_user_id_idx ON public.nutrition_items USING btree (
 --
 
 CREATE INDEX push_subscriptions_user_id_idx ON public.push_subscriptions USING btree (user_id);
+
+
+--
+-- Name: push_tokens_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX push_tokens_user_id_idx ON public.push_tokens USING btree (user_id);
+
+
+--
+-- Name: push_tokens_active_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX push_tokens_active_idx ON public.push_tokens USING btree (is_active) WHERE (is_active = true);
 
 
 --
@@ -6481,6 +6541,13 @@ CREATE TRIGGER trg_push_subs_updated_at BEFORE UPDATE ON public.push_subscriptio
 
 
 --
+-- Name: push_tokens trg_push_tokens_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_push_tokens_updated_at BEFORE UPDATE ON public.push_tokens FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
 -- Name: reminders trg_reminders_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -6832,6 +6899,14 @@ ALTER TABLE ONLY public.profiles
 
 ALTER TABLE ONLY public.push_subscriptions
     ADD CONSTRAINT push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: push_tokens push_tokens_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.push_tokens
+    ADD CONSTRAINT push_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -7457,6 +7532,13 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 
+
+--
+-- Name: push_tokens; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.push_tokens ENABLE ROW LEVEL SECURITY;
+
 --
 -- Name: push_subscriptions push_subscriptions delete own; Type: POLICY; Schema: public; Owner: -
 --
@@ -7483,6 +7565,34 @@ CREATE POLICY "push_subscriptions select own" ON public.push_subscriptions FOR S
 --
 
 CREATE POLICY "push_subscriptions update own" ON public.push_subscriptions FOR UPDATE USING ((( SELECT auth.uid() AS uid) = user_id)) WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+
+
+--
+-- Name: push_tokens push_tokens delete own; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "push_tokens delete own" ON public.push_tokens FOR DELETE USING ((( SELECT auth.uid() AS uid) = user_id));
+
+
+--
+-- Name: push_tokens push_tokens insert own; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "push_tokens insert own" ON public.push_tokens FOR INSERT WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
+
+
+--
+-- Name: push_tokens push_tokens select own; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "push_tokens select own" ON public.push_tokens FOR SELECT USING ((( SELECT auth.uid() AS uid) = user_id));
+
+
+--
+-- Name: push_tokens push_tokens update own; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "push_tokens update own" ON public.push_tokens FOR UPDATE USING ((( SELECT auth.uid() AS uid) = user_id)) WITH CHECK ((( SELECT auth.uid() AS uid) = user_id));
 
 
 --
@@ -7832,4 +7942,3 @@ CREATE EVENT TRIGGER pgrst_drop_watch ON sql_drop
 --
 
 \unrestrict paUkbUnyhK5Vdh0GaUmbezmlqMpskum2PAy2qM807r5SVfxaJu13OfmHFjNfG4N
-

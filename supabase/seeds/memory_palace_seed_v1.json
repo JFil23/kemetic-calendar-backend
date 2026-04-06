@@ -1,0 +1,3640 @@
+{
+  "version": "memory_palace_seed_v1",
+  "description": "Starter transformed source-of-truth seed for loci-driven Medu Neter memory output",
+  "entries": [
+    {
+      "key": "bee_bit",
+      "gardiner_code": "L2",
+      "glyph": "𓆤",
+      "unicode": "𓆤",
+      "transliteration": "bit",
+      "primary_gloss": "bee",
+      "english_glosses": [
+        "bee",
+        "honeybee"
+      ],
+      "semantic_tags": [
+        "animal",
+        "insect",
+        "bee",
+        "honey",
+        "buzz"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 10,
+      "phonetic_flexibility_score": 9,
+      "mnemonic_aliases": [
+        "bee",
+        "be",
+        "b"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_bee_bit_l2",
+      "image_prompt": "Egyptian-style bee glyph, clear silhouette, black on transparent background",
+      "visual_description": "Strong direct bee image",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "wake_nhsi",
+      "gardiner_code": null,
+      "glyph": "𓀁",
+      "unicode": null,
+      "transliteration": "nhsi",
+      "primary_gloss": "wake",
+      "english_glosses": [
+        "wake"
+      ],
+      "semantic_tags": [
+        "person",
+        "gesture",
+        "wake",
+        "raise",
+        "questioning",
+        "alert"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "gesture",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 6,
+      "mnemonic_aliases": [
+        "wake",
+        "why",
+        "ask",
+        "question",
+        "raised hand"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_wake_nhsi",
+      "image_prompt": "Egyptian figure with one arm raised and one lowered, strong questioning/waking pose, black on transparent background",
+      "visual_description": "Raised-hand human gesture",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "mix_sf",
+      "gardiner_code": null,
+      "glyph": "𓎟",
+      "unicode": null,
+      "transliteration": "sf",
+      "primary_gloss": "mix",
+      "english_glosses": [
+        "mix"
+      ],
+      "semantic_tags": [
+        "action",
+        "mix",
+        "combine",
+        "blend",
+        "with"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "action",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 5,
+      "mnemonic_aliases": [
+        "mix",
+        "blend",
+        "combine",
+        "with"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_mix_sf",
+      "image_prompt": "Egyptian-style mixing action sign, clean black line art on transparent background",
+      "visual_description": "Abstract but useful mixing anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "melt_metal_nbi",
+      "gardiner_code": null,
+      "glyph": "𓀠",
+      "unicode": null,
+      "transliteration": "nbi",
+      "primary_gloss": "melt metal",
+      "english_glosses": [
+        "melt metal",
+        "cast metal"
+      ],
+      "semantic_tags": [
+        "action",
+        "mix",
+        "heat",
+        "pot",
+        "stir",
+        "cast"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "action_scene",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "mix",
+        "stir",
+        "pot",
+        "blend",
+        "bowl"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_melt_metal_nbi",
+      "image_prompt": "Egyptian-style figure working over a pot or bowl, strong stirring/mixing silhouette, black on transparent background",
+      "visual_description": "A person mixing or working over a vessel",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "sip_ndb",
+      "gardiner_code": null,
+      "glyph": "𓎟",
+      "unicode": null,
+      "transliteration": "ndb",
+      "primary_gloss": "sip",
+      "english_glosses": [
+        "sip",
+        "drink"
+      ],
+      "semantic_tags": [
+        "action",
+        "drink",
+        "sip",
+        "bowl",
+        "mouth"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "action_scene",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "sip",
+        "drink",
+        "bowl"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_sip_ndb",
+      "image_prompt": "Egyptian-style person holding a bowl near the mouth, strong drinking gesture, black on transparent background",
+      "visual_description": "Person drinking from a bowl",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "house_pr",
+      "gardiner_code": "O1",
+      "glyph": "𓉐",
+      "unicode": null,
+      "transliteration": "pr",
+      "primary_gloss": "house",
+      "english_glosses": [
+        "house"
+      ],
+      "semantic_tags": [
+        "object",
+        "building",
+        "house",
+        "home",
+        "interior"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "house",
+        "home",
+        "room"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_house_pr_o1",
+      "image_prompt": "Egyptian ground-plan house sign, black on transparent background",
+      "visual_description": "Simple house plan",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "place_st",
+      "gardiner_code": "Q1",
+      "glyph": "𓊖",
+      "unicode": null,
+      "transliteration": "st",
+      "primary_gloss": "place",
+      "english_glosses": [
+        "place",
+        "seat"
+      ],
+      "semantic_tags": [
+        "object",
+        "place",
+        "seat",
+        "location",
+        "spot"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "place",
+        "seat",
+        "spot"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_place_st_q1",
+      "image_prompt": "Egyptian seat or place sign, black on transparent background",
+      "visual_description": "Simple seat / place anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "mouth_r",
+      "gardiner_code": "D21",
+      "glyph": "𓂋",
+      "unicode": null,
+      "transliteration": "r",
+      "primary_gloss": "mouth",
+      "english_glosses": [
+        "mouth",
+        "speech"
+      ],
+      "semantic_tags": [
+        "body",
+        "mouth",
+        "speech",
+        "say",
+        "voice"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "mouth",
+        "say",
+        "speak",
+        "voice"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_mouth_r_d21",
+      "image_prompt": "Egyptian mouth sign, clean black outline on transparent background",
+      "visual_description": "Mouth / speech anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "land_ta",
+      "gardiner_code": "N16",
+      "glyph": "𓇾",
+      "unicode": null,
+      "transliteration": "ta",
+      "primary_gloss": "land",
+      "english_glosses": [
+        "land",
+        "earth",
+        "world"
+      ],
+      "semantic_tags": [
+        "nature",
+        "land",
+        "earth",
+        "ground",
+        "world"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "land",
+        "earth",
+        "ground",
+        "world"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_land_ta_n16",
+      "image_prompt": "Egyptian strip-of-land sign, black on transparent background",
+      "visual_description": "Land / earth strip",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "river_jtrw",
+      "gardiner_code": null,
+      "glyph": "𓈗",
+      "unicode": null,
+      "transliteration": "jtrw",
+      "primary_gloss": "river",
+      "english_glosses": [
+        "river"
+      ],
+      "semantic_tags": [
+        "nature",
+        "water",
+        "river",
+        "flow"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "river",
+        "waterway",
+        "stream"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_river_jtrw",
+      "image_prompt": "Egyptian river / waterway sign, black on transparent background",
+      "visual_description": "River anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "star_sba",
+      "gardiner_code": "N14",
+      "glyph": "𓇼",
+      "unicode": null,
+      "transliteration": "sba",
+      "primary_gloss": "star",
+      "english_glosses": [
+        "star"
+      ],
+      "semantic_tags": [
+        "nature",
+        "star",
+        "night",
+        "sky",
+        "time"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "star",
+        "night",
+        "sky"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_star_sba_n14",
+      "image_prompt": "Egyptian star sign, black on transparent background",
+      "visual_description": "Strong star image",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "bread_t",
+      "gardiner_code": null,
+      "glyph": "𓏏",
+      "unicode": null,
+      "transliteration": "t",
+      "primary_gloss": "bread",
+      "english_glosses": [
+        "bread"
+      ],
+      "semantic_tags": [
+        "food",
+        "bread",
+        "loaf",
+        "meal"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "food",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "bread",
+        "loaf",
+        "food"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_bread_t",
+      "image_prompt": "Egyptian bread sign, black on transparent background",
+      "visual_description": "Bread / loaf anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "water_mw",
+      "gardiner_code": null,
+      "glyph": "𓈖",
+      "unicode": null,
+      "transliteration": "mw",
+      "primary_gloss": "water",
+      "english_glosses": [
+        "water"
+      ],
+      "semantic_tags": [
+        "nature",
+        "water",
+        "liquid",
+        "drink"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "water",
+        "liquid",
+        "drink"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_water_mw",
+      "image_prompt": "Egyptian water-ripple sign, black on transparent background",
+      "visual_description": "Water ripple anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "sky_pt",
+      "gardiner_code": "N1",
+      "glyph": "𓇯",
+      "unicode": null,
+      "transliteration": "pt",
+      "primary_gloss": "sky",
+      "english_glosses": [
+        "sky"
+      ],
+      "semantic_tags": [
+        "nature",
+        "sky",
+        "above",
+        "heaven"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "sky",
+        "heaven",
+        "above"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_sky_pt_n1",
+      "image_prompt": "Egyptian sky sign, black on transparent background",
+      "visual_description": "Sky / heaven anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "hand_drt",
+      "gardiner_code": null,
+      "glyph": "𓂧",
+      "unicode": null,
+      "transliteration": "drt",
+      "primary_gloss": "hand",
+      "english_glosses": [
+        "hand"
+      ],
+      "semantic_tags": [
+        "body",
+        "hand",
+        "grasp",
+        "hold"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "hand",
+        "hold",
+        "grasp"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_hand_drt",
+      "image_prompt": "Egyptian hand sign, black on transparent background",
+      "visual_description": "Clear hand anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "foot_rd",
+      "gardiner_code": null,
+      "glyph": "𓂾",
+      "unicode": null,
+      "transliteration": "rd",
+      "primary_gloss": "foot",
+      "english_glosses": [
+        "foot"
+      ],
+      "semantic_tags": [
+        "body",
+        "foot",
+        "step",
+        "walk"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "foot",
+        "step",
+        "walk"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_foot_rd",
+      "image_prompt": "Egyptian foot sign, black on transparent background",
+      "visual_description": "Foot / step anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "belly_xt",
+      "gardiner_code": null,
+      "glyph": "𓄣",
+      "unicode": null,
+      "transliteration": "xt",
+      "primary_gloss": "belly",
+      "english_glosses": [
+        "belly",
+        "body"
+      ],
+      "semantic_tags": [
+        "body",
+        "belly",
+        "womb",
+        "body"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "belly",
+        "body",
+        "stomach"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_belly_xt",
+      "image_prompt": "Egyptian belly/body sign, black on transparent background",
+      "visual_description": "Belly / body anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "arm_a",
+      "gardiner_code": null,
+      "glyph": "𓂝",
+      "unicode": null,
+      "transliteration": "a",
+      "primary_gloss": "arm",
+      "english_glosses": [
+        "arm",
+        "hand"
+      ],
+      "semantic_tags": [
+        "body",
+        "arm",
+        "hand",
+        "reach"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "arm",
+        "reach",
+        "hand"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_arm_a",
+      "image_prompt": "Egyptian arm sign, black on transparent background",
+      "visual_description": "Arm / reach anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "fish_rm",
+      "gardiner_code": null,
+      "glyph": "𓆛",
+      "unicode": null,
+      "transliteration": "rm",
+      "primary_gloss": "fish",
+      "english_glosses": [
+        "fish"
+      ],
+      "semantic_tags": [
+        "animal",
+        "fish",
+        "water",
+        "river"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "fish",
+        "river",
+        "water"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_fish_rm",
+      "image_prompt": "Egyptian fish sign, black on transparent background",
+      "visual_description": "Direct fish image",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "bird_apd",
+      "gardiner_code": null,
+      "glyph": "𓅃",
+      "unicode": null,
+      "transliteration": "apd",
+      "primary_gloss": "bird",
+      "english_glosses": [
+        "bird"
+      ],
+      "semantic_tags": [
+        "animal",
+        "bird",
+        "wing",
+        "sky"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "bird",
+        "wing",
+        "fly"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_bird_apd",
+      "image_prompt": "Egyptian generic bird sign, black on transparent background",
+      "visual_description": "Generic bird image",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "waterfowl_msyt",
+      "gardiner_code": null,
+      "glyph": "𓅛",
+      "unicode": null,
+      "transliteration": "msyt",
+      "primary_gloss": "waterfowl",
+      "english_glosses": [
+        "waterfowl"
+      ],
+      "semantic_tags": [
+        "animal",
+        "bird",
+        "waterfowl",
+        "marsh"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "bird",
+        "duck",
+        "waterfowl"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_waterfowl_msyt",
+      "image_prompt": "Egyptian waterfowl sign, black on transparent background",
+      "visual_description": "Water bird anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "sun_re",
+      "gardiner_code": "N5",
+      "glyph": "𓇳",
+      "unicode": null,
+      "transliteration": "re",
+      "primary_gloss": "sun",
+      "english_glosses": [
+        "sun",
+        "day"
+      ],
+      "semantic_tags": [
+        "nature",
+        "sun",
+        "day",
+        "light",
+        "time"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 10,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "sun",
+        "day",
+        "light"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_sun_re_n5",
+      "image_prompt": "Egyptian sun-disc sign, black on transparent background",
+      "visual_description": "Sun-disc anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "moon_iah",
+      "gardiner_code": "N11",
+      "glyph": "𓇹",
+      "unicode": null,
+      "transliteration": "iah",
+      "primary_gloss": "moon",
+      "english_glosses": [
+        "moon",
+        "month"
+      ],
+      "semantic_tags": [
+        "nature",
+        "moon",
+        "night",
+        "month"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "moon",
+        "night",
+        "month"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_moon_iah_n11",
+      "image_prompt": "Egyptian crescent moon sign, black on transparent background",
+      "visual_description": "Moon anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "offering_slab_htp",
+      "gardiner_code": "R4",
+      "glyph": "𓊵",
+      "unicode": null,
+      "transliteration": "htp",
+      "primary_gloss": "offering slab",
+      "english_glosses": [
+        "offering slab",
+        "offering",
+        "altar"
+      ],
+      "semantic_tags": [
+        "object",
+        "altar",
+        "table",
+        "offering",
+        "slab"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "table",
+        "altar",
+        "offering",
+        "slab"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_offering_slab_htp_r4",
+      "image_prompt": "Egyptian offering slab sign, black on transparent background",
+      "visual_description": "Table / altar anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "walking_legs_motion",
+      "gardiner_code": "D54",
+      "glyph": "𓂻",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "walking",
+      "english_glosses": [
+        "walking",
+        "motion",
+        "go"
+      ],
+      "semantic_tags": [
+        "motion",
+        "walk",
+        "go",
+        "move",
+        "travel"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "motion",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 1,
+      "mnemonic_aliases": [
+        "walk",
+        "go",
+        "move",
+        "travel"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_walking_legs_d54",
+      "image_prompt": "Egyptian walking legs sign, black on transparent background",
+      "visual_description": "Motion determinative anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "questioning_man",
+      "gardiner_code": null,
+      "glyph": "𓀁",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "questioning man",
+      "english_glosses": [
+        "questioning man"
+      ],
+      "semantic_tags": [
+        "person",
+        "question",
+        "why",
+        "ask",
+        "gesture"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "gesture",
+      "imageability_score": 10,
+      "phonetic_flexibility_score": 5,
+      "mnemonic_aliases": [
+        "why",
+        "ask",
+        "question",
+        "who",
+        "what"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_questioning_man",
+      "image_prompt": "Egyptian-style man in a questioning pose with raised hand, black on transparent background",
+      "visual_description": "Highly memorable why/ask picture substitute",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "mixing_bowl",
+      "gardiner_code": null,
+      "glyph": "𓎟",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "mixing bowl",
+      "english_glosses": [
+        "mixing bowl",
+        "bowl"
+      ],
+      "semantic_tags": [
+        "object",
+        "bowl",
+        "mix",
+        "container",
+        "blend"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "container",
+      "imageability_score": 10,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "mix",
+        "bowl",
+        "blend",
+        "stir"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_mixing_bowl",
+      "image_prompt": "Egyptian-style bowl used for mixing, black on transparent background",
+      "visual_description": "Strong bowl/container anchor for mixing scenes",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "stirring_spoon",
+      "gardiner_code": null,
+      "glyph": "𓌳",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "spoon",
+      "english_glosses": [
+        "spoon",
+        "stirrer"
+      ],
+      "semantic_tags": [
+        "tool",
+        "spoon",
+        "stir",
+        "mix",
+        "blend"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "tool",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "stir",
+        "mix",
+        "spoon",
+        "blend"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_stirring_spoon",
+      "image_prompt": "Egyptian-style spoon or stirring tool, black on transparent background",
+      "visual_description": "Mix/stir tool anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "blending_pot",
+      "gardiner_code": null,
+      "glyph": "𓎛",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "pot",
+      "english_glosses": [
+        "pot",
+        "vessel"
+      ],
+      "semantic_tags": [
+        "object",
+        "pot",
+        "vessel",
+        "mix",
+        "cook"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "container",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "pot",
+        "mix",
+        "vessel",
+        "cook"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_blending_pot",
+      "image_prompt": "Egyptian-style pot or vessel, black on transparent background",
+      "visual_description": "Container anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "owl_anchor",
+      "gardiner_code": null,
+      "glyph": "𓅓",
+      "unicode": null,
+      "transliteration": "m",
+      "primary_gloss": "owl",
+      "english_glosses": [
+        "owl"
+      ],
+      "semantic_tags": [
+        "animal",
+        "owl",
+        "bird",
+        "night",
+        "m"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 8,
+      "mnemonic_aliases": [
+        "owl",
+        "m",
+        "night bird"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_owl_anchor",
+      "image_prompt": "Egyptian owl sign, black on transparent background",
+      "visual_description": "Strong phonetic bird anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "cobra_anchor",
+      "gardiner_code": null,
+      "glyph": "𓆓",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "cobra",
+      "english_glosses": [
+        "cobra",
+        "serpent"
+      ],
+      "semantic_tags": [
+        "animal",
+        "snake",
+        "cobra",
+        "danger"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "snake",
+        "cobra",
+        "serpent"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_cobra_anchor",
+      "image_prompt": "Egyptian cobra sign, black on transparent background",
+      "visual_description": "High-recognition serpent anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "eye_anchor",
+      "gardiner_code": null,
+      "glyph": "𓁹",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "eye",
+      "english_glosses": [
+        "eye",
+        "see"
+      ],
+      "semantic_tags": [
+        "body",
+        "eye",
+        "see",
+        "watch",
+        "vision"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 10,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "eye",
+        "see",
+        "watch",
+        "look"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_eye_anchor",
+      "image_prompt": "Egyptian eye sign, black on transparent background",
+      "visual_description": "One of the strongest body-part images",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "heart_anchor",
+      "gardiner_code": null,
+      "glyph": "𓄣",
+      "unicode": null,
+      "transliteration": "jb",
+      "primary_gloss": "heart",
+      "english_glosses": [
+        "heart",
+        "mind"
+      ],
+      "semantic_tags": [
+        "body",
+        "heart",
+        "mind",
+        "emotion",
+        "thought"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "heart",
+        "mind",
+        "feeling"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_heart_anchor",
+      "image_prompt": "Egyptian heart sign, black on transparent background",
+      "visual_description": "Heart/mind anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "shadow_anchor",
+      "gardiner_code": null,
+      "glyph": "𓊃",
+      "unicode": null,
+      "transliteration": "swt",
+      "primary_gloss": "shadow",
+      "english_glosses": [
+        "shadow"
+      ],
+      "semantic_tags": [
+        "abstract",
+        "shadow",
+        "spirit",
+        "outline"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "abstract_visual",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "shadow",
+        "shade",
+        "outline"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_shadow_anchor",
+      "image_prompt": "Egyptian-style shadow or silhouette sign, black on transparent background",
+      "visual_description": "Shadow anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "air_anchor",
+      "gardiner_code": null,
+      "glyph": "𓇯",
+      "unicode": null,
+      "transliteration": "tjaw",
+      "primary_gloss": "air",
+      "english_glosses": [
+        "air",
+        "breath"
+      ],
+      "semantic_tags": [
+        "nature",
+        "air",
+        "breath",
+        "wind"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 6,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "air",
+        "breath",
+        "wind"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_air_anchor",
+      "image_prompt": "Egyptian-style air or breath sign, black on transparent background",
+      "visual_description": "Air / breath anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "life_anchor",
+      "gardiner_code": null,
+      "glyph": "𓋹",
+      "unicode": null,
+      "transliteration": "ankh",
+      "primary_gloss": "life",
+      "english_glosses": [
+        "life"
+      ],
+      "semantic_tags": [
+        "symbol",
+        "life",
+        "vitality"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "symbol",
+      "imageability_score": 10,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "life",
+        "alive",
+        "living"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_life_ankh",
+      "image_prompt": "Egyptian ankh sign, black on transparent background",
+      "visual_description": "Very strong symbolic anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "cat_anchor",
+      "gardiner_code": null,
+      "glyph": "𓃠",
+      "unicode": null,
+      "transliteration": "miw",
+      "primary_gloss": "cat",
+      "english_glosses": [
+        "cat"
+      ],
+      "semantic_tags": [
+        "animal",
+        "cat",
+        "pet",
+        "feline"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "cat",
+        "feline",
+        "pet"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_cat_anchor",
+      "image_prompt": "Egyptian cat sign, black on transparent background",
+      "visual_description": "Cat anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "child_anchor",
+      "gardiner_code": null,
+      "glyph": "𓀔",
+      "unicode": null,
+      "transliteration": "ms",
+      "primary_gloss": "child",
+      "english_glosses": [
+        "child"
+      ],
+      "semantic_tags": [
+        "person",
+        "child",
+        "young",
+        "offspring"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "person",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "child",
+        "kid",
+        "young"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_child_anchor",
+      "image_prompt": "Egyptian child sign, black on transparent background",
+      "visual_description": "Child / young person anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "woman_anchor",
+      "gardiner_code": null,
+      "glyph": "𓁐",
+      "unicode": null,
+      "transliteration": "hmt",
+      "primary_gloss": "woman",
+      "english_glosses": [
+        "woman"
+      ],
+      "semantic_tags": [
+        "person",
+        "woman",
+        "female"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "person",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "woman",
+        "lady",
+        "female"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_woman_anchor",
+      "image_prompt": "Egyptian seated woman sign, black on transparent background",
+      "visual_description": "Woman anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "man_anchor",
+      "gardiner_code": null,
+      "glyph": "𓀀",
+      "unicode": null,
+      "transliteration": "z",
+      "primary_gloss": "man",
+      "english_glosses": [
+        "man",
+        "person"
+      ],
+      "semantic_tags": [
+        "person",
+        "man",
+        "human"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "person",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "man",
+        "person",
+        "human"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_man_anchor",
+      "image_prompt": "Egyptian seated man sign, black on transparent background",
+      "visual_description": "Man / person anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "door_anchor",
+      "gardiner_code": null,
+      "glyph": "𓉔",
+      "unicode": null,
+      "transliteration": "rwt",
+      "primary_gloss": "gate",
+      "english_glosses": [
+        "gate",
+        "door"
+      ],
+      "semantic_tags": [
+        "object",
+        "gate",
+        "door",
+        "entry"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "door",
+        "gate",
+        "entry"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_door_anchor",
+      "image_prompt": "Egyptian gate or doorway sign, black on transparent background",
+      "visual_description": "Door / gate anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "knife_anchor",
+      "gardiner_code": null,
+      "glyph": "𓌝",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "knife",
+      "english_glosses": [
+        "knife"
+      ],
+      "semantic_tags": [
+        "tool",
+        "knife",
+        "cut",
+        "sharp"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "tool",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "knife",
+        "cut",
+        "sharp"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_knife_anchor",
+      "image_prompt": "Egyptian knife sign, black on transparent background",
+      "visual_description": "Knife / cutting anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "road_anchor",
+      "gardiner_code": null,
+      "glyph": "𓈋",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "road",
+      "english_glosses": [
+        "road",
+        "path"
+      ],
+      "semantic_tags": [
+        "object",
+        "road",
+        "path",
+        "travel",
+        "way"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "road",
+        "path",
+        "way",
+        "travel"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_road_anchor",
+      "image_prompt": "Egyptian-style path or road sign, black on transparent background",
+      "visual_description": "Road / path anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "boat_anchor",
+      "gardiner_code": null,
+      "glyph": "𓊛",
+      "unicode": null,
+      "transliteration": "wia",
+      "primary_gloss": "boat",
+      "english_glosses": [
+        "boat",
+        "bark"
+      ],
+      "semantic_tags": [
+        "object",
+        "boat",
+        "bark",
+        "river",
+        "travel"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "boat",
+        "ship",
+        "river",
+        "bark"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_boat_anchor",
+      "image_prompt": "Egyptian boat sign, black on transparent background",
+      "visual_description": "Boat / bark anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "fire_anchor",
+      "gardiner_code": null,
+      "glyph": "𓎛",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "fire",
+      "english_glosses": [
+        "fire",
+        "flame"
+      ],
+      "semantic_tags": [
+        "nature",
+        "fire",
+        "flame",
+        "heat"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "fire",
+        "flame",
+        "heat"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_fire_anchor",
+      "image_prompt": "Egyptian flame sign, black on transparent background",
+      "visual_description": "Fire / flame anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "flower_anchor",
+      "gardiner_code": null,
+      "glyph": "𓆼",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "flower",
+      "english_glosses": [
+        "flower",
+        "lotus"
+      ],
+      "semantic_tags": [
+        "plant",
+        "flower",
+        "lotus",
+        "bloom"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "plant",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "flower",
+        "lotus",
+        "bloom"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_flower_anchor",
+      "image_prompt": "Egyptian flower or lotus sign, black on transparent background",
+      "visual_description": "Flower / lotus anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "serpent_anchor",
+      "gardiner_code": null,
+      "glyph": "𓆓",
+      "unicode": null,
+      "transliteration": "naw",
+      "primary_gloss": "serpent",
+      "english_glosses": [
+        "serpent",
+        "snake"
+      ],
+      "semantic_tags": [
+        "animal",
+        "snake",
+        "serpent",
+        "danger"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "snake",
+        "serpent",
+        "cobra"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_serpent_anchor",
+      "image_prompt": "Egyptian serpent sign, black on transparent background",
+      "visual_description": "Serpent anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "pillar_djed",
+      "gardiner_code": "R11",
+      "glyph": "𓊽",
+      "unicode": null,
+      "transliteration": "djed",
+      "primary_gloss": "pillar",
+      "english_glosses": [
+        "pillar",
+        "column",
+        "stability"
+      ],
+      "semantic_tags": [
+        "object",
+        "pillar",
+        "column",
+        "stability",
+        "support"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object_symbol",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "pillar",
+        "column",
+        "stable",
+        "support"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_pillar_djed",
+      "image_prompt": "Egyptian djed pillar sign, black on transparent background",
+      "visual_description": "Pillar / stability anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "table_anchor",
+      "gardiner_code": null,
+      "glyph": "𓏏",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "table",
+      "english_glosses": [
+        "table"
+      ],
+      "semantic_tags": [
+        "object",
+        "table",
+        "surface",
+        "support"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "table",
+        "surface",
+        "slab"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_table_anchor",
+      "image_prompt": "Egyptian-style table or slab sign, black on transparent background",
+      "visual_description": "Flat support surface",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "altar_anchor",
+      "gardiner_code": null,
+      "glyph": "𓊵",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "altar",
+      "english_glosses": [
+        "altar"
+      ],
+      "semantic_tags": [
+        "object",
+        "altar",
+        "offering",
+        "ritual"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "altar",
+        "offering",
+        "ritual table"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_altar_anchor",
+      "image_prompt": "Egyptian altar-like sign, black on transparent background",
+      "visual_description": "Ritual support surface",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "chef_anchor",
+      "gardiner_code": null,
+      "glyph": "𓀠",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "chef",
+      "english_glosses": [
+        "chef",
+        "cook"
+      ],
+      "semantic_tags": [
+        "person",
+        "cook",
+        "chef",
+        "mix",
+        "prepare"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "person",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "chef",
+        "cook",
+        "mixing person"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_chef_anchor",
+      "image_prompt": "Egyptian-style person preparing or mixing food, black on transparent background",
+      "visual_description": "Scene-based helper anchor for mixing prompts",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "question_mark_scene",
+      "gardiner_code": null,
+      "glyph": "𓀁",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "question scene",
+      "english_glosses": [
+        "question scene"
+      ],
+      "semantic_tags": [
+        "scene",
+        "question",
+        "ask",
+        "why",
+        "confused"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "scene",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "why",
+        "question",
+        "ask",
+        "confused"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_question_scene",
+      "image_prompt": "Egyptian-style questioning scene with expressive raised hand, black on transparent background",
+      "visual_description": "Scene-level why anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "blending_scene",
+      "gardiner_code": null,
+      "glyph": "𓎟",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "blending scene",
+      "english_glosses": [
+        "blending scene"
+      ],
+      "semantic_tags": [
+        "scene",
+        "mix",
+        "blend",
+        "stir",
+        "bowl"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "scene",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "mix",
+        "blend",
+        "stir",
+        "bowl"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_blending_scene",
+      "image_prompt": "Egyptian-style scene of mixing or stirring contents in a bowl, black on transparent background",
+      "visual_description": "Scene-level mix anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "buzzing_bee_scene",
+      "gardiner_code": null,
+      "glyph": "𓆤",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "bee scene",
+      "english_glosses": [
+        "bee scene"
+      ],
+      "semantic_tags": [
+        "scene",
+        "bee",
+        "buzz",
+        "insect"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "scene",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 5,
+      "mnemonic_aliases": [
+        "bee",
+        "buzz",
+        "swarm"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_bee_scene",
+      "image_prompt": "Egyptian-style buzzing bee scene, black on transparent background",
+      "visual_description": "Scene-level bee anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "rise_wbn",
+      "gardiner_code": "N8",
+      "glyph": "𓇵",
+      "unicode": null,
+      "transliteration": "wbn",
+      "primary_gloss": "rise",
+      "english_glosses": [
+        "rise"
+      ],
+      "semantic_tags": [
+        "action",
+        "rise",
+        "sunrise",
+        "upward",
+        "light"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "action",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "rise",
+        "wake",
+        "up"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_rise_wbn",
+      "image_prompt": "Egyptian rising-sun sign, black on transparent background",
+      "visual_description": "Wake/rise substitute anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "night_grh",
+      "gardiner_code": "N2",
+      "glyph": "𓇯",
+      "unicode": null,
+      "transliteration": "grh",
+      "primary_gloss": "night",
+      "english_glosses": [
+        "night"
+      ],
+      "semantic_tags": [
+        "nature",
+        "night",
+        "dark",
+        "time"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "night",
+        "dark"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_night_grh",
+      "image_prompt": "Egyptian night sign, black on transparent background",
+      "visual_description": "Night anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "island_jw",
+      "gardiner_code": "N18",
+      "glyph": "𓇾",
+      "unicode": null,
+      "transliteration": "jw",
+      "primary_gloss": "island",
+      "english_glosses": [
+        "island"
+      ],
+      "semantic_tags": [
+        "nature",
+        "island",
+        "land",
+        "water"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "island",
+        "land in water"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_island_jw",
+      "image_prompt": "Egyptian island sign, black on transparent background",
+      "visual_description": "Island anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "month_jbd",
+      "gardiner_code": "N64",
+      "glyph": "𓇹𓇼",
+      "unicode": null,
+      "transliteration": "jbd",
+      "primary_gloss": "month",
+      "english_glosses": [
+        "month"
+      ],
+      "semantic_tags": [
+        "time",
+        "month",
+        "moon",
+        "calendar"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "time",
+      "imageability_score": 6,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "month",
+        "calendar",
+        "moon"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_month_jbd",
+      "image_prompt": "Egyptian month sign, black on transparent background",
+      "visual_description": "Time/calendar anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "day_hrw",
+      "gardiner_code": "N5",
+      "glyph": "𓇳",
+      "unicode": null,
+      "transliteration": "hrw",
+      "primary_gloss": "day",
+      "english_glosses": [
+        "day"
+      ],
+      "semantic_tags": [
+        "time",
+        "day",
+        "sun",
+        "light"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "time",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "day",
+        "sunlight",
+        "time"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_day_hrw",
+      "image_prompt": "Egyptian day/sun sign, black on transparent background",
+      "visual_description": "Day anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "time_wnwt",
+      "gardiner_code": "N14",
+      "glyph": "𓇼",
+      "unicode": null,
+      "transliteration": "wnwt",
+      "primary_gloss": "hour",
+      "english_glosses": [
+        "hour"
+      ],
+      "semantic_tags": [
+        "time",
+        "hour",
+        "star",
+        "night"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "time",
+      "imageability_score": 6,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "hour",
+        "time"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_hour_wnwt",
+      "image_prompt": "Egyptian hour/star sign, black on transparent background",
+      "visual_description": "Time anchor",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "support_column",
+      "gardiner_code": null,
+      "glyph": "𓊽",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "support",
+      "english_glosses": [
+        "support"
+      ],
+      "semantic_tags": [
+        "object",
+        "support",
+        "pillar",
+        "hold up"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "support",
+        "pillar",
+        "hold"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_support_column",
+      "image_prompt": "Egyptian-style support column sign, black on transparent background",
+      "visual_description": "Generic support anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "home_interior",
+      "gardiner_code": null,
+      "glyph": "𓉐",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "home interior",
+      "english_glosses": [
+        "home interior"
+      ],
+      "semantic_tags": [
+        "object",
+        "home",
+        "interior",
+        "house"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "scene",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 2,
+      "mnemonic_aliases": [
+        "home",
+        "room",
+        "inside"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_home_interior",
+      "image_prompt": "Egyptian-style interior house scene, black on transparent background",
+      "visual_description": "Inside-home anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "bird_in_flight",
+      "gardiner_code": null,
+      "glyph": "𓅃",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "bird in flight",
+      "english_glosses": [
+        "bird in flight"
+      ],
+      "semantic_tags": [
+        "animal",
+        "bird",
+        "flight",
+        "sky"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "bird",
+        "fly",
+        "wing"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_bird_in_flight",
+      "image_prompt": "Egyptian-style bird in flight, black on transparent background",
+      "visual_description": "Dynamic bird image",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "speech_mouth_scene",
+      "gardiner_code": null,
+      "glyph": "𓂋",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "speech scene",
+      "english_glosses": [
+        "speech scene"
+      ],
+      "semantic_tags": [
+        "scene",
+        "speech",
+        "say",
+        "mouth",
+        "talk"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "scene",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "say",
+        "speak",
+        "mouth",
+        "voice"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_speech_scene",
+      "image_prompt": "Egyptian-style speaking mouth scene, black on transparent background",
+      "visual_description": "Speech anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "step_foot_scene",
+      "gardiner_code": null,
+      "glyph": "𓂻",
+      "unicode": null,
+      "transliteration": null,
+      "primary_gloss": "step",
+      "english_glosses": [
+        "step"
+      ],
+      "semantic_tags": [
+        "action",
+        "step",
+        "walk",
+        "foot",
+        "move"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "action",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "step",
+        "walk",
+        "move",
+        "go"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_step_scene",
+      "image_prompt": "Egyptian-style stepping foot or walking action, black on transparent background",
+      "visual_description": "Step/motion anchor",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "head_tp",
+      "gardiner_code": "D1",
+      "glyph": "𓁶",
+      "unicode": "𓁶",
+      "transliteration": "tp",
+      "primary_gloss": "head",
+      "english_glosses": [
+        "head"
+      ],
+      "semantic_tags": [
+        "body",
+        "head",
+        "top"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "head",
+        "top"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_head_tp_d1",
+      "visual_description": "Clear head sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "face_hr",
+      "gardiner_code": "D2",
+      "glyph": "𓁷",
+      "unicode": "𓁷",
+      "transliteration": "hr",
+      "primary_gloss": "face",
+      "english_glosses": [
+        "face"
+      ],
+      "semantic_tags": [
+        "body",
+        "face",
+        "front"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "face",
+        "front"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_face_hr_d2",
+      "visual_description": "Profile face sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "eye_jrt",
+      "gardiner_code": "D4",
+      "glyph": "𓁹",
+      "unicode": "𓁹",
+      "transliteration": "jrt",
+      "primary_gloss": "eye",
+      "english_glosses": [
+        "eye",
+        "see"
+      ],
+      "semantic_tags": [
+        "body",
+        "eye",
+        "vision",
+        "see",
+        "watch"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 10,
+      "phonetic_flexibility_score": 6,
+      "mnemonic_aliases": [
+        "eye",
+        "I",
+        "see",
+        "look",
+        "watch"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_eye_jrt_d4",
+      "visual_description": "Very strong eye image",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "two_eyes_ptr",
+      "gardiner_code": "D10",
+      "glyph": "𓁺",
+      "unicode": "𓁺",
+      "transliteration": "ptr",
+      "primary_gloss": "look",
+      "english_glosses": [
+        "look",
+        "see"
+      ],
+      "semantic_tags": [
+        "body",
+        "eyes",
+        "look",
+        "vision"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 5,
+      "mnemonic_aliases": [
+        "look",
+        "see",
+        "watch",
+        "peer"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_two_eyes_ptr_d10",
+      "visual_description": "Two-eye looking sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "mouth_speech",
+      "gardiner_code": "D21",
+      "glyph": "𓂋",
+      "unicode": "𓂋",
+      "transliteration": "r",
+      "primary_gloss": "mouth",
+      "english_glosses": [
+        "mouth",
+        "speech"
+      ],
+      "semantic_tags": [
+        "body",
+        "mouth",
+        "speech",
+        "say",
+        "voice"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 5,
+      "mnemonic_aliases": [
+        "mouth",
+        "say",
+        "speak",
+        "voice",
+        "read"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_mouth_speech_d21",
+      "visual_description": "Mouth / speech sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "hand_open",
+      "gardiner_code": "D46",
+      "glyph": "𓂧",
+      "unicode": "𓂧",
+      "transliteration": "drt",
+      "primary_gloss": "hand",
+      "english_glosses": [
+        "hand"
+      ],
+      "semantic_tags": [
+        "body",
+        "hand",
+        "hold",
+        "grasp"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "hand",
+        "hold",
+        "grab",
+        "take"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_hand_open_d46",
+      "visual_description": "Open hand sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "arm_reach",
+      "gardiner_code": "D36",
+      "glyph": "𓂝",
+      "unicode": "𓂝",
+      "transliteration": "a",
+      "primary_gloss": "arm",
+      "english_glosses": [
+        "arm",
+        "reach"
+      ],
+      "semantic_tags": [
+        "body",
+        "arm",
+        "reach",
+        "extend"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "arm",
+        "reach",
+        "grab"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_arm_reach_d36",
+      "visual_description": "Forearm / reach sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "foot_step",
+      "gardiner_code": "D58",
+      "glyph": "𓂾",
+      "unicode": "𓂾",
+      "transliteration": "rd",
+      "primary_gloss": "foot",
+      "english_glosses": [
+        "foot",
+        "step"
+      ],
+      "semantic_tags": [
+        "body",
+        "foot",
+        "step",
+        "walk"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "foot",
+        "step",
+        "walk"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_foot_step_d58",
+      "visual_description": "Foot sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "walking_legs_go",
+      "gardiner_code": "D54",
+      "glyph": "𓂻",
+      "unicode": "𓂻",
+      "transliteration": null,
+      "primary_gloss": "go",
+      "english_glosses": [
+        "go",
+        "walk",
+        "move"
+      ],
+      "semantic_tags": [
+        "motion",
+        "go",
+        "walk",
+        "move",
+        "travel"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "motion",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "go",
+        "walk",
+        "move",
+        "travel"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_walking_legs_go_d54",
+      "visual_description": "Walking legs sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "heart_mind",
+      "gardiner_code": "F34",
+      "glyph": "𓄣",
+      "unicode": "𓄣",
+      "transliteration": "jb",
+      "primary_gloss": "heart",
+      "english_glosses": [
+        "heart",
+        "mind"
+      ],
+      "semantic_tags": [
+        "body",
+        "heart",
+        "mind",
+        "feeling",
+        "thought"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "body_part",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "heart",
+        "mind",
+        "feel",
+        "think"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_heart_mind_f34",
+      "visual_description": "Heart/mind sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "seated_man_person",
+      "gardiner_code": "A1",
+      "glyph": "𓀀",
+      "unicode": "𓀀",
+      "transliteration": "z",
+      "primary_gloss": "man",
+      "english_glosses": [
+        "man",
+        "person"
+      ],
+      "semantic_tags": [
+        "person",
+        "man",
+        "human"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "person",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "man",
+        "person",
+        "human"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_seated_man_person_a1",
+      "visual_description": "Seated man sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "seated_woman_person",
+      "gardiner_code": "B1",
+      "glyph": "𓁐",
+      "unicode": "𓁐",
+      "transliteration": "hmt",
+      "primary_gloss": "woman",
+      "english_glosses": [
+        "woman"
+      ],
+      "semantic_tags": [
+        "person",
+        "woman",
+        "female"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "person",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "woman",
+        "lady",
+        "female"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_seated_woman_person_b1",
+      "visual_description": "Seated woman sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "child_person",
+      "gardiner_code": "A17",
+      "glyph": "𓀔",
+      "unicode": "𓀔",
+      "transliteration": "khrd",
+      "primary_gloss": "child",
+      "english_glosses": [
+        "child",
+        "kid"
+      ],
+      "semantic_tags": [
+        "person",
+        "child",
+        "young"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "person",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "child",
+        "kid",
+        "young"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_child_person_a17",
+      "visual_description": "Child sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "questioning_gesture",
+      "gardiner_code": null,
+      "glyph": "𓀁",
+      "unicode": "𓀁",
+      "transliteration": "nhsi",
+      "primary_gloss": "wake",
+      "english_glosses": [
+        "wake",
+        "question"
+      ],
+      "semantic_tags": [
+        "person",
+        "gesture",
+        "wake",
+        "question",
+        "ask",
+        "why"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "gesture",
+      "imageability_score": 10,
+      "phonetic_flexibility_score": 7,
+      "mnemonic_aliases": [
+        "why",
+        "ask",
+        "question",
+        "wake"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_questioning_gesture",
+      "visual_description": "Raised-hand questioning figure",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "owl_m_sound",
+      "gardiner_code": "G17",
+      "glyph": "𓅓",
+      "unicode": "𓅓",
+      "transliteration": "m",
+      "primary_gloss": "owl",
+      "english_glosses": [
+        "owl"
+      ],
+      "semantic_tags": [
+        "animal",
+        "bird",
+        "owl",
+        "m"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 9,
+      "mnemonic_aliases": [
+        "owl",
+        "m",
+        "hum",
+        "hmm"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_owl_m_sound_g17",
+      "visual_description": "Owl sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "bird_generic",
+      "gardiner_code": "G37",
+      "glyph": "𓅃",
+      "unicode": "𓅃",
+      "transliteration": "apd",
+      "primary_gloss": "bird",
+      "english_glosses": [
+        "bird"
+      ],
+      "semantic_tags": [
+        "animal",
+        "bird",
+        "fly",
+        "wing"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "bird",
+        "wing",
+        "fly"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_bird_generic_g37",
+      "visual_description": "Generic bird sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "waterfowl_duck",
+      "gardiner_code": "G39",
+      "glyph": "𓅛",
+      "unicode": "𓅛",
+      "transliteration": "msyt",
+      "primary_gloss": "duck",
+      "english_glosses": [
+        "duck",
+        "waterfowl"
+      ],
+      "semantic_tags": [
+        "animal",
+        "duck",
+        "waterfowl",
+        "marsh"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "duck",
+        "bird",
+        "waterfowl"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_waterfowl_duck_g39",
+      "visual_description": "Waterfowl sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "bee_direct",
+      "gardiner_code": "L2",
+      "glyph": "𓆤",
+      "unicode": "𓆤",
+      "transliteration": "bit",
+      "primary_gloss": "bee",
+      "english_glosses": [
+        "bee",
+        "honeybee"
+      ],
+      "semantic_tags": [
+        "animal",
+        "insect",
+        "bee",
+        "honey",
+        "buzz"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 10,
+      "phonetic_flexibility_score": 10,
+      "mnemonic_aliases": [
+        "bee",
+        "be",
+        "b",
+        "buzz"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_bee_direct_l2",
+      "visual_description": "Bee sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "fish_direct",
+      "gardiner_code": "K1",
+      "glyph": "𓆛",
+      "unicode": "𓆛",
+      "transliteration": "rm",
+      "primary_gloss": "fish",
+      "english_glosses": [
+        "fish"
+      ],
+      "semantic_tags": [
+        "animal",
+        "fish",
+        "water",
+        "river"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "fish",
+        "river",
+        "swim"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_fish_direct_k1",
+      "visual_description": "Fish sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "cat_direct",
+      "gardiner_code": "E13",
+      "glyph": "𓃠",
+      "unicode": "𓃠",
+      "transliteration": "miw",
+      "primary_gloss": "cat",
+      "english_glosses": [
+        "cat"
+      ],
+      "semantic_tags": [
+        "animal",
+        "cat",
+        "feline",
+        "pet"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "cat",
+        "kitten",
+        "feline"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_cat_direct_e13",
+      "visual_description": "Cat sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "cobra_direct",
+      "gardiner_code": "I10",
+      "glyph": "𓆓",
+      "unicode": "𓆓",
+      "transliteration": null,
+      "primary_gloss": "cobra",
+      "english_glosses": [
+        "cobra",
+        "snake"
+      ],
+      "semantic_tags": [
+        "animal",
+        "cobra",
+        "snake",
+        "danger"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "cobra",
+        "snake",
+        "serpent"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_cobra_direct_i10",
+      "visual_description": "Cobra sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "serpent_direct",
+      "gardiner_code": "I14",
+      "glyph": "𓆙",
+      "unicode": "𓆙",
+      "transliteration": "naw",
+      "primary_gloss": "serpent",
+      "english_glosses": [
+        "serpent",
+        "snake"
+      ],
+      "semantic_tags": [
+        "animal",
+        "serpent",
+        "snake"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "serpent",
+        "snake",
+        "sneak"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_serpent_direct_i14",
+      "visual_description": "Serpent sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "lotus_flower",
+      "gardiner_code": "M12",
+      "glyph": "𓆼",
+      "unicode": "𓆼",
+      "transliteration": null,
+      "primary_gloss": "lotus",
+      "english_glosses": [
+        "lotus",
+        "flower"
+      ],
+      "semantic_tags": [
+        "plant",
+        "lotus",
+        "flower",
+        "bloom"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "plant",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "lotus",
+        "flower",
+        "bloom"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_lotus_flower_m12",
+      "visual_description": "Lotus flower sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "reed_leaf_i",
+      "gardiner_code": "M17",
+      "glyph": "𓇋",
+      "unicode": "𓇋",
+      "transliteration": "i",
+      "primary_gloss": "reed leaf",
+      "english_glosses": [
+        "reed",
+        "leaf"
+      ],
+      "semantic_tags": [
+        "plant",
+        "reed",
+        "leaf",
+        "i"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "plant",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 9,
+      "mnemonic_aliases": [
+        "I",
+        "eye",
+        "reed",
+        "leaf"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_reed_leaf_i_m17",
+      "visual_description": "Reed leaf sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "bread_loaf",
+      "gardiner_code": "X1",
+      "glyph": "𓏏",
+      "unicode": "𓏏",
+      "transliteration": "t",
+      "primary_gloss": "bread",
+      "english_glosses": [
+        "bread",
+        "loaf"
+      ],
+      "semantic_tags": [
+        "food",
+        "bread",
+        "loaf"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "food",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "bread",
+        "loaf",
+        "tea"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_bread_loaf_x1",
+      "visual_description": "Bread loaf sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "bowl_container",
+      "gardiner_code": "W24",
+      "glyph": "𓎟",
+      "unicode": "𓎟",
+      "transliteration": null,
+      "primary_gloss": "bowl",
+      "english_glosses": [
+        "bowl",
+        "container"
+      ],
+      "semantic_tags": [
+        "object",
+        "bowl",
+        "container",
+        "mix"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "container",
+      "imageability_score": 10,
+      "phonetic_flexibility_score": 5,
+      "mnemonic_aliases": [
+        "bowl",
+        "mix",
+        "stir",
+        "goal"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_bowl_container_w24",
+      "visual_description": "Bowl sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "pot_container",
+      "gardiner_code": "W9",
+      "glyph": "𓎛",
+      "unicode": "𓎛",
+      "transliteration": null,
+      "primary_gloss": "pot",
+      "english_glosses": [
+        "pot",
+        "jar",
+        "vessel"
+      ],
+      "semantic_tags": [
+        "object",
+        "pot",
+        "jar",
+        "vessel"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "container",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "pot",
+        "jar",
+        "vessel",
+        "hot"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_pot_container_w9",
+      "visual_description": "Pot/jar sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "spoon_tool",
+      "gardiner_code": "U33",
+      "glyph": "𓌳",
+      "unicode": "𓌳",
+      "transliteration": null,
+      "primary_gloss": "spoon",
+      "english_glosses": [
+        "spoon",
+        "stirrer"
+      ],
+      "semantic_tags": [
+        "tool",
+        "spoon",
+        "stir",
+        "mix"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "tool",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "spoon",
+        "stir",
+        "mix",
+        "soon"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_spoon_tool_u33",
+      "visual_description": "Spoon / stirrer sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "knife_tool",
+      "gardiner_code": "T30",
+      "glyph": "𓌝",
+      "unicode": "𓌝",
+      "transliteration": null,
+      "primary_gloss": "knife",
+      "english_glosses": [
+        "knife",
+        "blade"
+      ],
+      "semantic_tags": [
+        "tool",
+        "knife",
+        "blade",
+        "cut"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "tool",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "knife",
+        "blade",
+        "cut"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_knife_tool_t30",
+      "visual_description": "Knife sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "house_home",
+      "gardiner_code": "O1",
+      "glyph": "𓉐",
+      "unicode": "𓉐",
+      "transliteration": "pr",
+      "primary_gloss": "house",
+      "english_glosses": [
+        "house",
+        "home"
+      ],
+      "semantic_tags": [
+        "object",
+        "house",
+        "home",
+        "building"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "house",
+        "home",
+        "place"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_house_home_o1",
+      "visual_description": "House plan sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "gate_entry",
+      "gardiner_code": "O31",
+      "glyph": "𓉔",
+      "unicode": "𓉔",
+      "transliteration": "rwt",
+      "primary_gloss": "gate",
+      "english_glosses": [
+        "gate",
+        "door",
+        "entry"
+      ],
+      "semantic_tags": [
+        "object",
+        "gate",
+        "door",
+        "entry"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "gate",
+        "door",
+        "entry"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_gate_entry_o31",
+      "visual_description": "Gate/door sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "seat_place",
+      "gardiner_code": "Q1",
+      "glyph": "𓊖",
+      "unicode": "𓊖",
+      "transliteration": "st",
+      "primary_gloss": "seat",
+      "english_glosses": [
+        "seat",
+        "place"
+      ],
+      "semantic_tags": [
+        "object",
+        "seat",
+        "place",
+        "spot"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "seat",
+        "sit",
+        "place",
+        "seat"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_seat_place_q1",
+      "visual_description": "Seat/place sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "boat_travel",
+      "gardiner_code": "P1",
+      "glyph": "𓊛",
+      "unicode": "𓊛",
+      "transliteration": "dpt",
+      "primary_gloss": "boat",
+      "english_glosses": [
+        "boat",
+        "bark"
+      ],
+      "semantic_tags": [
+        "object",
+        "boat",
+        "bark",
+        "travel",
+        "river"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "boat",
+        "float",
+        "bark",
+        "ship"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_boat_travel_p1",
+      "visual_description": "Boat sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "altar_table",
+      "gardiner_code": "R4",
+      "glyph": "𓊵",
+      "unicode": "𓊵",
+      "transliteration": "htp",
+      "primary_gloss": "altar",
+      "english_glosses": [
+        "altar",
+        "offering table"
+      ],
+      "semantic_tags": [
+        "object",
+        "altar",
+        "table",
+        "offering"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "altar",
+        "table",
+        "slab"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_altar_table_r4",
+      "visual_description": "Offering slab sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "pillar_stability",
+      "gardiner_code": "R11",
+      "glyph": "𓊽",
+      "unicode": "𓊽",
+      "transliteration": "djed",
+      "primary_gloss": "pillar",
+      "english_glosses": [
+        "pillar",
+        "stability",
+        "column"
+      ],
+      "semantic_tags": [
+        "object",
+        "pillar",
+        "column",
+        "support",
+        "stability"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object_symbol",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "pillar",
+        "column",
+        "steady",
+        "support"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_pillar_stability_r11",
+      "visual_description": "Djed pillar sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "life_ankh",
+      "gardiner_code": "S34",
+      "glyph": "𓋹",
+      "unicode": "𓋹",
+      "transliteration": "ankh",
+      "primary_gloss": "life",
+      "english_glosses": [
+        "life"
+      ],
+      "semantic_tags": [
+        "symbol",
+        "life",
+        "live",
+        "vitality"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "symbol",
+      "imageability_score": 10,
+      "phonetic_flexibility_score": 5,
+      "mnemonic_aliases": [
+        "life",
+        "live",
+        "alive"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_life_ankh_s34",
+      "visual_description": "Ankh sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "sun_day",
+      "gardiner_code": "N5",
+      "glyph": "𓇳",
+      "unicode": "𓇳",
+      "transliteration": "re",
+      "primary_gloss": "sun",
+      "english_glosses": [
+        "sun",
+        "day"
+      ],
+      "semantic_tags": [
+        "nature",
+        "sun",
+        "day",
+        "light"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 10,
+      "phonetic_flexibility_score": 5,
+      "mnemonic_aliases": [
+        "sun",
+        "son",
+        "day",
+        "light"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_sun_day_n5",
+      "visual_description": "Sun disk sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "moon_night",
+      "gardiner_code": "N11",
+      "glyph": "𓇹",
+      "unicode": "𓇹",
+      "transliteration": "iah",
+      "primary_gloss": "moon",
+      "english_glosses": [
+        "moon",
+        "night"
+      ],
+      "semantic_tags": [
+        "nature",
+        "moon",
+        "night",
+        "month"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "moon",
+        "night"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_moon_night_n11",
+      "visual_description": "Moon sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "star_night",
+      "gardiner_code": "N14",
+      "glyph": "𓇼",
+      "unicode": "𓇼",
+      "transliteration": "sba",
+      "primary_gloss": "star",
+      "english_glosses": [
+        "star"
+      ],
+      "semantic_tags": [
+        "nature",
+        "star",
+        "night",
+        "sky"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "star",
+        "night",
+        "spark"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_star_night_n14",
+      "visual_description": "Star sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "sky_heaven",
+      "gardiner_code": "N1",
+      "glyph": "𓇯",
+      "unicode": "𓇯",
+      "transliteration": "pt",
+      "primary_gloss": "sky",
+      "english_glosses": [
+        "sky",
+        "heaven"
+      ],
+      "semantic_tags": [
+        "nature",
+        "sky",
+        "heaven",
+        "above"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "sky",
+        "heaven",
+        "up"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_sky_heaven_n1",
+      "visual_description": "Sky sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "land_earth",
+      "gardiner_code": "N16",
+      "glyph": "𓇾",
+      "unicode": "𓇾",
+      "transliteration": "ta",
+      "primary_gloss": "land",
+      "english_glosses": [
+        "land",
+        "earth",
+        "ground"
+      ],
+      "semantic_tags": [
+        "nature",
+        "land",
+        "earth",
+        "ground"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "land",
+        "earth",
+        "ground"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_land_earth_n16",
+      "visual_description": "Land sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "water_ripple",
+      "gardiner_code": "N35",
+      "glyph": "𓈖",
+      "unicode": "𓈖",
+      "transliteration": "mw",
+      "primary_gloss": "water",
+      "english_glosses": [
+        "water"
+      ],
+      "semantic_tags": [
+        "nature",
+        "water",
+        "liquid",
+        "river"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "water",
+        "wave",
+        "wet"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_water_ripple_n35",
+      "visual_description": "Water ripple sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "river_flow",
+      "gardiner_code": "N36",
+      "glyph": "𓈗",
+      "unicode": "𓈗",
+      "transliteration": "jtrw",
+      "primary_gloss": "river",
+      "english_glosses": [
+        "river",
+        "flow"
+      ],
+      "semantic_tags": [
+        "nature",
+        "river",
+        "flow",
+        "water"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "river",
+        "flow",
+        "stream"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_river_flow_n36",
+      "visual_description": "River sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "island_land_in_water",
+      "gardiner_code": "N18",
+      "glyph": "𓇿",
+      "unicode": "𓇿",
+      "transliteration": "jw",
+      "primary_gloss": "island",
+      "english_glosses": [
+        "island"
+      ],
+      "semantic_tags": [
+        "nature",
+        "island",
+        "land",
+        "water"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "island",
+        "land in water"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_island_land_in_water_n18",
+      "visual_description": "Island sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "road_path",
+      "gardiner_code": "N31",
+      "glyph": "𓈋",
+      "unicode": "𓈋",
+      "transliteration": null,
+      "primary_gloss": "road",
+      "english_glosses": [
+        "road",
+        "path",
+        "way"
+      ],
+      "semantic_tags": [
+        "object",
+        "road",
+        "path",
+        "way",
+        "travel"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "road",
+        "path",
+        "way",
+        "route"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_road_path_n31",
+      "visual_description": "Road/path sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "fire_flame",
+      "gardiner_code": "N33",
+      "glyph": "𓎛",
+      "unicode": "𓎛",
+      "transliteration": null,
+      "primary_gloss": "fire",
+      "english_glosses": [
+        "fire",
+        "flame",
+        "heat"
+      ],
+      "semantic_tags": [
+        "nature",
+        "fire",
+        "flame",
+        "heat"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "nature",
+      "imageability_score": 9,
+      "phonetic_flexibility_score": 4,
+      "mnemonic_aliases": [
+        "fire",
+        "flame",
+        "heat",
+        "burn"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_fire_flame_n33",
+      "visual_description": "Flame sign",
+      "source_confidence": "prototype"
+    },
+    {
+      "key": "box_chest",
+      "gardiner_code": "Q6",
+      "glyph": "𓊬",
+      "unicode": "𓊬",
+      "transliteration": "hn",
+      "primary_gloss": "chest",
+      "english_glosses": [
+        "chest",
+        "box"
+      ],
+      "semantic_tags": [
+        "object",
+        "box",
+        "chest",
+        "container"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "object",
+      "imageability_score": 8,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "box",
+        "chest",
+        "case"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_box_chest_q6",
+      "visual_description": "Chest/box sign",
+      "source_confidence": "grounded"
+    },
+    {
+      "key": "tail_end",
+      "gardiner_code": "F33",
+      "glyph": "𓃀",
+      "unicode": "𓃀",
+      "transliteration": "sd",
+      "primary_gloss": "tail",
+      "english_glosses": [
+        "tail",
+        "end"
+      ],
+      "semantic_tags": [
+        "animal",
+        "tail",
+        "end",
+        "bottom"
+      ],
+      "is_visual_anchor": true,
+      "anchor_type": "animal_part",
+      "imageability_score": 7,
+      "phonetic_flexibility_score": 3,
+      "mnemonic_aliases": [
+        "tail",
+        "end",
+        "bottom"
+      ],
+      "render_mode": "asset",
+      "image_asset_key": "glyph_tail_end_f33",
+      "visual_description": "Tail sign",
+      "source_confidence": "prototype"
+    }
+  ],
+  "mnemonic_aliases": [
+    {
+      "source_token": "why",
+      "aliases": [
+        "wake",
+        "ask",
+        "question",
+        "raised hand",
+        "questioning man"
+      ],
+      "selection_note": "Prefer a vivid human gesture anchor over abstract interrogative rows"
+    },
+    {
+      "source_token": "mix",
+      "aliases": [
+        "mix",
+        "stir",
+        "blend",
+        "pot",
+        "bowl",
+        "spoon",
+        "mixing bowl",
+        "blending scene"
+      ],
+      "selection_note": "Prefer visible action + container/tool anchors over abstract semantic rows"
+    },
+    {
+      "source_token": "bee",
+      "aliases": [
+        "bee",
+        "honeybee",
+        "buzz",
+        "bee scene"
+      ],
+      "selection_note": "Prefer direct animal anchor"
+    }
+  ]
+}

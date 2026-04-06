@@ -1,7 +1,7 @@
 -- Backfill existing reminders into flows as reminder-backed flows.
 -- Preconditions:
 -- - public.flows has columns is_reminder (boolean) and reminder_uuid (uuid) with the migration applied.
--- - public.reminders is the canonical reminder table.
+-- - public.reminders is the canonical reminder table (id, user_id, title, alert_at, ...).
 
 -- 1) Insert any reminders that don't have a mapped flow.
 insert into public.flows (
@@ -22,13 +22,13 @@ insert into public.flows (
 select
   r.user_id,
   r.title,
-  coalesce(r.color, 0x4DD0E1), -- fallback color
-  r.active,
-  r.start_local,
-  null,          -- no end date
-  to_jsonb(r.*)::text, -- store full reminder JSON in notes for recovery
-  '[]'::jsonb,   -- rules placeholder; reminder recurrence handled client-side
-  false,         -- not hidden
+  5099745,                    -- default flow color (reminders has no color column)
+  true,                       -- active (reminders has no active column)
+  (r.alert_at)::date,         -- start_date from alert_at (reminders has no start_local)
+  null,                       -- no end date
+  to_jsonb(r.*)::text,        -- store full reminder JSON in notes for recovery
+  '[]'::jsonb,                -- rules placeholder; reminder recurrence handled client-side
+  false,                      -- not hidden
   true,
   r.id,
   now(),

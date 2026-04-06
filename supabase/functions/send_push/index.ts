@@ -18,10 +18,10 @@ type SendRequest = {
   data?: Record<string, string>;
 };
 
-const SUPABASE_URL = Deno.env.get("PROJECT_URL") ?? Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE = Deno.env.get("SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const PROJECT_ID = Deno.env.get("FCM_PROJECT_ID")!;
-const SA_JSON = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON")!;
+const SUPABASE_URL = Deno.env.get("PROJECT_URL") ?? Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE_ROLE = Deno.env.get("SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const PROJECT_ID = Deno.env.get("FCM_PROJECT_ID") ?? "";
+const SA_JSON = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON") ?? "";
 const BATCH_SIZE = parseInt(Deno.env.get("BATCH_SIZE") ?? "400", 10);
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -74,17 +74,26 @@ async function getAccessToken(sa: ServiceAccount): Promise<string> {
 
 async function fetchTokens(userIds: string[]): Promise<{ device_id: string; token: string }[]> {
   if (!userIds.length) return [];
-  const { data, error } = await supabase
-    .from("push_tokens")
-    .select("device_id, token")
-    .in("user_id", userIds);
-  if (error) throw error;
-  return data as any[];
+  try {
+    const { data, error } = await supabase
+      .from("push_tokens")
+      .select("device_id, token")
+      .in("user_id", userIds)
+      .eq("is_active", true);
+    if (error) throw error;
+    return data as any[];
+  } catch (e) {
+    throw new Error(`push_tokens fetch failed: ${serializeError(e)}`);
+  }
 }
 
 async function deleteTokens(deviceIds: string[]) {
   if (!deviceIds.length) return;
-  await supabase.from("push_tokens").delete().in("device_id", deviceIds);
+  try {
+    await supabase.from("push_tokens").delete().in("device_id", deviceIds);
+  } catch (e) {
+    console.log(JSON.stringify({ at: new Date().toISOString(), msg: "push_tokens delete failed", error: serializeError(e) }));
+  }
 }
 
 function chunked<T>(arr: T[], size: number): T[][] {
@@ -93,8 +102,32 @@ function chunked<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+function classifyFcmFailure(bodyText: string, status?: number): { shouldDelete: boolean; reason: string; raw?: string } {
+  try {
+    const parsed = JSON.parse(bodyText);
+    const err = parsed?.error;
+    const status = err?.status as string | undefined; // e.g., "NOT_FOUND"
+    const details = Array.isArray(err?.details) ? err.details : [];
+    const fcmError = details.find(
+      (d: any) =>
+        typeof d?.['@type'] === 'string' &&
+        d['@type'].includes('google.firebase.fcm.v1.FcmError'),
+    );
+    const errorCode = fcmError?.errorCode as string | undefined; // e.g., "UNREGISTERED"
+
+    const reason = `${status || 'UNKNOWN'}/${errorCode || ''}`.trim();
+    if (status === 'NOT_FOUND' || errorCode === 'UNREGISTERED') {
+      return { shouldDelete: true, reason };
+    }
+    return { shouldDelete: false, reason };
+  } catch {
+    // If it's not JSON, treat it as a transient/unknown error; do not delete.
+    return { shouldDelete: false, reason: `NON_JSON_ERROR${status ? `:${status}` : ""}`, raw: bodyText };
+  }
+}
+
 async function sendToFCM(tokens: string[], payload: SendRequest, accessToken: string) {
-  const results: { ok: boolean; token?: string; error?: string }[] = [];
+  const results: { ok: boolean; token?: string; error?: string; shouldDelete?: boolean; status?: number }[] = [];
   for (const token of tokens) {
     const message = {
       token,
@@ -111,7 +144,8 @@ async function sendToFCM(tokens: string[], payload: SendRequest, accessToken: st
     });
     if (!res.ok) {
       const err = await res.text();
-      results.push({ ok: false, token, error: err });
+      const { shouldDelete, reason } = classifyFcmFailure(err, res.status);
+      results.push({ ok: false, token, error: `${res.status}:${reason}`, shouldDelete, status: res.status });
     } else {
       results.push({ ok: true, token });
     }
@@ -121,10 +155,57 @@ async function sendToFCM(tokens: string[], payload: SendRequest, accessToken: st
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+  const start = Date.now();
+  const log = (msg: string, extra?: Record<string, unknown>) => {
+    const base = { at: new Date().toISOString(), msg };
+    console.log(JSON.stringify(extra ? { ...base, ...extra } : base));
+  };
+
   try {
+    if (!SUPABASE_URL || !SERVICE_ROLE || !PROJECT_ID || !SA_JSON) {
+      const missing = [];
+      if (!SUPABASE_URL) missing.push("SUPABASE_URL/PROJECT_URL");
+      if (!SERVICE_ROLE) missing.push("SERVICE_ROLE_KEY/SUPABASE_SERVICE_ROLE_KEY");
+      if (!PROJECT_ID) missing.push("FCM_PROJECT_ID");
+      if (!SA_JSON) missing.push("FCM_SERVICE_ACCOUNT_JSON");
+      log("missing env", { missing });
+      return new Response(JSON.stringify({ error: "Missing env vars", missing }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    log("env", {
+      url: SUPABASE_URL,
+      serviceRolePresent: SERVICE_ROLE.length > 0,
+      serviceRoleFingerprint: SERVICE_ROLE.length
+        ? `${SERVICE_ROLE.substring(0, Math.min(6, SERVICE_ROLE.length))}...${SERVICE_ROLE.substring(
+            Math.max(0, SERVICE_ROLE.length - 4),
+          )} (len=${SERVICE_ROLE.length})`
+        : "<empty>",
+    });
+
     const body = (await req.json()) as SendRequest;
-    const sa = JSON.parse(SA_JSON) as ServiceAccount;
+    log("request", {
+      userIds: body.userIds?.length ?? 0,
+      topic: body.topic ?? null,
+      hasNotification: !!body.notification,
+      hasData: !!body.data,
+    });
+
+    let sa: ServiceAccount;
+    try {
+      sa = JSON.parse(SA_JSON) as ServiceAccount;
+    } catch (e) {
+      log("bad service account json", { error: String(e) });
+      return new Response(JSON.stringify({ error: "Invalid FCM_SERVICE_ACCOUNT_JSON" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const accessToken = await getAccessToken(sa);
+    log("access token acquired");
 
     let targets: string[] = [];
     let deviceIds: string[] = [];
@@ -132,25 +213,63 @@ Deno.serve(async (req) => {
       const rows = await fetchTokens(body.userIds);
       targets = rows.map((r) => r.token);
       deviceIds = rows.map((r) => r.device_id);
+      log("tokens fetched", { users: body.userIds.length, tokens: targets.length });
     } else if (body.topic) {
       return new Response("Topic send not implemented in scaffold", { status: 400 });
     } else {
       return new Response("No userIds or topic provided", { status: 400 });
     }
 
+    if (!targets.length) {
+      log("no tokens found for users");
+      return new Response(
+        JSON.stringify({ sent: 0, failed: 0, reason: "no tokens for recipients" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
     const results = await sendToFCM(targets, body, accessToken);
-    const staleTokens = results.filter((r) => !r.ok && r.token).map((r) => r.token!);
+    const staleTokens = results
+      .filter((r) => r.shouldDelete && r.token)
+      .map((r) => r.token!);
     const staleDeviceIds = deviceIds.filter((_, idx) => staleTokens.includes(targets[idx]));
     await deleteTokens(staleDeviceIds);
 
+    const sent = results.filter((r) => r.ok).length;
+    const failed = results.filter((r) => !r.ok).length;
+    const failedReasons = results.filter((r) => !r.ok).map((r) => r.error);
+    log("send finished", {
+      sent,
+      failed,
+      stale: staleDeviceIds.length,
+      durationMs: Date.now() - start,
+      failedReasons,
+    });
+
     return new Response(
       JSON.stringify({
-        sent: results.filter((r) => r.ok).length,
-        failed: results.filter((r) => !r.ok).length,
+        sent,
+        failed,
+        stale: staleDeviceIds.length,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), { status: 500 });
+    log("unhandled error", { error: serializeError(e) });
+    return new Response(JSON.stringify({ error: serializeError(e) }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 });
+
+function serializeError(e: unknown) {
+  if (e instanceof Error) {
+    return { message: e.message, stack: e.stack };
+  }
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return String(e);
+  }
+}

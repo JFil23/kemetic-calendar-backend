@@ -23,6 +23,8 @@ export const handler = async (req: Request): Promise<Response> => {
         device_id,
         platform,
         token,
+        is_active: true,
+        last_seen_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }, { onConflict: "device_id" });
 
