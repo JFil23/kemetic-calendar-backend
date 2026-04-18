@@ -9,13 +9,23 @@ type ScheduleRow = {
 };
 
 type ReflectionResult = { reflection: string; badgeCount: number };
+type SendPushResponse = {
+  sent: number;
+  failed: number;
+  stale: number;
+  matchedTokens: number;
+  delivered: boolean;
+  reason?: string;
+  failedReasons?: string[];
+};
 
 // Use Supabase-specific envs only; avoid generic keys that may point elsewhere.
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? Deno.env.get("PROJECT_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const INTERNAL_FUNCTION_KEY = Deno.env.get("INTERNAL_FUNCTION_KEY") ?? "";
 
-if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-  console.error("Missing SUPABASE_URL or SERVICE_ROLE_KEY");
+if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !INTERNAL_FUNCTION_KEY) {
+  console.error("Missing SUPABASE_URL or SERVICE_ROLE_KEY or INTERNAL_FUNCTION_KEY");
 }
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -81,10 +91,18 @@ function buildExcerpt(reflection: string, maxChars = 120) {
   return `${trimmed.trim()}…`;
 }
 
-async function sendPush(userId: string, reflectionId: string, decanName: string, reflection: string) {
+async function sendPush(
+  userId: string,
+  reflectionId: string,
+  decanName: string,
+  reflection: string,
+): Promise<SendPushResponse> {
+  if (!INTERNAL_FUNCTION_KEY) {
+    throw new Error("INTERNAL_FUNCTION_KEY not configured");
+  }
   const title = "Your decan reflection is ready";
   const body = buildExcerpt(reflection) || decanName;
-  const { error } = await supabase.functions.invoke("send_push", {
+  const { data, error } = await supabase.functions.invoke("send_push", {
     body: {
       userIds: [userId],
       notification: { title, body },
@@ -93,8 +111,12 @@ async function sendPush(userId: string, reflectionId: string, decanName: string,
         reflectionId,
       },
     },
+    headers: {
+      "x-internal-key": INTERNAL_FUNCTION_KEY,
+    },
   });
   if (error) throw error;
+  return data as SendPushResponse;
 }
 
 async function markSent(id: string) {
@@ -128,7 +150,15 @@ serve(async () => {
         const { reflection, badgeCount } = await generateReflection(row.user_id, decanName, decanTheme, row.decan_start, row.decan_end);
 
         const reflectionId = await storeReflection(row.user_id, decanName, decanTheme, row.decan_start, row.decan_end, badgeCount, reflection);
-        await sendPush(row.user_id, reflectionId, decanName, reflection);
+        const pushResult = await sendPush(row.user_id, reflectionId, decanName, reflection);
+        if (pushResult.sent <= 0) {
+          throw new Error(
+            pushResult.reason ??
+              (pushResult.failedReasons?.length
+                ? pushResult.failedReasons.join(", ")
+                : "push_not_delivered"),
+          );
+        }
         await markSent(row.id);
         processed += 1;
       } catch (err) {

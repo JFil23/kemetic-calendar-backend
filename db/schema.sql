@@ -4244,8 +4244,11 @@ CREATE TABLE public.scheduled_notifications (
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    notification_type text,
-    CONSTRAINT check_notification_type CHECK ((notification_type = ANY (ARRAY['event_start'::text, 'event_end'::text, 'daily_review'::text, 'flow_reminder'::text])))
+    notification_type text DEFAULT 'event_start'::text NOT NULL,
+    attempt_count integer DEFAULT 0 NOT NULL,
+    last_error text,
+    last_attempt_at timestamp with time zone,
+    CONSTRAINT check_notification_type CHECK ((notification_type = ANY (ARRAY['event_start'::text, 'event_end'::text, 'daily_review'::text, 'flow_reminder'::text, 'reminder_10min'::text, 'flow_step'::text])))
 );
 
 
@@ -5134,12 +5137,11 @@ ALTER TABLE ONLY public.share_short_links
     ADD CONSTRAINT share_short_links_pkey PRIMARY KEY (id);
 
 
---
--- Name: scheduled_notifications unique_user_client_event; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: scheduled_notifications unique_user_client_event_type; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.scheduled_notifications
-    ADD CONSTRAINT unique_user_client_event UNIQUE (user_id, client_event_id);
+    ADD CONSTRAINT unique_user_client_event_type UNIQUE (user_id, client_event_id, notification_type);
 
 
 --
@@ -7876,6 +7878,856 @@ CREATE PUBLICATION supabase_realtime_messages_publication WITH (publish = 'inser
 --
 
 ALTER PUBLICATION supabase_realtime ADD TABLE ONLY public.user_events;
+
+
+--
+-- Name: nodes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.nodes (
+    id uuid DEFAULT extensions.gen_random_uuid() NOT NULL,
+    slug text NOT NULL,
+    title text NOT NULL,
+    glyph text,
+    body_text text NOT NULL,
+    aliases jsonb DEFAULT '[]'::jsonb NOT NULL,
+    node_type text NOT NULL,
+    is_system_owned boolean DEFAULT true NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    sort_key integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: node_links; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.node_links (
+    id uuid DEFAULT extensions.gen_random_uuid() NOT NULL,
+    source_node_id uuid NOT NULL,
+    target_node_id uuid NOT NULL,
+    link_phrase text,
+    link_type text DEFAULT 'embedded_text'::text NOT NULL,
+    weight numeric DEFAULT 1.0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: node_user_content; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.node_user_content (
+    id uuid DEFAULT extensions.gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    node_id uuid NOT NULL,
+    plain_text text DEFAULT ''::text NOT NULL,
+    rich_text_payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: insight_links; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.insight_links (
+    id uuid DEFAULT extensions.gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    source_type text NOT NULL,
+    source_id uuid NOT NULL,
+    source_range_start integer,
+    source_range_end integer,
+    source_selected_text text,
+    target_type text NOT NULL,
+    target_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: user_choice_events; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_choice_events (
+    id uuid DEFAULT extensions.gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    event_type text NOT NULL,
+    node_id uuid,
+    flow_id uuid,
+    journal_entry_id uuid,
+    reflection_entry_id uuid,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: reflection_profiles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.reflection_profiles (
+    user_id uuid NOT NULL,
+    top_nodes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    top_edges jsonb DEFAULT '[]'::jsonb NOT NULL,
+    dominant_patterns jsonb DEFAULT '[]'::jsonb NOT NULL,
+    tension_pairs jsonb DEFAULT '[]'::jsonb NOT NULL,
+    maat_score numeric,
+    isfet_risk_score numeric,
+    last_computed_at timestamp with time zone,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: reflection_generations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.reflection_generations (
+    id uuid DEFAULT extensions.gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    period_type text NOT NULL,
+    period_key text NOT NULL,
+    anchor_nodes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    source_snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
+    generated_text text NOT NULL,
+    model_version text,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: reflection_feedback; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.reflection_feedback (
+    id uuid DEFAULT extensions.gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    reflection_generation_id uuid NOT NULL,
+    rating integer,
+    feedback_tags jsonb DEFAULT '[]'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: nodes nodes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.nodes
+    ADD CONSTRAINT nodes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: nodes nodes_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.nodes
+    ADD CONSTRAINT nodes_slug_key UNIQUE (slug);
+
+
+--
+-- Name: nodes nodes_node_type_check; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE public.nodes
+    ADD CONSTRAINT nodes_node_type_check CHECK ((node_type = ANY (ARRAY['netjer'::text, 'animal'::text, 'cosmic'::text, 'earth'::text, 'metaphysical'::text, 'builder'::text])));
+
+
+--
+-- Name: node_links node_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.node_links
+    ADD CONSTRAINT node_links_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: node_links uq_node_links_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.node_links
+    ADD CONSTRAINT uq_node_links_unique UNIQUE (source_node_id, target_node_id, COALESCE(link_phrase, ''::text), link_type);
+
+
+--
+-- Name: node_links node_links_link_type_check; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE public.node_links
+    ADD CONSTRAINT node_links_link_type_check CHECK ((link_type = ANY (ARRAY['embedded_text'::text, 'thematic'::text, 'structural'::text, 'supports'::text, 'opposes'::text, 'restores'::text, 'measures'::text, 'contains'::text, 'signals'::text, 'associated_with'::text])));
+
+
+--
+-- Name: node_user_content node_user_content_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.node_user_content
+    ADD CONSTRAINT node_user_content_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: node_user_content uq_node_user_content; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.node_user_content
+    ADD CONSTRAINT uq_node_user_content UNIQUE (user_id, node_id);
+
+
+--
+-- Name: insight_links insight_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.insight_links
+    ADD CONSTRAINT insight_links_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: insight_links insight_links_source_type_check; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE public.insight_links
+    ADD CONSTRAINT insight_links_source_type_check CHECK ((source_type = ANY (ARRAY['node_user_text'::text, 'journal_entry'::text, 'reflection_entry'::text])));
+
+
+--
+-- Name: insight_links insight_links_target_type_check; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE public.insight_links
+    ADD CONSTRAINT insight_links_target_type_check CHECK ((target_type = ANY (ARRAY['node'::text, 'journal_entry'::text, 'reflection_entry'::text])));
+
+
+--
+-- Name: user_choice_events user_choice_events_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_choice_events
+    ADD CONSTRAINT user_choice_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_choice_events user_choice_events_event_type_check; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE public.user_choice_events
+    ADD CONSTRAINT user_choice_events_event_type_check CHECK ((event_type = ANY (ARRAY[
+        'node_opened'::text,
+        'node_link_tapped'::text,
+        'node_insight_saved'::text,
+        'journal_linked_to_node'::text,
+        'reflection_linked_to_node'::text,
+        'node_linked_to_journal'::text,
+        'node_linked_to_reflection'::text,
+        'flow_completed'::text,
+        'flow_skipped'::text,
+        'reflection_opened'::text,
+        'reflection_saved'::text,
+        'reflection_rated'::text,
+        -- Rhythm / checklist / suggestions
+        'cycle_field_saved'::text,
+        'checklist_completed'::text,
+        'checklist_partial'::text,
+        'checklist_skipped'::text,
+        'todo_created'::text,
+        'todo_completed'::text,
+        'suggestion_accepted'::text,
+        'suggestion_dismissed'::text,
+        'suggestion_snoozed'::text
+    ])));
+
+
+--
+-- Name: reflection_profiles reflection_profiles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reflection_profiles
+    ADD CONSTRAINT reflection_profiles_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: reflection_generations reflection_generations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reflection_generations
+    ADD CONSTRAINT reflection_generations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reflection_generations reflection_generations_period_type_check; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE public.reflection_generations
+    ADD CONSTRAINT reflection_generations_period_type_check CHECK ((period_type = ANY (ARRAY['daily'::text, 'decan'::text, 'monthly'::text, 'manual'::text])));
+
+
+--
+-- Name: reflection_feedback reflection_feedback_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reflection_feedback
+    ADD CONSTRAINT reflection_feedback_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: reflection_feedback uq_reflection_feedback; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reflection_feedback
+    ADD CONSTRAINT uq_reflection_feedback UNIQUE (user_id, reflection_generation_id);
+
+
+--
+-- Name: node_links node_links_source_node_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.node_links
+    ADD CONSTRAINT node_links_source_node_id_fkey FOREIGN KEY (source_node_id) REFERENCES public.nodes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: node_links node_links_target_node_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.node_links
+    ADD CONSTRAINT node_links_target_node_id_fkey FOREIGN KEY (target_node_id) REFERENCES public.nodes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: node_user_content node_user_content_node_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.node_user_content
+    ADD CONSTRAINT node_user_content_node_id_fkey FOREIGN KEY (node_id) REFERENCES public.nodes(id) ON DELETE CASCADE;
+
+
+--
+-- Name: node_user_content node_user_content_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.node_user_content
+    ADD CONSTRAINT node_user_content_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: insight_links insight_links_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.insight_links
+    ADD CONSTRAINT insight_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_choice_events user_choice_events_node_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_choice_events
+    ADD CONSTRAINT user_choice_events_node_id_fkey FOREIGN KEY (node_id) REFERENCES public.nodes(id) ON DELETE SET NULL;
+
+
+--
+-- Name: user_choice_events user_choice_events_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_choice_events
+    ADD CONSTRAINT user_choice_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reflection_profiles reflection_profiles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reflection_profiles
+    ADD CONSTRAINT reflection_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reflection_generations reflection_generations_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reflection_generations
+    ADD CONSTRAINT reflection_generations_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reflection_feedback reflection_feedback_reflection_generation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reflection_feedback
+    ADD CONSTRAINT reflection_feedback_reflection_generation_id_fkey FOREIGN KEY (reflection_generation_id) REFERENCES public.reflection_generations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: reflection_feedback reflection_feedback_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.reflection_feedback
+    ADD CONSTRAINT reflection_feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: idx_nodes_aliases; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_nodes_aliases ON public.nodes USING gin (aliases);
+
+
+--
+-- Name: idx_node_links_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_node_links_source ON public.node_links USING btree (source_node_id);
+
+
+--
+-- Name: idx_node_links_target; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_node_links_target ON public.node_links USING btree (target_node_id);
+
+
+--
+-- Name: idx_node_user_content_node; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_node_user_content_node ON public.node_user_content USING btree (node_id);
+
+
+--
+-- Name: idx_node_user_content_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_node_user_content_user ON public.node_user_content USING btree (user_id);
+
+
+--
+-- Name: idx_insight_links_source; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_insight_links_source ON public.insight_links USING btree (source_type, source_id);
+
+
+--
+-- Name: idx_insight_links_target; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_insight_links_target ON public.insight_links USING btree (target_type, target_id);
+
+
+--
+-- Name: idx_insight_links_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_insight_links_user ON public.insight_links USING btree (user_id);
+
+
+--
+-- Name: idx_user_choice_events_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_choice_events_created ON public.user_choice_events USING btree (created_at DESC);
+
+
+--
+-- Name: idx_user_choice_events_node; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_choice_events_node ON public.user_choice_events USING btree (node_id);
+
+
+--
+-- Name: idx_user_choice_events_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_choice_events_type ON public.user_choice_events USING btree (event_type);
+
+
+--
+-- Name: idx_user_choice_events_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_user_choice_events_user ON public.user_choice_events USING btree (user_id);
+
+
+--
+-- Name: idx_reflection_generations_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_reflection_generations_created ON public.reflection_generations USING btree (created_at DESC);
+
+
+--
+-- Name: idx_reflection_generations_period; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_reflection_generations_period ON public.reflection_generations USING btree (period_type, period_key);
+
+
+--
+-- Name: idx_reflection_generations_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_reflection_generations_user ON public.reflection_generations USING btree (user_id);
+
+
+--
+-- Name: idx_reflection_feedback_gen; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_reflection_feedback_gen ON public.reflection_feedback USING btree (reflection_generation_id);
+
+
+--
+-- Name: node_user_content; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.node_user_content ENABLE ROW LEVEL SECURITY;
+
+
+--
+-- Name: insight_links; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.insight_links ENABLE ROW LEVEL SECURITY;
+
+
+--
+-- Name: user_choice_events; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.user_choice_events ENABLE ROW LEVEL SECURITY;
+
+
+--
+-- Name: reflection_profiles; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.reflection_profiles ENABLE ROW LEVEL SECURITY;
+
+
+--
+-- Name: reflection_generations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.reflection_generations ENABLE ROW LEVEL SECURITY;
+
+
+--
+-- Name: reflection_feedback; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.reflection_feedback ENABLE ROW LEVEL SECURITY;
+
+
+--
+-- Name: nodes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.nodes ENABLE ROW LEVEL SECURITY;
+
+
+--
+-- Name: node_links; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.node_links ENABLE ROW LEVEL SECURITY;
+
+
+--
+-- Name: node_user_content node_user_content_owner; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY node_user_content_owner ON public.node_user_content USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+
+
+--
+-- Name: insight_links insight_links_owner; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY insight_links_owner ON public.insight_links USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+
+
+--
+-- Name: user_choice_events user_choice_events_owner; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY user_choice_events_owner ON public.user_choice_events USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+
+
+--
+-- Name: reflection_profiles reflection_profiles_owner; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY reflection_profiles_owner ON public.reflection_profiles USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+
+
+--
+-- Name: reflection_generations reflection_generations_owner; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY reflection_generations_owner ON public.reflection_generations USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+
+
+--
+-- Name: reflection_feedback reflection_feedback_owner; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY reflection_feedback_owner ON public.reflection_feedback USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+
+
+--
+-- Name: nodes nodes_readable; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY nodes_readable ON public.nodes FOR SELECT USING (true);
+
+
+--
+-- Name: node_links node_links_readable; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY node_links_readable ON public.node_links FOR SELECT USING (true);
+
+
+--
+-- Name: nodes nodes_no_user_writes; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY nodes_no_user_writes ON public.nodes FOR ALL USING (false) WITH CHECK (false);
+
+
+--
+-- Name: node_links node_links_no_user_writes; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY node_links_no_user_writes ON public.node_links FOR ALL USING (false) WITH CHECK (false);
+
+
+--
+-- Name: trg_touch_node_user_content; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_touch_node_user_content BEFORE UPDATE ON public.node_user_content FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+
+
+--
+-- Name: trg_touch_insight_links; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_touch_insight_links BEFORE UPDATE ON public.insight_links FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+
+
+--
+-- Name: trg_touch_reflection_profiles; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_touch_reflection_profiles BEFORE UPDATE ON public.reflection_profiles FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+
+
+--
+-- Name: trg_touch_reflection_generations; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_touch_reflection_generations BEFORE UPDATE ON public.reflection_generations FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+
+
+--
+-- Name: trg_touch_reflection_feedback; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_touch_reflection_feedback BEFORE UPDATE ON public.reflection_feedback FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+
+
+--
+-- Rhythm & Checklist core tables
+--
+
+CREATE TABLE public.cycle_fields (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    slug text NOT NULL,
+    title text NOT NULL,
+    description text,
+    node_id uuid,
+    value_json jsonb DEFAULT '{}'::jsonb NOT NULL,
+    checklist_enabled boolean DEFAULT true NOT NULL,
+    reminder_enabled boolean DEFAULT false NOT NULL,
+    tracker_enabled boolean DEFAULT true NOT NULL,
+    resolution_mode text DEFAULT 'checklist_primary'::text NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT cycle_fields_resolution_mode_check CHECK ((resolution_mode = ANY (ARRAY['checklist_primary'::text, 'evidence_can_upgrade'::text, 'evidence_can_override_pending'::text])))
+);
+
+CREATE TABLE public.cycle_schedule_rules (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    field_id uuid NOT NULL,
+    title text,
+    days_of_week integer[],
+    all_day boolean DEFAULT false NOT NULL,
+    start_time_local time without time zone,
+    end_time_local time without time zone,
+    reminder_offset_minutes integer,
+    is_optional boolean DEFAULT false NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT cycle_schedule_rules_days_check CHECK (((days_of_week IS NULL) OR (days_of_week <@ ARRAY[1,2,3,4,5,6,7]))),
+    CONSTRAINT cycle_schedule_rules_time_check CHECK ((all_day OR (start_time_local IS NOT NULL)))
+);
+
+CREATE TABLE public.todos (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    title text NOT NULL,
+    notes text,
+    due_date date,
+    due_time time without time zone,
+    priority smallint,
+    tags text[] DEFAULT '{}'::text[] NOT NULL,
+    recurrence jsonb DEFAULT '{}'::jsonb NOT NULL,
+    show_on_checklist boolean DEFAULT true NOT NULL,
+    show_on_calendar boolean DEFAULT true NOT NULL,
+    linked_field_id uuid,
+    status text DEFAULT 'pending'::text NOT NULL,
+    completed_at timestamptz,
+    archived_at timestamptz,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT todos_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'in_progress'::text, 'done'::text, 'skipped'::text, 'archived'::text])))
+);
+
+CREATE TABLE public.checklist_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    local_date date NOT NULL,
+    source text NOT NULL,
+    source_key text NOT NULL,
+    title text,
+    status text DEFAULT 'pending'::text NOT NULL,
+    is_opportunity boolean DEFAULT true NOT NULL,
+    manual_lock boolean DEFAULT false NOT NULL,
+    allow_evidence_upgrade boolean DEFAULT true NOT NULL,
+    allow_evidence_override_pending boolean DEFAULT true NOT NULL,
+    evidence_refs jsonb DEFAULT '[]'::jsonb NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    field_id uuid,
+    todo_id uuid,
+    event_id uuid,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT checklist_items_source_check CHECK ((source = ANY (ARRAY['cycle'::text, 'todo'::text, 'manual'::text, 'event'::text, 'suggestion'::text]))),
+    CONSTRAINT checklist_items_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'done'::text, 'partial'::text, 'skipped'::text, 'unlogged'::text])))
+);
+
+CREATE TABLE public.cycle_adjustment_suggestions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    suggestion jsonb DEFAULT '{}'::jsonb NOT NULL,
+    applied_patch jsonb DEFAULT '{}'::jsonb NOT NULL,
+    applied_from text,
+    decided_at timestamptz,
+    snooze_until timestamptz,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT cycle_adjustment_suggestions_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'dismissed'::text, 'snoozed'::text])))
+);
+
+--
+-- Constraints
+--
+
+ALTER TABLE ONLY public.cycle_fields
+    ADD CONSTRAINT cycle_fields_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.cycle_fields
+    ADD CONSTRAINT cycle_fields_user_slug_key UNIQUE (user_id, slug);
+ALTER TABLE ONLY public.cycle_fields
+    ADD CONSTRAINT cycle_fields_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.cycle_fields
+    ADD CONSTRAINT cycle_fields_node_id_fkey FOREIGN KEY (node_id) REFERENCES public.nodes(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.cycle_schedule_rules
+    ADD CONSTRAINT cycle_schedule_rules_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.cycle_schedule_rules
+    ADD CONSTRAINT cycle_schedule_rules_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.cycle_schedule_rules
+    ADD CONSTRAINT cycle_schedule_rules_field_id_fkey FOREIGN KEY (field_id) REFERENCES public.cycle_fields(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY public.todos
+    ADD CONSTRAINT todos_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.todos
+    ADD CONSTRAINT todos_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.todos
+    ADD CONSTRAINT todos_linked_field_id_fkey FOREIGN KEY (linked_field_id) REFERENCES public.cycle_fields(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY public.checklist_items
+    ADD CONSTRAINT checklist_items_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.checklist_items
+    ADD CONSTRAINT checklist_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.checklist_items
+    ADD CONSTRAINT checklist_items_field_id_fkey FOREIGN KEY (field_id) REFERENCES public.cycle_fields(id) ON DELETE SET NULL;
+ALTER TABLE ONLY public.checklist_items
+    ADD CONSTRAINT checklist_items_todo_id_fkey FOREIGN KEY (todo_id) REFERENCES public.todos(id) ON DELETE SET NULL;
+ALTER TABLE ONLY public.checklist_items
+    ADD CONSTRAINT checklist_items_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.user_events(id) ON DELETE SET NULL;
+ALTER TABLE ONLY public.checklist_items
+    ADD CONSTRAINT checklist_items_user_date_source_key UNIQUE (user_id, local_date, source_key);
+
+ALTER TABLE ONLY public.cycle_adjustment_suggestions
+    ADD CONSTRAINT cycle_adjustment_suggestions_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.cycle_adjustment_suggestions
+    ADD CONSTRAINT cycle_adjustment_suggestions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+--
+-- Indexes
+--
+
+CREATE INDEX idx_cycle_fields_user ON public.cycle_fields USING btree (user_id);
+CREATE INDEX idx_cycle_schedule_rules_user_field ON public.cycle_schedule_rules USING btree (user_id, field_id);
+CREATE INDEX idx_cycle_schedule_rules_days ON public.cycle_schedule_rules USING gin (days_of_week);
+CREATE INDEX idx_todos_user_due ON public.todos USING btree (user_id, due_date);
+CREATE INDEX idx_todos_status ON public.todos USING btree (status);
+CREATE INDEX idx_checklist_items_user_date ON public.checklist_items USING btree (user_id, local_date);
+CREATE INDEX idx_checklist_items_status ON public.checklist_items USING btree (user_id, status);
+CREATE INDEX idx_checklist_items_field ON public.checklist_items USING btree (field_id);
+CREATE INDEX idx_cycle_adjustment_suggestions_status ON public.cycle_adjustment_suggestions USING btree (user_id, status);
+
+--
+-- Row level security & policies
+--
+
+ALTER TABLE public.cycle_fields ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cycle_schedule_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.todos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.checklist_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cycle_adjustment_suggestions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY cycle_fields_owner ON public.cycle_fields USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY cycle_schedule_rules_owner ON public.cycle_schedule_rules USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY todos_owner ON public.todos USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY checklist_items_owner ON public.checklist_items USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+CREATE POLICY cycle_adjustment_suggestions_owner ON public.cycle_adjustment_suggestions USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+
+--
+-- Triggers
+--
+
+CREATE TRIGGER trg_touch_cycle_fields BEFORE UPDATE ON public.cycle_fields FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+CREATE TRIGGER trg_touch_cycle_schedule_rules BEFORE UPDATE ON public.cycle_schedule_rules FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+CREATE TRIGGER trg_touch_todos BEFORE UPDATE ON public.todos FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+CREATE TRIGGER trg_touch_checklist_items BEFORE UPDATE ON public.checklist_items FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+CREATE TRIGGER trg_touch_cycle_adjustment_suggestions BEFORE UPDATE ON public.cycle_adjustment_suggestions FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
 
 
 --

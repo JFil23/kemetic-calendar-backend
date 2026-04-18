@@ -15,7 +15,17 @@ type SendRequest = {
   userIds?: string[];
   topic?: string;
   notification?: { title?: string; body?: string };
-  data?: Record<string, string>;
+  data?: Record<string, unknown>;
+};
+
+type SendResponse = {
+  sent: number;
+  failed: number;
+  stale: number;
+  matchedTokens: number;
+  delivered: boolean;
+  reason?: string;
+  failedReasons?: string[];
 };
 
 const SUPABASE_URL = Deno.env.get("PROJECT_URL") ?? Deno.env.get("SUPABASE_URL") ?? "";
@@ -23,6 +33,7 @@ const SERVICE_ROLE = Deno.env.get("SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_
 const PROJECT_ID = Deno.env.get("FCM_PROJECT_ID") ?? "";
 const SA_JSON = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON") ?? "";
 const BATCH_SIZE = parseInt(Deno.env.get("BATCH_SIZE") ?? "400", 10);
+const INTERNAL_FUNCTION_KEY = Deno.env.get("INTERNAL_FUNCTION_KEY") ?? "";
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
@@ -126,13 +137,36 @@ function classifyFcmFailure(bodyText: string, status?: number): { shouldDelete: 
   }
 }
 
+function normalizeData(data?: Record<string, unknown>): Record<string, string> | undefined {
+  if (!data) return undefined;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value === undefined) continue;
+    if (value === null) {
+      out[key] = "null";
+      continue;
+    }
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      out[key] = String(value);
+      continue;
+    }
+    try {
+      out[key] = JSON.stringify(value);
+    } catch {
+      out[key] = String(value);
+    }
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 async function sendToFCM(tokens: string[], payload: SendRequest, accessToken: string) {
   const results: { ok: boolean; token?: string; error?: string; shouldDelete?: boolean; status?: number }[] = [];
+  const normalizedData = normalizeData(payload.data);
   for (const token of tokens) {
     const message = {
       token,
       notification: payload.notification,
-      data: payload.data,
+      data: normalizedData,
     };
     const res = await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
       method: "POST",
@@ -146,8 +180,24 @@ async function sendToFCM(tokens: string[], payload: SendRequest, accessToken: st
       const err = await res.text();
       const { shouldDelete, reason } = classifyFcmFailure(err, res.status);
       results.push({ ok: false, token, error: `${res.status}:${reason}`, shouldDelete, status: res.status });
+      console.log(
+        JSON.stringify({
+          at: new Date().toISOString(),
+          msg: "fcm_send_failed",
+          status: res.status,
+          reason,
+          token_suffix: token.slice(-6),
+        }),
+      );
     } else {
       results.push({ ok: true, token });
+      console.log(
+        JSON.stringify({
+          at: new Date().toISOString(),
+          msg: "fcm_send_ok",
+          token_suffix: token.slice(-6),
+        }),
+      );
     }
   }
   return results;
@@ -175,6 +225,61 @@ Deno.serve(async (req) => {
       });
     }
 
+    const body = (await req.json()) as SendRequest;
+    const internalHeader = req.headers.get("x-internal-key") ?? "";
+    const authHeader = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
+
+    let authMode: "internal_key" | "user_jwt" | "denied" = "denied";
+    let requesterUid: string | null = null;
+
+    if (INTERNAL_FUNCTION_KEY && internalHeader === INTERNAL_FUNCTION_KEY) {
+      authMode = "internal_key";
+    } else if (authHeader) {
+      const { data: userRes, error } = await supabase.auth.getUser(authHeader);
+      if (!error && userRes?.user?.id) {
+        requesterUid = userRes.user.id;
+        const senderId = typeof body.data === "object" && body.data !== null
+          ? (body.data as Record<string, unknown>)["sender_id"] as string | undefined
+          : undefined;
+        if (senderId && senderId !== requesterUid) {
+          log("sender_mismatch", { senderId, requesterUid });
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        authMode = "user_jwt";
+      }
+    }
+
+    if (authMode === "denied") {
+      log("unauthorized", {
+        hasInternal: !!internalHeader,
+        hasAuthHeader: !!authHeader,
+        internalConfigured: !!INTERNAL_FUNCTION_KEY,
+        internalLen: INTERNAL_FUNCTION_KEY.length || undefined,
+      });
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (authMode === "user_jwt") {
+      if (!body.userIds?.length) {
+        return new Response(JSON.stringify({ error: "userIds required for user_jwt" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (body.userIds.length > 5) {
+        return new Response(JSON.stringify({ error: "Too many recipients" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
     log("env", {
       url: SUPABASE_URL,
       serviceRolePresent: SERVICE_ROLE.length > 0,
@@ -184,13 +289,20 @@ Deno.serve(async (req) => {
           )} (len=${SERVICE_ROLE.length})`
         : "<empty>",
     });
-
-    const body = (await req.json()) as SendRequest;
+    console.log(
+      JSON.stringify({
+        msg: "SEND_PUSH start",
+        userIds: body.userIds ?? [],
+        authMode,
+      }),
+    );
     log("request", {
       userIds: body.userIds?.length ?? 0,
       topic: body.topic ?? null,
       hasNotification: !!body.notification,
       hasData: !!body.data,
+      authMode,
+      requesterUid,
     });
 
     let sa: ServiceAccount;
@@ -214,6 +326,14 @@ Deno.serve(async (req) => {
       targets = rows.map((r) => r.token);
       deviceIds = rows.map((r) => r.device_id);
       log("tokens fetched", { users: body.userIds.length, tokens: targets.length });
+      console.log(
+        JSON.stringify({
+          msg: "SEND_PUSH tokens resolved",
+          count: targets.length,
+          userIds: body.userIds ?? [],
+          authMode,
+        }),
+      );
     } else if (body.topic) {
       return new Response("Topic send not implemented in scaffold", { status: 400 });
     } else {
@@ -223,7 +343,15 @@ Deno.serve(async (req) => {
     if (!targets.length) {
       log("no tokens found for users");
       return new Response(
-        JSON.stringify({ sent: 0, failed: 0, reason: "no tokens for recipients" }),
+        JSON.stringify({
+          sent: 0,
+          failed: 0,
+          stale: 0,
+          matchedTokens: 0,
+          delivered: false,
+          reason: "no_tokens_for_recipients",
+          failedReasons: [],
+        } satisfies SendResponse),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     }
@@ -238,6 +366,15 @@ Deno.serve(async (req) => {
     const sent = results.filter((r) => r.ok).length;
     const failed = results.filter((r) => !r.ok).length;
     const failedReasons = results.filter((r) => !r.ok).map((r) => r.error);
+    console.log(
+      JSON.stringify({
+        msg: "SEND_PUSH result",
+        success: sent,
+        failure: failed,
+        authMode,
+        token_count: targets.length,
+      }),
+    );
     log("send finished", {
       sent,
       failed,
@@ -251,10 +388,14 @@ Deno.serve(async (req) => {
         sent,
         failed,
         stale: staleDeviceIds.length,
-      }),
+        matchedTokens: targets.length,
+        delivered: sent > 0,
+        failedReasons,
+      } satisfies SendResponse),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (e) {
+    console.error("SEND_PUSH FAILURE FULL", e);
     log("unhandled error", { error: serializeError(e) });
     return new Response(JSON.stringify({ error: serializeError(e) }), {
       status: 500,

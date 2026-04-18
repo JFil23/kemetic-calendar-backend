@@ -97,6 +97,25 @@ async function callAnthropicModel(
   }
 }
 const MAX_RETRIES = 1;
+const SHORT_FLOW_REFLECTION_PAIR_THRESHOLD_DAYS = 14;
+
+/** Beyond this, single JSON completion cannot reliably cover every day within token + wall-clock limits. */
+const LONG_FLOW_THRESHOLD_DAYS = 22;
+/** Days per LLM call — larger segments = fewer round trips (easier on edge CPU/memory). */
+const LONG_FLOW_SEGMENT_DAYS = 30;
+const LONG_FLOW_SOURCE_CLAMP = 110_000;
+/** Plan phase only — huge plan prompts blow edge memory/CPU before the first OpenAI call returns. */
+const LONG_FLOW_PLAN_SOURCE_CLAMP = 36_000;
+const VERY_LONG_FLOW_THRESHOLD_DAYS = 60;
+/** Keep planner latency bounded so long-flow runs can still finish before Edge wall-clock shutdown. */
+const LONG_FLOW_PLAN_TIMEOUT_MS = 18_000;
+/** Per-segment timeout budget for multi-week generation. */
+const LONG_FLOW_SEGMENT_TIMEOUT_MS = 60_000;
+const LONG_FLOW_GLOBAL_ANCHORS_MAX_CHARS = 3_600;
+const LONG_FLOW_SEGMENT_EXCERPT_CAP = 6_800;
+const OPENAI_FETCH_TIMEOUT_MS = 95_000;
+/** Default 2 keeps 90-day runs under Supabase wall-clock without spiking to 3+ concurrent calls. */
+const LONG_FLOW_SEGMENT_CONCURRENCY_DEFAULT = 2;
 
 const FLOW_CONTRACT_V3 = `You generate a FLOW: a structured schedule template across a date range.
 
@@ -551,11 +570,13 @@ async function generateWithOpenAI({
   model = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o-mini",
   temperature = 0.7,
   max_tokens = 1800,
+  signal,
 }: {
   messages: OpenAIMessage[];
   model?: string;
   temperature?: number;
   max_tokens?: number;
+  signal?: AbortSignal;
 }): Promise<{
   ok: boolean;
   modelUsed: string;
@@ -569,19 +590,44 @@ async function generateWithOpenAI({
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) throw new Error("MISSING_OPENAI_KEY");
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature,
-      max_tokens,
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      signal,
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        max_tokens,
+      }),
+    });
+  } catch (e: any) {
+    const name = e?.name ?? "";
+    const msg = e?.message ?? String(e);
+    if (name === "AbortError" || /aborted|timeout/i.test(msg)) {
+      return {
+        ok: false,
+        modelUsed: model,
+        content: "",
+        tokensIn: 0,
+        tokensOut: 0,
+        error: `OpenAI request aborted or timed out: ${msg}`,
+      };
+    }
+    return {
+      ok: false,
+      modelUsed: model,
+      content: "",
+      tokensIn: 0,
+      tokensOut: 0,
+      error: msg,
+    };
+  }
 
   if (!res.ok) {
     const err = await res.text().catch(() => "");
@@ -650,6 +696,45 @@ async function getPromptFingerprint(systemPrompt?: string): Promise<string> {
   const prompt = systemPrompt ?? buildSystemPrompt();
   return sha256Hex(prompt);
 }
+
+let _memoSystemPrompt: string | null = null;
+let _memoPromptFingerprintPromise: Promise<string> | null = null;
+
+function getMemoSystemPrompt(): string {
+  return (_memoSystemPrompt ??= buildSystemPrompt());
+}
+
+/** One SHA-256 per isolate — avoids re-hashing multi‑KB prompts on every invocation. */
+function getMemoPromptFingerprint(): Promise<string> {
+  return (_memoPromptFingerprintPromise ??= getPromptFingerprint(getMemoSystemPrompt()));
+}
+
+const LONG_FLOW_SEGMENT_SYSTEM = `You output ONLY valid JSON (no markdown, no code fences).
+
+Schema:
+{
+  "flowName": string,
+  "overview": {"title": string, "summary": string},
+  "notes": [
+    {
+      "day_index": number,
+      "title": string,
+      "details": string,
+      "allDay": boolean,
+      "startsAt": "HH:MM",
+      "endsAt": "HH:MM"
+    }
+  ]
+}
+
+Hard rules:
+- notes must use only day_index values in the inclusive range the user specifies.
+- Cover every day_index in that range at least once.
+- If allDay is false: startsAt/endsAt are 24h "HH:MM", endsAt later than startsAt.
+- Prefer rounded times (09:00, 12:00, 20:00).
+- details: 65–130 words, concrete, grounded in SOURCE excerpt and segment theme; do not invent facts absent from the excerpt.
+- Titles: deliverable-oriented; avoid generic "Day N" placeholders.
+- Vary phrasing across days; do not repeat the same opening sentence.`;
 
 
 function extractAnthropicText(data) {
@@ -738,10 +823,23 @@ function looksListLike(text: string): boolean {
 function inferMode(description: string, sourceText?: string): "DICTATION" | "ELABORATION" {
   const lower = (description || "").toLowerCase();
   const hasDictationCue = /(just\s+add|put\s+this\s+in|log\s+this|schedule\s+these)/i.test(lower);
+  const hasTransformCue =
+    /(turn|make|convert|transform|create|build|organize|map)\b[\s\S]{0,40}\b(?:\d{1,3}\s*day\s+)?flow\b/i
+      .test(description) ||
+    /\b(?:\d{1,3}\s*day|90\s*day|30\s*day)\s+flow\b/i.test(description);
   const hasExplicitTimes = detectExplicitTimes(description);
   const listy = looksListLike(description);
-  const structuredSource = !!sourceText && sourceText.length > 400 && /\n/.test(sourceText);
+  // Long pasted documents look "structured" but should still allow elaboration
+  // when the user is asking for a multi-day flow.
+  const structuredSource =
+    !!sourceText &&
+    sourceText.length > 400 &&
+    sourceText.length < 3200 &&
+    /\n/.test(sourceText);
 
+  if (hasTransformCue) {
+    return "ELABORATION";
+  }
   if (hasExplicitTimes || hasDictationCue || listy || structuredSource) {
     return "DICTATION";
   }
@@ -812,13 +910,27 @@ function hasExplicitMultiEventRequest(text: string): boolean {
   );
 }
 
+function requiresShortFlowReflectionPair(dateRangeDays = 0): boolean {
+  return (
+    Number.isFinite(dateRangeDays) &&
+    dateRangeDays > 0 &&
+    dateRangeDays <= SHORT_FLOW_REFLECTION_PAIR_THRESHOLD_DAYS
+  );
+}
+
 function inferMultiEventOk(
   mode: "DICTATION" | "ELABORATION",
   flowType: "workout" | "body" | "business" | "generic",
   description: string,
+  dateRangeDays = 0,
 ): boolean {
+  if (requiresShortFlowReflectionPair(dateRangeDays)) return true;
   if (hasExplicitMultiEventRequest(description)) return true;
   if (mode === "DICTATION") return false;
+
+  if (dateRangeDays >= 50) {
+    return false;
+  }
 
   // Always allow two anchors for these established categories
   if (flowType === "workout" || flowType === "body" || flowType === "business") return true;
@@ -926,6 +1038,119 @@ function getMainSessionNote(notesForDay: ParsedNote[]): ParsedNote | null {
   });
 
   return sorted[0] ?? null;
+}
+
+const EVENING_REFLECTION_TITLE_RE =
+  /\b(evening|recap|reflection|review|wind down|postcard|memory|peg|insight|journal)\b/i;
+
+function isEveningReflectionNote(note: ParsedNote): boolean {
+  const title = (note.title ?? "").trim();
+  if (EVENING_REFLECTION_TITLE_RE.test(title)) return true;
+  const startMinutes = timeToMinutes(note.start_time);
+  if (startMinutes === null) return false;
+  const endMinutes = timeToMinutes(note.end_time);
+  const durationMinutes = endMinutes !== null ? endMinutes - startMinutes : null;
+  const startsInReflectionWindow =
+    startMinutes >= 19 * 60 + 30 && startMinutes <= 20 * 60 + 30;
+  return startsInReflectionWindow && (durationMinutes === null || durationMinutes <= 45);
+}
+
+function buildShortFlowReflectionNote(
+  dayIndex: number,
+  mainNote: ParsedNote | null,
+): ParsedNote {
+  const cue = (mainNote?.title ?? `Day ${dayIndex + 1}`).trim();
+  const templates = [
+    {
+      title: "Evening recap",
+      details:
+        `Take 8 quiet minutes to review "${cue}". Name the one move that actually changed the day, the friction point that slowed you down, and the smallest adjustment you want tomorrow. End by writing one sentence that keeps the momentum honest and specific.`,
+    },
+    {
+      title: "Future-self postcard",
+      details:
+        `Spend 10 minutes writing a short postcard from tomorrow about "${cue}". Mention the specific part you executed well, the part that still needs tightening, and the next visible win you want to land. Keep it reflective and mental-only; do not add more physical work tonight.`,
+    },
+    {
+      title: "Evening replay",
+      details:
+        `Replay the hardest 10 seconds from "${cue}" in your head for 6-8 minutes. Write one cleaner sentence for how you want to handle that moment next time, then attach one vivid image or cue that will help you remember it when the day starts again.`,
+    },
+    {
+      title: "Memory peg",
+      details:
+        `Create one simple memory peg for "${cue}" during a 5-10 minute reflection. Tie the most important concept from today to one familiar place or object, then note why that image matters. Finish with one sentence about what tomorrow should feel easier than today.`,
+    },
+  ];
+  const template = templates[dayIndex % templates.length];
+  return {
+    day_index: dayIndex,
+    title: template.title,
+    details: template.details,
+    all_day: false,
+    start_time: "20:00",
+    end_time: "20:30",
+    location: null,
+  };
+}
+
+function ensureShortFlowReflectionPairs(
+  notes: ParsedNote[],
+  dateRangeDays: number,
+): ParsedNote[] {
+  if (!requiresShortFlowReflectionPair(dateRangeDays)) return notes;
+
+  const grouped = new Map<number, ParsedNote[]>();
+  for (const note of notes ?? []) {
+    const dayIndex = Number(note?.day_index);
+    if (!Number.isInteger(dayIndex) || dayIndex < 0 || dayIndex >= dateRangeDays) {
+      continue;
+    }
+    const bucket = grouped.get(dayIndex) ?? [];
+    bucket.push({ ...note });
+    grouped.set(dayIndex, bucket);
+  }
+
+  const normalized: ParsedNote[] = [];
+  for (let dayIndex = 0; dayIndex < dateRangeDays; dayIndex++) {
+    const dayNotes = (grouped.get(dayIndex) ?? []).slice().sort((a, b) => {
+      const aMinutes = timeToMinutes(a.start_time) ?? Number.MAX_SAFE_INTEGER;
+      const bMinutes = timeToMinutes(b.start_time) ?? Number.MAX_SAFE_INTEGER;
+      return aMinutes - bMinutes;
+    });
+
+    if (dayNotes.length === 0) {
+      continue;
+    }
+
+    const mainNote =
+      getMainSessionNote(dayNotes) ??
+      dayNotes.find((note) => !isEveningReflectionNote(note)) ??
+      dayNotes[0];
+    if (!mainNote) continue;
+
+    const reflectionNote =
+      dayNotes.find((note) => note !== mainNote && isEveningReflectionNote(note)) ??
+      buildShortFlowReflectionNote(dayIndex, mainNote);
+
+    const pair = [{ ...mainNote }, { ...reflectionNote }];
+    pair.sort((a, b) => {
+      const aMinutes = timeToMinutes(a.start_time) ?? Number.MAX_SAFE_INTEGER;
+      const bMinutes = timeToMinutes(b.start_time) ?? Number.MAX_SAFE_INTEGER;
+      return aMinutes - bMinutes;
+    });
+
+    normalized.push(...pair);
+  }
+
+  normalized.sort((a, b) => {
+    if (a.day_index !== b.day_index) return a.day_index - b.day_index;
+    const aMinutes = timeToMinutes(a.start_time) ?? Number.MAX_SAFE_INTEGER;
+    const bMinutes = timeToMinutes(b.start_time) ?? Number.MAX_SAFE_INTEGER;
+    return aMinutes - bMinutes;
+  });
+
+  return normalized;
 }
 
 function validateMainSessionStructure(
@@ -1241,6 +1466,777 @@ function validateLLMFlowOutput(
   return { ok: errors.length === 0, errors };
 }
 
+type FlowArcSegmentPlan = {
+  startDay: number;
+  endDay: number;
+  theme: string;
+  objectives: string[];
+  beats: string[];
+};
+
+function normalizeSourceWhitespace(text: string): string {
+  return (text ?? "")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function looksLikeTelemetryBlock(block: string): boolean {
+  const compact = normalizeSourceWhitespace(block).replace(/\s+/g, " ");
+  if (!compact) return false;
+  const jsonKeys = (compact.match(/"[\w.-]+":/g) ?? []).length;
+  const telemetryHits = (
+    compact.match(
+      /\b(event_message|deployment_id|execution_id|function_id|project_ref|served_by|booted|shutdown|wallclocktime|cpu_time_used|memory_used|timestamp|version|region)\b/gi,
+    ) ?? []
+  ).length;
+  return telemetryHits >= 2 || (compact.startsWith("{") && compact.endsWith("}") && jsonKeys >= 4);
+}
+
+function splitSourceBlocks(text: string): string[] {
+  return normalizeSourceWhitespace(text)
+    .split(/\n\s*\n+/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+}
+
+function truncateInline(text: string, maxChars: number): string {
+  const compact = normalizeSourceWhitespace(text).replace(/\s+/g, " ");
+  if (compact.length <= maxChars) return compact;
+  return `${compact.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
+}
+
+function dedupeBlocks(blocks: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const block of blocks) {
+    const key = block.replace(/\s+/g, " ").trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(block);
+  }
+  return out;
+}
+
+function isLongFlowScaffoldingBlock(block: string): boolean {
+  const compact = normalizeSourceWhitespace(block);
+  return /^SYSTEM DIRECTIVES\b/i.test(compact);
+}
+
+function sanitizeLongFlowDescription(description: string): string {
+  const cleanedBlocks = splitSourceBlocks(description)
+    .map((block) =>
+      block
+        .replace(/^USER_INTENT(?:_SUMMARY)?\s*:?\s*/i, "")
+        .trim()
+    )
+    .filter((block) => block && !isLongFlowScaffoldingBlock(block));
+
+  return cleanedBlocks.length > 0
+    ? cleanedBlocks.join("\n\n")
+    : normalizeSourceWhitespace(description);
+}
+
+function scoreSourceBlock(block: string, index: number, total: number): number {
+  if (!/[A-Za-z]/.test(block)) return -999;
+  if (looksLikeTelemetryBlock(block)) return -999;
+  if (isLongFlowScaffoldingBlock(block)) return -999;
+
+  let score = 0;
+  if (/^(?:\d+[\).\s]|[-*•]\s)/.test(block)) score += 18;
+  if (/^[A-Z][^.!?\n]{2,80}:/.test(block)) score += 8;
+  if (
+    /(turn|make|convert|transform|create|build|organize|map)\b[\s\S]{0,40}\b(?:\d{1,3}\s*day\s+)?flow\b/i
+      .test(block)
+  ) {
+    score += 36;
+  }
+  if (
+    /\b(flow|plan|timeline|launch|marketing|content|product|feature|pricing|revenue|users|support|feedback|analytics|retention|kdp|ocr|admin|legal|llc|yc|loan|amazon|mturk)\b/i
+      .test(block)
+  ) {
+    score += 16;
+  }
+  if (/\b(day|week|month|quarter|timeline|\d{1,3}%|\$\d|\d{1,3}\+)\b/i.test(block)) score += 8;
+  if (block.length >= 80 && block.length <= 700) score += 10;
+  if (index === 0 || index === total - 1) score += 3;
+  return score;
+}
+
+function buildLongFlowSourceAnchors(
+  description: string,
+  sourceText: string,
+  maxChars = LONG_FLOW_GLOBAL_ANCHORS_MAX_CHARS,
+): string {
+  const descriptionBlocks = splitSourceBlocks(description).filter(
+    (block) => !looksLikeTelemetryBlock(block),
+  );
+  const sourceBlocks = splitSourceBlocks(sourceText).filter(
+    (block) => !looksLikeTelemetryBlock(block),
+  );
+  const allBlocks = dedupeBlocks([...descriptionBlocks, ...sourceBlocks]);
+  if (allBlocks.length === 0) {
+    return truncateInline([description, sourceText].filter(Boolean).join("\n\n"), maxChars);
+  }
+
+  const seeds: string[] = [];
+  const addSeed = (idx: number) => {
+    if (idx >= 0 && idx < sourceBlocks.length) seeds.push(sourceBlocks[idx]);
+  };
+  addSeed(0);
+  addSeed(Math.floor(sourceBlocks.length / 3));
+  addSeed(Math.floor((sourceBlocks.length * 2) / 3));
+  addSeed(sourceBlocks.length - 1);
+
+  const ranked = allBlocks
+    .map((block, index) => ({
+      block,
+      score: scoreSourceBlock(block, index, allBlocks.length),
+    }))
+    .filter((item) => item.score > -999)
+    .sort((a, b) => b.score - a.score || a.block.length - b.block.length)
+    .map((item) => item.block);
+
+  const selected = dedupeBlocks([...descriptionBlocks.slice(0, 1), ...seeds, ...ranked]);
+  const lines: string[] = [];
+  let used = 0;
+
+  for (const block of selected) {
+    const line = `- ${truncateInline(block, 280)}`;
+    const nextSize = used + line.length + (lines.length > 0 ? 1 : 0);
+    if (nextSize > maxChars) break;
+    lines.push(line);
+    used = nextSize;
+    if (lines.length >= 12) break;
+  }
+
+  if (lines.length === 0) {
+    return truncateInline(allBlocks[0], maxChars);
+  }
+  return lines.join("\n");
+}
+
+function clampLongSource(text: string, max = LONG_FLOW_SOURCE_CLAMP): string {
+  const clean = normalizeSourceWhitespace(text);
+  if (!clean || clean.length <= max) return clean;
+  const head = Math.floor(max * 0.55);
+  const tail = max - head - 120;
+  return `${clean.slice(0, head)}\n\n[... middle omitted for model context ...]\n\n${clean.slice(clean.length - tail)}`;
+}
+
+function excerptForSourceSegment(
+  full: string,
+  segIndex: number,
+  segCount: number,
+  cap = LONG_FLOW_SEGMENT_EXCERPT_CAP,
+): string {
+  const blocks = splitSourceBlocks(full).filter((block) => !looksLikeTelemetryBlock(block));
+  if (blocks.length === 0) return truncateInline(full, cap);
+
+  if (blocks.join("\n\n").length <= cap) {
+    return blocks.join("\n\n");
+  }
+
+  const startIdx = Math.floor((blocks.length * segIndex) / segCount);
+  const rawEndIdx = Math.max(startIdx + 1, Math.floor((blocks.length * (segIndex + 1)) / segCount));
+  let left = Math.max(0, startIdx);
+  let right = Math.min(blocks.length, rawEndIdx);
+  const chosen = blocks.slice(left, right);
+  let totalChars = chosen.join("\n\n").length;
+
+  while (totalChars < Math.floor(cap * 0.6) && (left > 0 || right < blocks.length)) {
+    const addLeft = left > 0;
+    const addRight = right < blocks.length;
+    if (addLeft) {
+      left -= 1;
+      chosen.unshift(blocks[left]);
+      totalChars = chosen.join("\n\n").length;
+      if (totalChars >= cap) break;
+    }
+    if (addRight) {
+      chosen.push(blocks[right]);
+      right += 1;
+      totalChars = chosen.join("\n\n").length;
+      if (totalChars >= cap) break;
+    }
+  }
+
+  const excerpt = chosen.join("\n\n");
+  return excerpt.length <= cap ? excerpt : truncateInline(excerpt, cap);
+}
+
+function defaultArcSegments(
+  dateRangeDays: number,
+  chunkDays: number,
+): FlowArcSegmentPlan[] {
+  const segments: FlowArcSegmentPlan[] = [];
+  for (let start = 0; start < dateRangeDays; start += chunkDays) {
+    const end = Math.min(dateRangeDays - 1, start + chunkDays - 1);
+    segments.push({
+      startDay: start,
+      endDay: end,
+      theme: `Arc ${start + 1}–${end + 1}`,
+      objectives: [
+        "Advance outcomes implied by the user’s material during this window.",
+        "Ship one concrete, checkable milestone before the segment ends.",
+      ],
+      beats: [
+        "Pull the next unblocked deliverable implied by the source text.",
+        "Make one visible artifact (draft, listing, post, design, measurement, or outreach batch).",
+        "Close with a short review: what moved, what blocked, what to carry forward.",
+      ],
+    });
+  }
+  return segments;
+}
+
+function validateArcSegments(
+  segments: FlowArcSegmentPlan[],
+  dateRangeDays: number,
+): boolean {
+  if (!Array.isArray(segments) || segments.length === 0) return false;
+  const sorted = [...segments].sort((a, b) => a.startDay - b.startDay);
+  let expect = 0;
+  for (const s of sorted) {
+    const sd = Number(s.startDay);
+    const ed = Number(s.endDay);
+    if (!Number.isFinite(sd) || !Number.isFinite(ed)) return false;
+    if (sd !== expect) return false;
+    if (ed < sd || ed >= dateRangeDays) return false;
+    if (!String(s.theme || "").trim()) return false;
+    expect = ed + 1;
+  }
+  return expect === dateRangeDays;
+}
+
+function parseArcPlanFromResponse(text: string): {
+  flowName: string;
+  overview?: LLMOverview;
+  segments: FlowArcSegmentPlan[];
+} | null {
+  const cleaned = stripCodeFences(text);
+  try {
+    const obj = JSON.parse(cleaned);
+    const segs = Array.isArray(obj.segments) ? obj.segments : [];
+    const mapped: FlowArcSegmentPlan[] = segs.map((s: any) => ({
+      startDay: Number(s.startDay ?? s.start_day),
+      endDay: Number(s.endDay ?? s.end_day),
+      theme: String(s.theme ?? "").trim(),
+      objectives: Array.isArray(s.objectives)
+        ? s.objectives.map((x: any) => String(x))
+        : [],
+      beats: Array.isArray(s.beats) ? s.beats.map((x: any) => String(x)) : [],
+    }));
+    const flowName = String(obj.flowName ?? obj.flow_name ?? "").trim();
+    if (!flowName || mapped.length === 0) return null;
+    let overview: LLMOverview | undefined;
+    const ov = obj.overview;
+    if (ov && typeof ov === "object") {
+      overview = {
+        title: String(ov.title ?? "").trim(),
+        summary: String(ov.summary ?? "").trim(),
+      };
+    }
+    return { flowName, overview, segments: mapped };
+  } catch {
+    return null;
+  }
+}
+
+function ensureLLMNoteTimes(flow: LLMFlow): void {
+  for (const n of flow.notes ?? []) {
+    if (n.allDay === true) continue;
+    if (!isValidTimeString(n.startsAt)) n.startsAt = "09:00";
+    if (!isValidTimeString(n.endsAt)) n.endsAt = "11:00";
+    const sm = timeToMinutes(n.startsAt);
+    const em = timeToMinutes(n.endsAt);
+    if (sm == null || em == null || em <= sm) {
+      n.startsAt = "09:00";
+      n.endsAt = "11:00";
+    }
+  }
+}
+
+function validateLLMFlowOutputForRange(
+  flow: LLMFlow,
+  dateRangeDays: number,
+  start: number,
+  end: number,
+): { ok: boolean; errors: string[] } {
+  const errors: string[] = [];
+  const notes = flow.notes ?? [];
+  const covered = new Set<number>();
+  for (const n of notes) {
+    if (!Number.isInteger(n?.day_index)) continue;
+    if (n.day_index < 0 || n.day_index >= dateRangeDays) {
+      errors.push(`note day_index ${n.day_index} out of range`);
+      continue;
+    }
+    if (n.day_index < start || n.day_index > end) {
+      errors.push(`note day_index ${n.day_index} outside segment ${start}-${end}`);
+    }
+    covered.add(n.day_index);
+  }
+  for (let d = start; d <= end; d++) {
+    if (!covered.has(d)) errors.push(`missing day_index ${d}`);
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+async function mapPool<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const safe = Math.max(1, Math.min(4, Math.floor(concurrency)));
+  const results: R[] = new Array(items.length);
+  let index = 0;
+
+  async function worker() {
+    while (true) {
+      const i = index++;
+      if (i >= items.length) break;
+      results[i] = await fn(items[i], i);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(safe, items.length) }, () => worker()),
+  );
+  return results;
+}
+
+async function generateLongRangeFlowLlm(args: {
+  description: string;
+  sourceText: string;
+  startDate: string;
+  endDate: string;
+  dateRangeDays: number;
+  flowType: "workout" | "body" | "business" | "generic";
+  technicalCraft: boolean;
+  schedule: ScheduleInference;
+  timezoneValue: string;
+  timePreference: string;
+  mode: "DICTATION" | "ELABORATION";
+}): Promise<
+  | {
+    ok: true;
+    llmFlow: LLMFlow;
+    tokensIn: number;
+    tokensOut: number;
+    modelUsed: string;
+    llmStatus: string;
+  }
+  | { ok: false; error: string; message: string }
+> {
+  const {
+    description,
+    sourceText,
+    startDate,
+    endDate,
+    dateRangeDays,
+    flowType,
+    technicalCraft,
+    schedule,
+    timezoneValue,
+    timePreference,
+    mode,
+  } = args;
+
+  const model = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o-mini";
+  let totalIn = 0;
+  let totalOut = 0;
+  const cleanDescription = sanitizeLongFlowDescription(description);
+  const cleanSource = normalizeSourceWhitespace(sourceText || description);
+  const globalAnchors = buildLongFlowSourceAnchors(cleanDescription, cleanSource);
+  const veryLongFlow = dateRangeDays >= VERY_LONG_FLOW_THRESHOLD_DAYS;
+  const skipPlanner = veryLongFlow || cleanSource.length >= 28_000;
+  const fallbackOverview: LLMOverview = {
+    title: "Flow arc",
+    summary:
+      "A staged long-range flow built from the user's pasted material, carrying concrete priorities forward instead of flattening them into generic routines.",
+  };
+
+  const planSystem = `You are a senior planner. Output JSON only (no markdown).
+
+Schema:
+{
+  "flowName": string,
+  "overview": { "title": string, "summary": string },
+  "segments": [
+    {
+      "startDay": number,
+      "endDay": number,
+      "theme": string,
+      "objectives": string[],
+      "beats": string[]
+    }
+  ]
+}
+
+Rules:
+- segments must partition day indices 0 through TOTAL_DAYS-1 exactly once, in order, with no gaps or overlaps.
+- startDay/endDay are inclusive; 0-based from flow start.
+- Use GLOBAL_SOURCE_ANCHORS as non-negotiable through-lines that should show up across the arc.
+- objectives: concrete, sourced from the user's material (name their initiatives, channels, products, timelines)—do not invent facts not implied by the text.
+- beats: 4-8 short bullets, highly actionable, still grounded in the same material.
+- overview.summary should describe the arc of the full window in 2-5 sentences.`;
+
+  const material = clampLongSource(
+    [cleanDescription, cleanSource].filter(Boolean).join("\n\n---\n\n"),
+    LONG_FLOW_PLAN_SOURCE_CLAMP,
+  );
+  let segments = defaultArcSegments(dateRangeDays, LONG_FLOW_SEGMENT_DAYS);
+  let flowName = truncateInline(cleanDescription || "Planned Flow", 72)
+    .replace(/[.!?].*$/, "")
+    .trim();
+  let overview: LLMOverview | undefined = fallbackOverview;
+
+  const planUser = [
+    `TOTAL_DAYS: ${dateRangeDays}`,
+    `DATE_RANGE: ${startDate} → ${endDate}`,
+    `TARGET_SEGMENT_LENGTH_DAYS: ~${LONG_FLOW_SEGMENT_DAYS}`,
+    "",
+    "GLOBAL_SOURCE_ANCHORS:",
+    globalAnchors || "(none)",
+    "",
+    "SOURCE_AND_INTENT (read carefully):",
+    material,
+  ].join("\n");
+
+  if (!skipPlanner) {
+    const planResp = await generateWithOpenAI({
+      messages: [
+        { role: "system", content: planSystem },
+        { role: "user", content: planUser },
+      ],
+      model,
+      temperature: 0.3,
+      max_tokens: 1600,
+      signal: AbortSignal.timeout(LONG_FLOW_PLAN_TIMEOUT_MS),
+    });
+
+    if (planResp.ok) {
+      totalIn += planResp.tokensIn;
+      totalOut += planResp.tokensOut;
+
+      const parsedPlan = parseArcPlanFromResponse(planResp.content);
+      if (validateArcSegments(parsedPlan?.segments ?? [], dateRangeDays)) {
+        segments = parsedPlan!.segments;
+        flowName = parsedPlan?.flowName ?? flowName;
+        overview = parsedPlan?.overview ?? overview;
+      } else {
+        console.log("[ai_generate_flow] long_flow: planner returned invalid segments; using default tiling");
+      }
+    } else {
+      console.log("[ai_generate_flow] long_flow: planner failed, continuing with default tiling:", planResp.error);
+    }
+  } else {
+    console.log(
+      "[ai_generate_flow] long_flow: skipping planner",
+      JSON.stringify({
+        veryLongFlow,
+        sourceChars: cleanSource.length,
+      }),
+    );
+  }
+
+  if (!String(flowName ?? "").trim()) flowName = "Planned Flow";
+
+  const multiEventOk = inferMultiEventOk(
+    mode,
+    flowType,
+    cleanDescription,
+    dateRangeDays,
+  );
+
+  const segmentChunkAddendum = `
+
+LONG_FLOW_SEGMENT_MODE (overrides general rules where they conflict):
+- Return the same top-level JSON shape (flowName, optional overview, notes[]).
+- notes MUST ONLY use day_index values from START_DAY through END_DAY (inclusive).
+- Cover every day_index in that inclusive range at least once.
+- Prefer ONE timed main session per day unless MULTI_EVENT_OK is true (then at most two).
+- Preserve nuance from GLOBAL_SOURCE_ANCHORS and SOURCE_EXCERPT. Do not collapse the user's material into generic habit advice.
+- Main session details: ${veryLongFlow ? "40-80" : "55-110"} words; dense, practical, and grounded in the source.
+- Keep titles specific; avoid placeholder language like "Day 5 task"—use deliverable-oriented titles.
+- Vary wording day-to-day; no recycled opener sentences.
+- Later days must build on earlier work instead of restarting the flow from scratch.`;
+
+  const shouldSplitTimedOutSegment = (
+    errorText: string | undefined,
+    daysInSeg: number,
+    depth: number,
+  ): boolean =>
+    !!errorText &&
+    /timed out|timeout|aborted/i.test(errorText) &&
+    daysInSeg >= 20 &&
+    depth < 2;
+
+  const baseHeaderStatic = [
+    `MODE: ${mode}`,
+    `SCHEDULE_MODE: ${schedule.scheduleMode}`,
+    `SPECIFIC_DAYS: ${schedule.specificDays.join(",")}`,
+    `INTERVAL_N: ${schedule.scheduleMode === "INTERVAL" ? (schedule.intervalN ?? "") : ""}`,
+    `TIME_PREFERENCE: ${timePreference}`,
+    `TIMEZONE: ${timezoneValue}`,
+    `FLOW_TYPE: ${flowType}`,
+    `TECHNICAL_CRAFT: ${technicalCraft}`,
+  ].join("\n");
+
+  const segCount = segments.length;
+
+  const runOneSegment = async (
+    seg: FlowArcSegmentPlan,
+    segIndex: number,
+    depth = 0,
+  ): Promise<{ ok: boolean; chunk?: LLMFlow; error?: string; tin: number; tout: number }> => {
+    const start = seg.startDay;
+    const end = seg.endDay;
+    const daysInSeg = end - start + 1;
+    const header = [
+      baseHeaderStatic,
+      `MULTI_EVENT_OK: ${multiEventOk}`,
+      `DATE_RANGE: ${startDate} → ${endDate} (${dateRangeDays} days total)`,
+      `LONG_FLOW: true`,
+      `SEGMENT: ${segIndex + 1} of ${segCount}`,
+      `START_DAY: ${start}`,
+      `END_DAY: ${end}`,
+      `(Generate ONLY day_index ${start}..${end} inclusive.)`,
+    ].join("\n");
+
+    const excerpt = excerptForSourceSegment(
+      cleanSource || cleanDescription,
+      segIndex,
+      segCount,
+      veryLongFlow ? 4_800 : LONG_FLOW_SEGMENT_EXCERPT_CAP,
+    );
+    const userBlock = [
+      header,
+      "",
+      "GLOBAL_SOURCE_ANCHORS:",
+      globalAnchors || "(none)",
+      "",
+      `ARC_OVERVIEW_SUMMARY: ${(overview?.summary || fallbackOverview.summary).trim()}`,
+      "",
+      `SEGMENT_THEME: ${seg.theme}`,
+      `SEGMENT_OBJECTIVES:\n- ${(seg.objectives?.length ? seg.objectives : ["Execute next milestones from material"]).join("\n- ")}`,
+      `SEGMENT_BEATS:\n- ${(seg.beats?.length ? seg.beats : ["Ship one tangible artifact this segment"]).join("\n- ")}`,
+      "",
+      "SOURCE_EXCERPT_FOR_THIS_SEGMENT:",
+      excerpt || "(no additional excerpt; use USER_DESCRIPTION below)",
+      "",
+      "USER_DESCRIPTION:",
+      cleanDescription.slice(0, 8000),
+    ].join("\n");
+
+    const targetTokensPerDay = veryLongFlow
+      ? 120
+      : dateRangeDays >= 50
+      ? 160
+      : 210;
+    const maxTok = Math.min(
+      veryLongFlow ? 3600 : 4600,
+      Math.max(1500, Math.ceil(daysInSeg * targetTokensPerDay)),
+    );
+
+    const aiResp = await generateWithOpenAI({
+      messages: [
+        {
+          role: "system",
+          content: LONG_FLOW_SEGMENT_SYSTEM + segmentChunkAddendum,
+        },
+        { role: "user", content: userBlock },
+      ],
+      model,
+      temperature: mode === "DICTATION" ? 0.2 : 0.45,
+      max_tokens: maxTok,
+      signal: AbortSignal.timeout(LONG_FLOW_SEGMENT_TIMEOUT_MS),
+    });
+
+    if (!aiResp.ok) {
+      if (shouldSplitTimedOutSegment(aiResp.error, daysInSeg, depth)) {
+        const splitPoint = start + Math.floor(daysInSeg / 2) - 1;
+        const leftSeg: FlowArcSegmentPlan = {
+          ...seg,
+          endDay: splitPoint,
+        };
+        const rightSeg: FlowArcSegmentPlan = {
+          ...seg,
+          startDay: splitPoint + 1,
+        };
+
+        console.log(
+          "[ai_generate_flow] segment timeout, splitting range",
+          JSON.stringify({ start, end, depth, splitPoint }),
+        );
+
+        const left = await runOneSegment(leftSeg, segIndex, depth + 1);
+        if (!left.ok || !left.chunk) {
+          return {
+            ok: false,
+            error: left.error ?? aiResp.error,
+            tin: left.tin,
+            tout: left.tout,
+          };
+        }
+
+        const right = await runOneSegment(rightSeg, segIndex, depth + 1);
+        if (!right.ok || !right.chunk) {
+          return {
+            ok: false,
+            error: right.error ?? aiResp.error,
+            tin: left.tin + right.tin,
+            tout: left.tout + right.tout,
+          };
+        }
+
+        const mergedSplitChunk: LLMFlow = {
+          flowName,
+          overview: overview ?? fallbackOverview,
+          notes: [...(left.chunk.notes ?? []), ...(right.chunk.notes ?? [])],
+        };
+
+        ensureLLMNoteTimes(mergedSplitChunk);
+        const mergedValidation = validateLLMFlowOutputForRange(
+          mergedSplitChunk,
+          dateRangeDays,
+          start,
+          end,
+        );
+        if (!mergedValidation.ok) {
+          return {
+            ok: false,
+            error: mergedValidation.errors.join("; "),
+            tin: left.tin + right.tin,
+            tout: left.tout + right.tout,
+          };
+        }
+
+        return {
+          ok: true,
+          chunk: mergedSplitChunk,
+          tin: left.tin + right.tin,
+          tout: left.tout + right.tout,
+        };
+      }
+      return { ok: false, error: aiResp.error, tin: 0, tout: 0 };
+    }
+
+    const text = stripCodeFences(aiResp.content);
+    let chunk: LLMFlow | null = null;
+    try {
+      chunk = JSON.parse(text) as LLMFlow;
+    } catch {
+      const jsonMatch = text.match(/\{[\s\S]*\}/m);
+      if (jsonMatch) {
+        try {
+          chunk = JSON.parse(jsonMatch[0]) as LLMFlow;
+        } catch {
+          chunk = null;
+        }
+      }
+    }
+
+    if (!chunk || !Array.isArray(chunk.notes)) {
+      return { ok: false, error: "parse", tin: aiResp.tokensIn, tout: aiResp.tokensOut };
+    }
+
+    ensureLLMNoteTimes(chunk);
+    const sliceValidation = validateLLMFlowOutputForRange(
+      chunk,
+      dateRangeDays,
+      start,
+      end,
+    );
+    if (!sliceValidation.ok) {
+      console.log(
+        "[ai_generate_flow] segment validation issues:",
+        sliceValidation.errors.slice(0, 8),
+      );
+    }
+
+    return {
+      ok: true,
+      chunk,
+      tin: aiResp.tokensIn,
+      tout: aiResp.tokensOut,
+    };
+  };
+
+  const rawConc = parseInt(
+    Deno.env.get("LONG_FLOW_SEGMENT_CONCURRENCY") ??
+      String(LONG_FLOW_SEGMENT_CONCURRENCY_DEFAULT),
+    10,
+  );
+  const segmentConcurrency = Number.isFinite(rawConc) && rawConc >= 1
+    ? Math.min(4, Math.floor(rawConc))
+    : LONG_FLOW_SEGMENT_CONCURRENCY_DEFAULT;
+  console.log(
+    "[ai_generate_flow] long_flow segments=",
+    segments.length,
+    "concurrency=",
+    segmentConcurrency,
+  );
+
+  const segmentOutcomes = await mapPool(
+    segments,
+    segmentConcurrency,
+    (seg, i) => runOneSegment(seg, i),
+  );
+  const chunkResults: LLMFlow[] = [];
+  for (const o of segmentOutcomes) {
+    if (!o.ok || !o.chunk) {
+      return {
+        ok: false,
+        error: "SEGMENT_ERROR",
+        message: o.error ?? "A segment failed to generate",
+      };
+    }
+    totalIn += o.tin;
+    totalOut += o.tout;
+    chunkResults.push(o.chunk);
+  }
+
+  const mergedNotes: LLMNote[] = [];
+  for (const c of chunkResults) {
+    for (const n of c.notes ?? []) {
+      mergedNotes.push(n);
+    }
+  }
+  mergedNotes.sort((a, b) => {
+    if (a.day_index !== b.day_index) return a.day_index - b.day_index;
+    return 0;
+  });
+
+  const merged: LLMFlow = {
+    flowName,
+    overview: overview ?? chunkResults[0]?.overview,
+    notes: mergedNotes,
+  };
+
+  ensureLLMNoteTimes(merged);
+  const fullValidation = validateLLMFlowOutput(merged, dateRangeDays);
+  if (!fullValidation.ok) {
+    return {
+      ok: false,
+      error: "MERGE_VALIDATION",
+      message: fullValidation.errors.join("; "),
+    };
+  }
+
+  return {
+    ok: true,
+    llmFlow: merged,
+    tokensIn: totalIn,
+    tokensOut: totalOut,
+    modelUsed: model,
+    llmStatus: "long_flow_success",
+  };
+}
+
 // Minimal post-processing: only normalize legacy headings and fill truly empty notes.
 function enforceRichStructure(flow: ParsedFlow) {
   const normalizeOldHeadings = (text: string) =>
@@ -1314,11 +2310,6 @@ function applySensibleTimes(opts: {
     mainEnd = "20:30";
   }
 
-  const isEveningTitle = (t: string) =>
-    /\b(evening|recap|reflection|review|mental reps|wind down|postcard|memory|peg|insight)\b/i.test(
-      t || "",
-    );
-
   const grouped = new Map<number, ParsedNote[]>();
   for (const n of notes) {
     const di = Number.isFinite(n?.day_index) ? (n.day_index as number) : 0;
@@ -1346,7 +2337,7 @@ function applySensibleTimes(opts: {
 
     dayNotes.sort((a, b) => (a.start_time || "").localeCompare(b.start_time || ""));
 
-    let evening = dayNotes.find((n) => isEveningTitle(n.title)) ?? dayNotes[dayNotes.length - 1];
+    let evening = dayNotes.find((n) => isEveningReflectionNote(n)) ?? dayNotes[dayNotes.length - 1];
     const main = dayNotes.find((n) => n !== evening) ?? dayNotes[0];
 
     clampEvening(evening);
@@ -1373,11 +2364,6 @@ function hexColorToBigInt(hexColor) {
 }
 
 Deno.serve(async (req) => {
-  console.log("AI_GENERATE_FLOW_BUILD=2026-02-12_0905A");
-  const systemPrompt = buildSystemPrompt();
-  const promptFingerprint = await getPromptFingerprint(systemPrompt);
-  const promptFingerprintShort = promptFingerprint.slice(0, 12);
-  console.log(`[ai_generate_flow] PROMPT_VERSION=${promptFingerprintShort}`);
   const origin = req.headers.get("origin") ?? "*";
 
   if (req.method === "OPTIONS") {
@@ -1390,6 +2376,12 @@ Deno.serve(async (req) => {
       },
     });
   }
+
+  console.log("AI_GENERATE_FLOW_BUILD=2026-04-15_longflow_timeout_fix");
+  const systemPrompt = getMemoSystemPrompt();
+  const promptFingerprint = await getMemoPromptFingerprint();
+  const promptFingerprintShort = promptFingerprint.slice(0, 12);
+  console.log(`[ai_generate_flow] PROMPT_VERSION=${promptFingerprintShort}`);
 
   try {
     const body = await parseJsonSafe(req);
@@ -1406,8 +2398,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { description, startDate, endDate, flowName, flowColor, timezone, source_text } =
-      body;
+    const { description, startDate, endDate, flowName, flowColor, timezone } = body;
+    const MAX_INBOUND_SOURCE = 96_000;
+    const rawSource = body?.source_text;
+    const source_text =
+      typeof rawSource === "string" && rawSource.length > MAX_INBOUND_SOURCE
+        ? rawSource.slice(0, MAX_INBOUND_SOURCE)
+        : (typeof rawSource === "string" ? rawSource : undefined);
     const forceRefresh = body?.force_refresh === true;
     console.log("[ai_generate_flow] PROMPT_VERSION:", promptFingerprintShort);
     console.log("[ai_generate_flow] force_refresh:", forceRefresh);
@@ -1425,15 +2422,16 @@ Deno.serve(async (req) => {
     }
 
     // ✅ Initialize immediately after required fields check (avoids TDZ)
+    const descForSignals = `${description}\n${source_text ?? ""}`;
     let flowType: "workout" | "body" | "business" | "generic" = "generic";
-    if (/(workout|gym|lift|training|practice drums|practice guitar)/i.test(description)) {
+    if (/(workout|gym|lift|training|practice drums|practice guitar)/i.test(descForSignals)) {
       flowType = "workout";
-    } else if (/(hair|skin|scalp|body care|detox)/i.test(description)) {
+    } else if (/(hair|skin|scalp|body care|detox)/i.test(descForSignals)) {
       flowType = "body";
-    } else if (/(business|startup|marketing|sales|clients|leads)/i.test(description)) {
+    } else if (/(business|startup|marketing|sales|clients|leads)/i.test(descForSignals)) {
       flowType = "business";
     }
-    const technicalCraft = detectTechnicalCraft(description);
+    const technicalCraft = detectTechnicalCraft(descForSignals);
     console.log("[ai_generate_flow] technicalCraft:", technicalCraft);
     console.log("[ai_generate_flow] flowType:", flowType);
 
@@ -1519,64 +2517,33 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: __authHeader } },
     });
 
-    // Quota/rate limits removed - let OpenAI handle rate limiting
-
-    // 🔧 EXTENSIVE AUTH DEBUG LOGGING
-    console.log("=== AUTH DEBUG START ===");
-    
-    // Log all headers that contain 'auth'
-    const allHeaders = {};
-    for (const [key, value] of req.headers.entries()) {
-      if (key.toLowerCase().includes('auth')) {
-        allHeaders[key] = value;
+    const verboseAuth = Deno.env.get("AI_GENERATE_FLOW_VERBOSE_AUTH") === "true";
+    if (verboseAuth) {
+      console.log("=== AUTH DEBUG START ===");
+      const authKeys: string[] = [];
+      for (const [key] of req.headers.entries()) {
+        if (key.toLowerCase().includes("auth")) authKeys.push(key);
       }
+      console.log("🔍 Auth-related header keys:", authKeys.join(", "));
     }
-    console.log("🔍 All request headers with 'auth':", allHeaders);
-    
-    // __authHeader already extracted above - reuse it
-    console.log("🔍 Auth header present:", !!__authHeader);
-    console.log("🔍 Auth header length:", __authHeader.length);
-    console.log("🔍 Auth header starts with 'Bearer':", __authHeader.startsWith("Bearer"));
-    console.log("🔍 Auth header first 100 chars:", __authHeader.substring(0, 100));
-    
-    if (!__authHeader) {
-      console.log("❌ No Authorization header found");
-      console.log("=== AUTH DEBUG END ===");
+
+    if (!__authHeader.trim()) {
       return new Response(JSON.stringify({ error: "Unauthorized: No auth header" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
       });
     }
-    
-    // Extract JWT token for debugging (jwt already extracted above)
-    const jwtToken = jwt;
-    console.log("🔍 Extracted JWT length:", jwtToken.length);
-    console.log("🔍 JWT first 50 chars:", jwtToken.substring(0, 50));
 
-    console.log("🔍 Creating Supabase client with auth header...");
-    console.log("🔍 SUPABASE_URL:", SUPABASE_URL);
-    console.log("🔍 SUPABASE_ANON_KEY present:", !!SUPABASE_ANON_KEY);
-    
-    // supabaseUser already created earlier for quota check - reuse it
-    // (removed duplicate definition)
-
-    // Safe admin client creation (survives missing/invalid secrets)
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY");
     const supabaseAdmin =
       supabaseUrl && serviceKey ? createClient(supabaseUrl, serviceKey) : null;
 
-    console.log("🔍 Calling getUser() with JWT...");
-    // CRITICAL FIX: Reuse jwt from earlier extraction (line 319) - no duplicate declaration
     const { data: { user }, error: userErr } = await supabaseUser.auth.getUser(jwt);
-    
-    console.log("🔍 getUser() returned:");
-    console.log("   - user:", user ? `${user.id} (${user.email})` : "null");
-    console.log("   - error:", userErr);
-    
+
     if (userErr) {
-      console.error("❌ getUser() error details:", JSON.stringify(userErr, null, 2));
-      console.log("=== AUTH DEBUG END ===");
+      console.error("[ai_generate_flow] getUser failed:", userErr.message ?? userErr);
+      if (verboseAuth) console.log("=== AUTH DEBUG END ===");
       return new Response(
         JSON.stringify({ error: "Unauthorized: " + userErr.message }),
         {
@@ -1585,18 +2552,20 @@ Deno.serve(async (req) => {
         }
       );
     }
-    
+
     if (!user) {
-      console.error("❌ No user returned from getUser()");
-      console.log("=== AUTH DEBUG END ===");
+      console.error("[ai_generate_flow] getUser returned no user");
+      if (verboseAuth) console.log("=== AUTH DEBUG END ===");
       return new Response(JSON.stringify({ error: "Unauthorized: No user" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
       });
     }
 
-    console.log("✅ User authenticated:", user.id);
-    console.log("=== AUTH DEBUG END ===");
+    if (verboseAuth) {
+      console.log("✅ User authenticated:", user.id);
+      console.log("=== AUTH DEBUG END ===");
+    }
     // ✅ userId already exists from line 321 (JWT claims) - no need to redeclare
     // Sanity check: ensure getUser() userId matches JWT claims
     if (user.id !== userId) {
@@ -1732,7 +2701,10 @@ Deno.serve(async (req) => {
     const DM_USE_CONSTRAINTS = (Deno.env.get("DM_USE_CONSTRAINTS") ?? "false") === "true";
     const maxEpd = constraintsJson?.limits?.max_events_per_day;
     const constraintsEligible = (constraintsJson?.eligible_vectors ?? 0) >= 1;
+    const shortFlowReflectionPairRequired =
+      requiresShortFlowReflectionPair(dateRangeDays);
     const constraintsCanInject =
+      !shortFlowReflectionPairRequired &&
       DM_USE_CONSTRAINTS &&
       constraintsEligible &&
       typeof maxEpd === "number" &&
@@ -1748,6 +2720,8 @@ Deno.serve(async (req) => {
     baseInputMeta.constraints_used = constraintsCanInject;
     baseInputMeta.constraints_used_reason = !DM_USE_CONSTRAINTS
       ? "kill_switch_off"
+      : shortFlowReflectionPairRequired
+        ? "short_flow_reflection_pair_override"
       : (constraintsEligible < 1
         ? "no_eligible_vectors"
         : (typeof maxEpd !== "number" || !Number.isFinite(maxEpd) || maxEpd < 1
@@ -1770,6 +2744,8 @@ Deno.serve(async (req) => {
       promptFingerprint,
       constraints: constraintsFingerprint,
       prefs: prefsFingerprint,
+      generation_strategy:
+        dateRangeDays >= LONG_FLOW_THRESHOLD_DAYS ? "long_chunked_v1" : "single_v1",
     });
     const input_hash = await sha256Hex(inputForHash);
 
@@ -1816,10 +2792,55 @@ Deno.serve(async (req) => {
 
     if (!cached) {
       mode = inferMode(description, source_text);
-      const schedule = inferSchedule(description);
-      const multiEventOk = inferMultiEventOk(mode, flowType, description);
-      const timePreference = inferTimePreference(description);
+      const scheduleForSignals = `${description}\n${(source_text || "").slice(0, 8000)}`;
+      const schedule = inferSchedule(scheduleForSignals);
+      const timePreference = inferTimePreference(scheduleForSignals);
       const timezoneValue = timezone || "UTC";
+
+      if (dateRangeDays >= LONG_FLOW_THRESHOLD_DAYS) {
+        console.log(
+          "[ai_generate_flow] long_flow path, days=",
+          dateRangeDays,
+          "threshold=",
+          LONG_FLOW_THRESHOLD_DAYS,
+        );
+        const longRes = await generateLongRangeFlowLlm({
+          description,
+          sourceText: source_text ?? "",
+          startDate,
+          endDate,
+          dateRangeDays,
+          flowType,
+          technicalCraft,
+          schedule,
+          timezoneValue,
+          timePreference,
+          mode,
+        });
+        if (!longRes.ok) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: longRes.error,
+              message: longRes.message,
+            }),
+            {
+              status: 500,
+              headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": origin,
+              },
+            },
+          );
+        }
+        llmFlow = longRes.llmFlow;
+        tokensIn = longRes.tokensIn;
+        tokensOut = longRes.tokensOut;
+        modelUsed = longRes.modelUsed;
+        llmStatus = longRes.llmStatus;
+        costCents = calculateCostCents(modelUsed, tokensIn, tokensOut);
+      } else {
+      const multiEventOk = inferMultiEventOk(mode, flowType, description, dateRangeDays);
 
       const sys = systemPrompt;
       // Clamp completion tokens to stay below the 16,384 cap of gpt-4o-mini.
@@ -1848,11 +2869,14 @@ Deno.serve(async (req) => {
         baseInputMeta.constraints_used && baseInputMeta.constraints_prompt_snippet
           ? `\n\n${String(baseInputMeta.constraints_prompt_snippet)}\n`
           : "\n\n";
+      const shortFlowReflectionBlock = shortFlowReflectionPairRequired
+        ? `SHORT_FLOW_REFLECTION_RULE:\n- Because this flow is ${dateRangeDays} days (<= ${SHORT_FLOW_REFLECTION_PAIR_THRESHOLD_DAYS}), create two notes for every day_index.\n- Note 1 must be the primary flow session.\n- Note 2 must be an evening reflection / recap / review note at 20:00–20:30.\n- The evening note must stay mental-only and concise.`
+        : "";
       const prefsBlock =
         prefsUsed && prefsPromptSnippet ? `${prefsPromptSnippet}\n` : "";
       const dmBlock = `${constraintsBlock}${prefsBlock}`;
       const baseUserPrompt =
-        `${header}${flowNameHint}${dmBlock}` +
+        `${header}${flowNameHint}${dmBlock}${shortFlowReflectionBlock ? `${shortFlowReflectionBlock}\n\n` : ""}` +
         `USER_DESCRIPTION:\n${description}\n\n${
           source_text ? `SOURCE_TEXT:\n${source_text}\n\n` : ""
         }Cover every day_index 0..${dateRangeDays - 1} with at least one note. You may create multiple notes for a day_index when appropriate.`;
@@ -1877,6 +2901,7 @@ Deno.serve(async (req) => {
           ],
           temperature,
           max_tokens: maxTokens,
+          signal: AbortSignal.timeout(OPENAI_FETCH_TIMEOUT_MS),
         });
 
         if (!aiResp.ok) {
@@ -1908,6 +2933,7 @@ Deno.serve(async (req) => {
             ],
             temperature,
             max_tokens: maxTokensRetry,
+            signal: AbortSignal.timeout(OPENAI_FETCH_TIMEOUT_MS),
           });
 
           if (!retryResp.ok) {
@@ -2001,6 +3027,7 @@ Deno.serve(async (req) => {
 
         attempt += 1;
       }
+      }
     }
 
     if (!llmFlow) {
@@ -2064,6 +3091,10 @@ Deno.serve(async (req) => {
     // Transform LLM output to ParsedFlow
     const startDateStr = startDate;
     const parsedFlow = transformLLMFlowToParsedFlow(llmFlow, startDateStr, dateRangeDays);
+    parsedFlow.notes = ensureShortFlowReflectionPairs(
+      parsedFlow.notes,
+      dateRangeDays,
+    );
 
     // Enforce richer structure when LLM output is thin/unlabeled
     if (mode === "ELABORATION") {
@@ -2086,24 +3117,11 @@ Deno.serve(async (req) => {
       structureResult = validateMainSessionStructure(parsedFlow, technicalCraft);
       console.log("🔍 MAIN SESSION STRUCTURE CHECK:", structureResult);
 
-      if (!structureResult.ok && structureResult.failedDayIndices.length > 0) {
-        const flowJsonForRepair = {
-          flowName: parsedFlow.flow_name,
-          overview: {
-            title: parsedFlow.overview_title,
-            summary: parsedFlow.overview_summary,
-          },
-          notes: parsedFlow.notes.map((n) => ({
-            day_index: n.day_index,
-            title: n.title,
-            details: n.details,
-            allDay: n.all_day,
-            startsAt: n.start_time ?? null,
-            endsAt: n.end_time ?? null,
-            location: n.location ?? null,
-          })),
-        };
-
+      if (
+        !structureResult.ok &&
+        structureResult.failedDayIndices.length > 0 &&
+        dateRangeDays < LONG_FLOW_THRESHOLD_DAYS
+      ) {
         const structureLines = [
           "- Opener before any list (at least one full sentence).",
           "- 3+ bullet/numbered steps.",
@@ -2117,32 +3135,73 @@ Deno.serve(async (req) => {
         }
         structureLines.push("- If the note lacks a short rehearsal cue (first 60 seconds), add one.");
 
-        const repairPrompt = [
-          `Existing flow JSON (keep the shape, only change MAIN SESSION details for day_index: ${structureResult.failedDayIndices.join(", ")}):`,
-          JSON.stringify(flowJsonForRepair, null, 2),
-          "",
-          `User description: ${description}`,
-          "",
-          "Structure requirements for MAIN SESSION notes:",
-          structureLines.join("\n"),
-          "",
-          "Do NOT modify evening notes (the 20:00–20:30 mental note).",
-          "Rewrite ONLY the details field for the MAIN SESSION note on each listed day_index.",
-          "Return the FULL flow JSON unchanged except for those details fields.",
-        ].join("\n");
+        const batchSize = dateRangeDays >= 45 ? 8 : 16;
+        const fails = [...structureResult.failedDayIndices];
+        const batches: number[][] = [];
+        while (fails.length) {
+          batches.push(fails.splice(0, batchSize));
+        }
 
-        console.log("🔧 Triggering repair for day_index:", structureResult.failedDayIndices);
+        for (const batch of batches) {
+          const flowJsonForRepair = {
+            flowName: parsedFlow.flow_name,
+            overview: {
+              title: parsedFlow.overview_title,
+              summary: parsedFlow.overview_summary,
+            },
+            notes: parsedFlow.notes
+              .filter((n) => batch.includes(n.day_index))
+              .map((n) => ({
+                day_index: n.day_index,
+                title: n.title,
+                details: n.details,
+                allDay: n.all_day,
+                startsAt: n.start_time ?? null,
+                endsAt: n.end_time ?? null,
+                location: n.location ?? null,
+              })),
+          };
 
-        const repairResp = await generateWithOpenAI({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: repairPrompt },
-          ],
-          temperature: 0.4,
-          max_tokens: 2000,
-        });
+          const repairPrompt = [
+            `Repair MAIN SESSION details ONLY for day_index: ${batch.join(", ")}.`,
+            "Return JSON only with this shape (copy flowName + overview from input):",
+            '{"flowName":string,"overview":{"title":string,"summary":string},"notes":[...]}',
+            "The notes array must contain ONLY the provided day_index values, with improved details for MAIN SESSION notes.",
+            "",
+            "PARTIAL_FLOW_JSON:",
+            JSON.stringify(flowJsonForRepair, null, 2),
+            "",
+            `User description: ${description.slice(0, 8000)}`,
+            source_text
+              ? `SOURCE_TEXT (excerpt):\n${String(source_text).slice(0, 12000)}`
+              : "",
+            "",
+            "Structure requirements for MAIN SESSION notes:",
+            structureLines.join("\n"),
+            "",
+            "Do NOT modify evening notes (the 20:00–20:30 mental note).",
+            "Rewrite ONLY the details field for the MAIN SESSION note on each listed day_index.",
+          ]
+            .filter((s) => s.length > 0)
+            .join("\n");
 
-        if (repairResp.ok) {
+          console.log("🔧 Repair batch day_index:", batch.join(","));
+
+          const repairResp = await generateWithOpenAI({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: repairPrompt },
+            ],
+            temperature: 0.4,
+            max_tokens: Math.min(8000, 800 + batch.length * 750),
+            signal: AbortSignal.timeout(OPENAI_FETCH_TIMEOUT_MS),
+          });
+
+          if (!repairResp.ok) {
+            console.log("⚠️ Repair batch request failed:", repairResp.error);
+            continue;
+          }
+
           const repairedText = stripCodeFences(repairResp.content);
           let repairedFlow: LLMFlow | null = null;
           try {
@@ -2171,7 +3230,7 @@ Deno.serve(async (req) => {
               description,
             });
 
-            for (const dayIdx of structureResult.failedDayIndices) {
+            for (const dayIdx of batch) {
               const existing = parsedFlow.notes.filter((n) => n.day_index === dayIdx);
               const repaired = repairedParsed.notes.filter((n) => n.day_index === dayIdx);
               const existingMain = getMainSessionNote(existing);
@@ -2180,19 +3239,34 @@ Deno.serve(async (req) => {
                 existingMain.details = (repairedMain.details ?? "").trim();
               }
             }
-
-            console.log("🔧 Repaired main-session details for day_index:", structureResult.failedDayIndices);
           } else {
-            console.log("⚠️ Repair response could not be parsed; using original details");
+            console.log("⚠️ Repair batch response could not be parsed; keeping original for batch");
           }
-        } else {
-          console.log("⚠️ Repair request failed:", repairResp.error);
         }
+
+        console.log(
+          "🔧 Repaired main-session details (batched) for day_index count:",
+          structureResult.failedDayIndices.length,
+        );
+      } else if (
+        !structureResult.ok &&
+        structureResult.failedDayIndices.length > 0
+      ) {
+        console.log(
+          "[ai_generate_flow] skipping structure repair for long_flow; failures=",
+          structureResult.failedDayIndices.length,
+        );
       }
     }
 
     // Log parsed flow for debugging (post-repair)
-    console.log("🔍 PARSED FLOW:", JSON.stringify(parsedFlow, null, 2));
+    if (Deno.env.get("AI_GENERATE_FLOW_DEBUG_FLOW_JSON") === "true") {
+      console.log("🔍 PARSED FLOW:", JSON.stringify(parsedFlow, null, 2));
+    } else {
+      console.log(
+        `[ai_generate_flow] parsed flow ok name=${parsedFlow.flow_name} notes=${parsedFlow.notes?.length ?? 0}`,
+      );
+    }
 
     // FINAL VALIDATION: structural only
     if (!parsedFlow || !Array.isArray(parsedFlow.notes)) {
