@@ -10,9 +10,11 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
 import { SignJWT } from "https://deno.land/x/jose@v4.15.5/index.ts";
+import webpush from "https://esm.sh/web-push@3.6.7";
 
 type SendRequest = {
   userIds?: string[];
+  deviceIds?: string[];
   topic?: string;
   notification?: { title?: string; body?: string };
   data?: Record<string, unknown>;
@@ -28,16 +30,52 @@ type SendResponse = {
   failedReasons?: string[];
 };
 
-const SUPABASE_URL = Deno.env.get("PROJECT_URL") ?? Deno.env.get("SUPABASE_URL") ?? "";
-const SERVICE_ROLE = Deno.env.get("SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const SUPABASE_URL = Deno.env.get("PROJECT_URL") ??
+  Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE_ROLE = Deno.env.get("SERVICE_ROLE_KEY") ??
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const PROJECT_ID = Deno.env.get("FCM_PROJECT_ID") ?? "";
 const SA_JSON = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON") ?? "";
+const WEB_PUSH_PUBLIC_KEY = Deno.env.get("WEB_PUSH_PUBLIC_KEY") ?? "";
+const WEB_PUSH_PRIVATE_KEY = Deno.env.get("WEB_PUSH_PRIVATE_KEY") ?? "";
+const WEB_PUSH_SUBJECT = Deno.env.get("WEB_PUSH_SUBJECT") ??
+  "mailto:push@kemeticcalendar.app";
 const BATCH_SIZE = parseInt(Deno.env.get("BATCH_SIZE") ?? "400", 10);
 const INTERNAL_FUNCTION_KEY = Deno.env.get("INTERNAL_FUNCTION_KEY") ?? "";
+const ANDROID_CHANNEL_ID = "maat.reminders";
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-type ServiceAccount = { client_email: string; private_key: string; token_uri?: string };
+function corsHeaders(origin: string | null) {
+  return {
+    "Access-Control-Allow-Origin": origin && origin.length ? origin : "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-internal-key",
+    "Vary": "Origin",
+  };
+}
+
+function jsonResponse(
+  req: Request,
+  body: unknown,
+  init?: ResponseInit,
+) {
+  return new Response(JSON.stringify(body), {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...corsHeaders(req.headers.get("origin")),
+      ...(init?.headers ?? {}),
+    },
+  });
+}
+
+type ServiceAccount = {
+  client_email: string;
+  private_key: string;
+  token_uri?: string;
+};
 
 async function importPrivateKey(pem: string): Promise<CryptoKey> {
   const pemBody = pem
@@ -79,16 +117,18 @@ async function getAccessToken(sa: ServiceAccount): Promise<string> {
     }),
   });
   const json = await res.json();
-  if (!res.ok) throw new Error(`token exchange failed: ${JSON.stringify(json)}`);
+  if (!res.ok) {
+    throw new Error(`token exchange failed: ${JSON.stringify(json)}`);
+  }
   return json.access_token as string;
 }
 
-async function fetchTokens(userIds: string[]): Promise<{ device_id: string; token: string }[]> {
+async function fetchTokens(userIds: string[]): Promise<PushTargetRow[]> {
   if (!userIds.length) return [];
   try {
     const { data, error } = await supabase
       .from("push_tokens")
-      .select("device_id, token")
+      .select("device_id, token, platform")
       .in("user_id", userIds)
       .eq("is_active", true);
     if (error) throw error;
@@ -103,7 +143,13 @@ async function deleteTokens(deviceIds: string[]) {
   try {
     await supabase.from("push_tokens").delete().in("device_id", deviceIds);
   } catch (e) {
-    console.log(JSON.stringify({ at: new Date().toISOString(), msg: "push_tokens delete failed", error: serializeError(e) }));
+    console.log(
+      JSON.stringify({
+        at: new Date().toISOString(),
+        msg: "push_tokens delete failed",
+        error: serializeError(e),
+      }),
+    );
   }
 }
 
@@ -113,7 +159,10 @@ function chunked<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-function classifyFcmFailure(bodyText: string, status?: number): { shouldDelete: boolean; reason: string; raw?: string } {
+function classifyFcmFailure(
+  bodyText: string,
+  status?: number,
+): { shouldDelete: boolean; reason: string; raw?: string } {
   try {
     const parsed = JSON.parse(bodyText);
     const err = parsed?.error;
@@ -121,23 +170,29 @@ function classifyFcmFailure(bodyText: string, status?: number): { shouldDelete: 
     const details = Array.isArray(err?.details) ? err.details : [];
     const fcmError = details.find(
       (d: any) =>
-        typeof d?.['@type'] === 'string' &&
-        d['@type'].includes('google.firebase.fcm.v1.FcmError'),
+        typeof d?.["@type"] === "string" &&
+        d["@type"].includes("google.firebase.fcm.v1.FcmError"),
     );
     const errorCode = fcmError?.errorCode as string | undefined; // e.g., "UNREGISTERED"
 
-    const reason = `${status || 'UNKNOWN'}/${errorCode || ''}`.trim();
-    if (status === 'NOT_FOUND' || errorCode === 'UNREGISTERED') {
+    const reason = `${status || "UNKNOWN"}/${errorCode || ""}`.trim();
+    if (status === "NOT_FOUND" || errorCode === "UNREGISTERED") {
       return { shouldDelete: true, reason };
     }
     return { shouldDelete: false, reason };
   } catch {
     // If it's not JSON, treat it as a transient/unknown error; do not delete.
-    return { shouldDelete: false, reason: `NON_JSON_ERROR${status ? `:${status}` : ""}`, raw: bodyText };
+    return {
+      shouldDelete: false,
+      reason: `NON_JSON_ERROR${status ? `:${status}` : ""}`,
+      raw: bodyText,
+    };
   }
 }
 
-function normalizeData(data?: Record<string, unknown>): Record<string, string> | undefined {
+function normalizeData(
+  data?: Record<string, unknown>,
+): Record<string, string> | undefined {
   if (!data) return undefined;
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(data)) {
@@ -146,7 +201,10 @@ function normalizeData(data?: Record<string, unknown>): Record<string, string> |
       out[key] = "null";
       continue;
     }
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    if (
+      typeof value === "string" || typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
       out[key] = String(value);
       continue;
     }
@@ -159,27 +217,237 @@ function normalizeData(data?: Record<string, unknown>): Record<string, string> |
   return Object.keys(out).length ? out : undefined;
 }
 
-async function sendToFCM(tokens: string[], payload: SendRequest, accessToken: string) {
-  const results: { ok: boolean; token?: string; error?: string; shouldDelete?: boolean; status?: number }[] = [];
-  const normalizedData = normalizeData(payload.data);
-  for (const token of tokens) {
+function firstString(value: unknown) {
+  return typeof value === "string" && value.trim().length ? value.trim() : null;
+}
+
+function buildAppTargetUrl(data?: Record<string, unknown>) {
+  const explicitUrl = firstString(data?.url) ?? firstString(data?.link);
+  if (explicitUrl) return explicitUrl;
+
+  const kind = firstString(data?.kind) ?? firstString(data?.type);
+  if (kind === "decan_reflection") {
+    const reflectionId = firstString(data?.reflectionId) ??
+      firstString(data?.reflection_id);
+    if (reflectionId) {
+      return `/?push_kind=decan_reflection&reflection_id=${
+        encodeURIComponent(reflectionId)
+      }`;
+    }
+  }
+
+  if (kind === "dm") {
+    const senderId = firstString(data?.sender_id) ??
+      firstString(data?.senderId);
+    const shareId = firstString(data?.share_id) ??
+      firstString(data?.shareId);
+    const params = new URLSearchParams({ push_kind: "dm" });
+    if (senderId) {
+      params.set("sender_id", senderId);
+    }
+    if (shareId) {
+      params.set("share_id", shareId);
+    }
+    return `/?${params.toString()}`;
+  }
+
+  if (kind === "event_invite") {
+    const shareId = firstString(data?.share_id) ??
+      firstString(data?.shareId);
+    const senderId = firstString(data?.sender_id) ??
+      firstString(data?.senderId);
+    const responseStatus = firstString(data?.response_status) ??
+      firstString(data?.responseStatus);
+    const params = new URLSearchParams({ push_kind: "event_invite" });
+    if (shareId) {
+      params.set("share_id", shareId);
+    }
+    if (senderId) {
+      params.set("sender_id", senderId);
+    }
+    if (responseStatus) {
+      params.set("response_status", responseStatus);
+    }
+    return `/?${params.toString()}`;
+  }
+
+  if (kind === "calendar_invite" || kind === "calendar_invite_response") {
+    const calendarId = firstString(data?.calendar_id) ??
+      firstString(data?.calendarId);
+    const notificationId = firstString(data?.notification_id) ??
+      firstString(data?.notificationId);
+    const params = new URLSearchParams({ push_kind: kind });
+    if (calendarId) {
+      params.set("calendar_id", calendarId);
+    }
+    if (notificationId) {
+      params.set("notification_id", notificationId);
+    }
+    return `/?${params.toString()}`;
+  }
+
+  if (
+    kind === "flow_like" ||
+    kind === "flow_comment" ||
+    kind === "flow_comment_reply" ||
+    kind === "flow_comment_like"
+  ) {
+    const flowPostId = firstString(data?.flow_post_id) ??
+      firstString(data?.flowPostId);
+    if (flowPostId) {
+      const params = new URLSearchParams({
+        push_kind: kind,
+        flow_post_id: flowPostId,
+      });
+      return `/?${params.toString()}`;
+    }
+  }
+
+  const clientEventId = firstString(data?.client_event_id) ??
+    firstString(data?.clientEventId);
+  if (clientEventId) {
+    const params = new URLSearchParams({
+      push_kind: "calendar_event",
+      client_event_id: clientEventId,
+    });
+    return `/?${params.toString()}`;
+  }
+
+  return "/";
+}
+
+function enrichPushData(data?: Record<string, unknown>) {
+  const base = data ? { ...data } : {};
+  if (!firstString(base.kind) && firstString(base.type)) {
+    base.kind = firstString(base.type);
+  }
+  if (!firstString(base.url) && !firstString(base.link)) {
+    base.url = buildAppTargetUrl(base);
+  }
+  return base;
+}
+
+function normalizeNotification(
+  notification?: { title?: string; body?: string },
+) {
+  const title = firstString(notification?.title) ?? "Kemetic Calendar";
+  const body = firstString(notification?.body) ?? "Tap to open in Kemetic.";
+  return { title, body };
+}
+
+type PushTargetRow = {
+  device_id: string;
+  token: string;
+  platform?: string | null;
+};
+
+function isWebPushRow(row: PushTargetRow) {
+  if (row.platform === "web_push") {
+    return true;
+  }
+  const token = row.token.trim();
+  return token.startsWith("{") && token.includes('"endpoint"');
+}
+
+function pushTargetIdentity(row: PushTargetRow) {
+  const token = row.token.trim();
+  if (isWebPushRow(row)) {
+    try {
+      const parsed = JSON.parse(token);
+      const endpoint = firstString(parsed?.endpoint);
+      if (endpoint) {
+        return `web:${endpoint}`;
+      }
+    } catch {
+      // Fall back to the raw token blob when subscription parsing fails.
+    }
+  }
+  return `token:${token}`;
+}
+
+type PushSendResult = {
+  ok: boolean;
+  device_id: string;
+  token?: string;
+  error?: string;
+  shouldDelete?: boolean;
+  status?: number;
+};
+
+async function sendToFCM(
+  rows: PushTargetRow[],
+  payload: SendRequest,
+  accessToken: string,
+) {
+  const results: PushSendResult[] = [];
+  const normalizedData = normalizeData(enrichPushData(payload.data));
+  for (const row of rows) {
+    const token = row.token;
     const message = {
       token,
-      notification: payload.notification,
-      data: normalizedData,
-    };
-    const res = await fetch(`https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
+      ...(payload.notification ? { notification: payload.notification } : {}),
+      ...(normalizedData ? { data: normalizedData } : {}),
+      android: {
+        priority: "high",
+        ...(payload.notification
+          ? {
+            notification: {
+              channel_id: ANDROID_CHANNEL_ID,
+              click_action: "FLUTTER_NOTIFICATION_CLICK",
+              sound: "default",
+            },
+          }
+          : {}),
       },
-      body: JSON.stringify({ message }),
-    });
+      apns: payload.notification
+        ? {
+          headers: {
+            "apns-priority": "10",
+          },
+          payload: {
+            aps: {
+              sound: "default",
+            },
+          },
+        }
+        : undefined,
+      webpush: {
+        headers: {
+          Urgency: "high",
+        },
+        notification: payload.notification
+          ? {
+            icon: "/icons/Icon-192.png",
+            badge: "/icons/Icon-maskable-192.png",
+            tag: normalizedData?.kind ??
+              normalizedData?.type ??
+              "kemetic-calendar",
+          }
+          : undefined,
+      },
+    };
+    const res = await fetch(
+      `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message }),
+      },
+    );
     if (!res.ok) {
       const err = await res.text();
       const { shouldDelete, reason } = classifyFcmFailure(err, res.status);
-      results.push({ ok: false, token, error: `${res.status}:${reason}`, shouldDelete, status: res.status });
+      results.push({
+        ok: false,
+        device_id: row.device_id,
+        token,
+        error: `${res.status}:${reason}`,
+        shouldDelete,
+        status: res.status,
+      });
       console.log(
         JSON.stringify({
           at: new Date().toISOString(),
@@ -190,7 +458,7 @@ async function sendToFCM(tokens: string[], payload: SendRequest, accessToken: st
         }),
       );
     } else {
-      results.push({ ok: true, token });
+      results.push({ ok: true, device_id: row.device_id, token });
       console.log(
         JSON.stringify({
           at: new Date().toISOString(),
@@ -203,8 +471,89 @@ async function sendToFCM(tokens: string[], payload: SendRequest, accessToken: st
   return results;
 }
 
+async function sendToWebPush(rows: PushTargetRow[], payload: SendRequest) {
+  const results: PushSendResult[] = [];
+  if (!rows.length) return results;
+
+  if (!WEB_PUSH_PUBLIC_KEY || !WEB_PUSH_PRIVATE_KEY) {
+    return rows.map((row) => ({
+      ok: false,
+      device_id: row.device_id,
+      token: row.token,
+      error: "web_push_not_configured",
+      shouldDelete: false,
+    }));
+  }
+
+  webpush.setVapidDetails(
+    WEB_PUSH_SUBJECT,
+    WEB_PUSH_PUBLIC_KEY,
+    WEB_PUSH_PRIVATE_KEY,
+  );
+
+  const notification = normalizeNotification(payload.notification);
+  const data = enrichPushData(payload.data);
+  if (!firstString(data.title)) {
+    data.title = notification.title;
+  }
+  if (!firstString(data.body)) {
+    data.body = notification.body;
+  }
+  const body = JSON.stringify({
+    source: "kemetic-webpush",
+    notification,
+    data,
+  });
+
+  for (const row of rows) {
+    try {
+      const subscription = JSON.parse(row.token);
+      await webpush.sendNotification(subscription, body, {
+        TTL: 60,
+        urgency: "high",
+      });
+      results.push({ ok: true, device_id: row.device_id, token: row.token });
+    } catch (error) {
+      const status = Number((error as any)?.statusCode ?? 0) || undefined;
+      const reason = (error as any)?.body?.toString?.() ||
+        (error as any)?.message?.toString?.() ||
+        String(error);
+      results.push({
+        ok: false,
+        device_id: row.device_id,
+        token: row.token,
+        error: `${status ?? "webpush"}:${reason}`,
+        shouldDelete: status === 404 || status === 410,
+        status,
+      });
+      console.log(
+        JSON.stringify({
+          at: new Date().toISOString(),
+          msg: "web_push_send_failed",
+          status,
+          reason,
+          device_id: row.device_id,
+        }),
+      );
+    }
+  }
+
+  return results;
+}
+
 Deno.serve(async (req) => {
-  if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(req.headers.get("origin")),
+    });
+  }
+  if (req.method !== "POST") {
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: corsHeaders(req.headers.get("origin")),
+    });
+  }
   const start = Date.now();
   const log = (msg: string, extra?: Record<string, unknown>) => {
     const base = { at: new Date().toISOString(), msg };
@@ -212,22 +561,22 @@ Deno.serve(async (req) => {
   };
 
   try {
-    if (!SUPABASE_URL || !SERVICE_ROLE || !PROJECT_ID || !SA_JSON) {
+    if (!SUPABASE_URL || !SERVICE_ROLE) {
       const missing = [];
       if (!SUPABASE_URL) missing.push("SUPABASE_URL/PROJECT_URL");
-      if (!SERVICE_ROLE) missing.push("SERVICE_ROLE_KEY/SUPABASE_SERVICE_ROLE_KEY");
-      if (!PROJECT_ID) missing.push("FCM_PROJECT_ID");
-      if (!SA_JSON) missing.push("FCM_SERVICE_ACCOUNT_JSON");
+      if (!SERVICE_ROLE) {
+        missing.push("SERVICE_ROLE_KEY/SUPABASE_SERVICE_ROLE_KEY");
+      }
       log("missing env", { missing });
-      return new Response(JSON.stringify({ error: "Missing env vars", missing }), {
+      return jsonResponse(req, { error: "Missing env vars", missing }, {
         status: 500,
-        headers: { "Content-Type": "application/json" },
       });
     }
 
     const body = (await req.json()) as SendRequest;
     const internalHeader = req.headers.get("x-internal-key") ?? "";
-    const authHeader = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
+    const authHeader =
+      req.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
 
     let authMode: "internal_key" | "user_jwt" | "denied" = "denied";
     let requesterUid: string | null = null;
@@ -239,13 +588,14 @@ Deno.serve(async (req) => {
       if (!error && userRes?.user?.id) {
         requesterUid = userRes.user.id;
         const senderId = typeof body.data === "object" && body.data !== null
-          ? (body.data as Record<string, unknown>)["sender_id"] as string | undefined
+          ? (body.data as Record<string, unknown>)["sender_id"] as
+            | string
+            | undefined
           : undefined;
         if (senderId && senderId !== requesterUid) {
           log("sender_mismatch", { senderId, requesterUid });
-          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          return jsonResponse(req, { error: "Unauthorized" }, {
             status: 401,
-            headers: { "Content-Type": "application/json" },
           });
         }
         authMode = "user_jwt";
@@ -259,23 +609,25 @@ Deno.serve(async (req) => {
         internalConfigured: !!INTERNAL_FUNCTION_KEY,
         internalLen: INTERNAL_FUNCTION_KEY.length || undefined,
       });
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      return jsonResponse(req, { error: "Unauthorized" }, {
         status: 401,
-        headers: { "Content-Type": "application/json" },
       });
     }
 
     if (authMode === "user_jwt") {
       if (!body.userIds?.length) {
-        return new Response(JSON.stringify({ error: "userIds required for user_jwt" }), {
+        return jsonResponse(req, { error: "userIds required for user_jwt" }, {
           status: 400,
-          headers: { "Content-Type": "application/json" },
         });
       }
       if (body.userIds.length > 5) {
-        return new Response(JSON.stringify({ error: "Too many recipients" }), {
+        return jsonResponse(req, { error: "Too many recipients" }, {
           status: 400,
-          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (body.deviceIds?.length && body.deviceIds.length > 5) {
+        return jsonResponse(req, { error: "Too many deviceIds" }, {
+          status: 400,
         });
       }
     }
@@ -283,11 +635,6 @@ Deno.serve(async (req) => {
     log("env", {
       url: SUPABASE_URL,
       serviceRolePresent: SERVICE_ROLE.length > 0,
-      serviceRoleFingerprint: SERVICE_ROLE.length
-        ? `${SERVICE_ROLE.substring(0, Math.min(6, SERVICE_ROLE.length))}...${SERVICE_ROLE.substring(
-            Math.max(0, SERVICE_ROLE.length - 4),
-          )} (len=${SERVICE_ROLE.length})`
-        : "<empty>",
     });
     console.log(
       JSON.stringify({
@@ -305,45 +652,56 @@ Deno.serve(async (req) => {
       requesterUid,
     });
 
-    let sa: ServiceAccount;
-    try {
-      sa = JSON.parse(SA_JSON) as ServiceAccount;
-    } catch (e) {
-      log("bad service account json", { error: String(e) });
-      return new Response(JSON.stringify({ error: "Invalid FCM_SERVICE_ACCOUNT_JSON" }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    const accessToken = await getAccessToken(sa);
-    log("access token acquired");
-
-    let targets: string[] = [];
-    let deviceIds: string[] = [];
+    let targets: PushTargetRow[] = [];
     if (body.userIds?.length) {
       const rows = await fetchTokens(body.userIds);
-      targets = rows.map((r) => r.token);
-      deviceIds = rows.map((r) => r.device_id);
-      log("tokens fetched", { users: body.userIds.length, tokens: targets.length });
+      const dedupedRows = Array.from(
+        new Map(
+          rows
+            .filter((row) => row.token?.trim())
+            .map((row) => [pushTargetIdentity(row), row]),
+        ).values(),
+      );
+      if (body.deviceIds?.length) {
+        const allowedDeviceIds = new Set(
+          body.deviceIds.map((deviceId) => deviceId.trim()).filter(Boolean),
+        );
+        targets = dedupedRows.filter((row) =>
+          allowedDeviceIds.has(row.device_id)
+        );
+      } else {
+        targets = dedupedRows;
+      }
+      log("tokens fetched", {
+        users: body.userIds.length,
+        tokens: targets.length,
+      });
       console.log(
         JSON.stringify({
           msg: "SEND_PUSH tokens resolved",
           count: targets.length,
           userIds: body.userIds ?? [],
+          deviceIds: body.deviceIds ?? [],
           authMode,
         }),
       );
     } else if (body.topic) {
-      return new Response("Topic send not implemented in scaffold", { status: 400 });
+      return new Response("Topic send not implemented in scaffold", {
+        status: 400,
+        headers: corsHeaders(req.headers.get("origin")),
+      });
     } else {
-      return new Response("No userIds or topic provided", { status: 400 });
+      return new Response("No userIds or topic provided", {
+        status: 400,
+        headers: corsHeaders(req.headers.get("origin")),
+      });
     }
 
     if (!targets.length) {
       log("no tokens found for users");
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        req,
+        {
           sent: 0,
           failed: 0,
           stale: 0,
@@ -351,21 +709,61 @@ Deno.serve(async (req) => {
           delivered: false,
           reason: "no_tokens_for_recipients",
           failedReasons: [],
-        } satisfies SendResponse),
-        { status: 200, headers: { "Content-Type": "application/json" } },
+        } satisfies SendResponse,
+        { status: 200 },
       );
     }
 
-    const results = await sendToFCM(targets, body, accessToken);
-    const staleTokens = results
-      .filter((r) => r.shouldDelete && r.token)
-      .map((r) => r.token!);
-    const staleDeviceIds = deviceIds.filter((_, idx) => staleTokens.includes(targets[idx]));
+    const fcmTargets = targets.filter((row) => !isWebPushRow(row));
+    const webPushTargets = targets.filter((row) => isWebPushRow(row));
+    let results: PushSendResult[] = [];
+
+    if (fcmTargets.length) {
+      if (!PROJECT_ID || !SA_JSON) {
+        results = results.concat(
+          fcmTargets.map((row) => ({
+            ok: false,
+            device_id: row.device_id,
+            token: row.token,
+            error: "fcm_not_configured",
+          })),
+        );
+      } else {
+        let sa: ServiceAccount;
+        try {
+          sa = JSON.parse(SA_JSON) as ServiceAccount;
+        } catch (e) {
+          log("bad service account json", { error: String(e) });
+          return jsonResponse(req, {
+            error: "Invalid FCM_SERVICE_ACCOUNT_JSON",
+          }, {
+            status: 500,
+          });
+        }
+
+        const accessToken = await getAccessToken(sa);
+        log("access token acquired");
+        results = results.concat(
+          await sendToFCM(fcmTargets, body, accessToken),
+        );
+      }
+    }
+
+    if (webPushTargets.length) {
+      results = results.concat(await sendToWebPush(webPushTargets, body));
+    }
+
+    const staleDeviceIds = results
+      .filter((r) => r.shouldDelete)
+      .map((r) => r.device_id);
     await deleteTokens(staleDeviceIds);
 
     const sent = results.filter((r) => r.ok).length;
     const failed = results.filter((r) => !r.ok).length;
     const failedReasons = results.filter((r) => !r.ok).map((r) => r.error);
+    const reason = sent > 0
+      ? undefined
+      : failedReasons[0] ?? "push_not_delivered";
     console.log(
       JSON.stringify({
         msg: "SEND_PUSH result",
@@ -383,23 +781,24 @@ Deno.serve(async (req) => {
       failedReasons,
     });
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      req,
+      {
         sent,
         failed,
         stale: staleDeviceIds.length,
         matchedTokens: targets.length,
         delivered: sent > 0,
+        reason,
         failedReasons,
-      } satisfies SendResponse),
-      { status: 200, headers: { "Content-Type": "application/json" } },
+      } satisfies SendResponse,
+      { status: 200 },
     );
   } catch (e) {
     console.error("SEND_PUSH FAILURE FULL", e);
     log("unhandled error", { error: serializeError(e) });
-    return new Response(JSON.stringify({ error: serializeError(e) }), {
+    return jsonResponse(req, { error: serializeError(e) }, {
       status: 500,
-      headers: { "Content-Type": "application/json" },
     });
   }
 });

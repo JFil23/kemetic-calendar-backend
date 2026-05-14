@@ -21,6 +21,7 @@ type ReflectionPayload = {
   user_id?: string;
   decan_name: string;
   decan_theme?: string | null;
+  decan_context_key?: string | null;
   decan_start?: string;
   decan_end?: string;
   past_decans?: DecanWindow[];
@@ -46,11 +47,15 @@ type InputBadge = {
   title?: string | null;
   details?: string | null;
   tags?: string[] | null;
+  event_id?: string | null;
   occurred_on?: string;
   occurred_at?: string | null;
 };
 
-type AnthropicMessage = { role: "user" | "assistant" | "system"; content: string };
+type AnthropicMessage = {
+  role: "user" | "assistant" | "system";
+  content: string;
+};
 type EvidenceEntry = {
   line: string;
   occurredOn: string;
@@ -95,8 +100,24 @@ type V3Signals = {
   diversityScore: number;
 };
 
+type PlannerKind = "todo" | "nutrition";
+type PlannerState = "done" | "partial" | "skipped" | "pending" | "unknown";
+type PlannerSummary = {
+  total: number;
+  todoDone: number;
+  todoPartial: number;
+  todoSkipped: number;
+  nutritionDone: number;
+  nutritionPartial: number;
+  nutritionSkipped: number;
+  todoExamples: string[];
+  nutritionExamples: string[];
+  journalExamples: string[];
+};
+
 // Use the Supabase-specific envs only; avoid generic keys that may point to a different project.
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? Deno.env.get("PROJECT_URL")!;
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ??
+  Deno.env.get("PROJECT_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const MAX_HISTORY_WINDOWS = 2;
 const PROGRESS_MARKERS = [
@@ -154,14 +175,48 @@ const DOMINANT_VERBS = [
 ];
 
 const DISCIPLINE_BUCKETS: Record<string, string[]> = {
-  sports: ["shoot", "puck", "footwork", "reps", "form", "cone", "drill", "laps", "rounds"],
-  research: ["sources", "read", "debate", "methods", "argument", "study", "research"],
+  sports: [
+    "shoot",
+    "puck",
+    "footwork",
+    "reps",
+    "form",
+    "cone",
+    "drill",
+    "laps",
+    "rounds",
+  ],
+  research: [
+    "sources",
+    "read",
+    "debate",
+    "methods",
+    "argument",
+    "study",
+    "research",
+  ],
   creative: ["brand", "story", "narrative", "design"],
   business: ["supplier", "materials", "sample", "samples"],
 };
 
-const EXPLORATION_WORDS = ["explore", "research", "read", "gather", "learn", "sources", "scout"];
-const EXECUTION_WORDS = ["execute", "practice", "apply", "review", "build", "drill", "ship"];
+const EXPLORATION_WORDS = [
+  "explore",
+  "research",
+  "read",
+  "gather",
+  "learn",
+  "sources",
+  "scout",
+];
+const EXECUTION_WORDS = [
+  "execute",
+  "practice",
+  "apply",
+  "review",
+  "build",
+  "drill",
+  "ship",
+];
 
 function normalizeText(value: string | null | undefined) {
   return (value ?? "").replace(/\s+/g, " ").trim();
@@ -207,10 +262,296 @@ function scoreEvidenceLine(text: string, hasDetails: boolean) {
   return markers * 3 + lengthScore + (hasDetails ? 1 : 0);
 }
 
+function isStructuralTag(tag: string) {
+  const lower = normalizeText(tag).toLowerCase();
+  return lower === "planner" || lower.startsWith("kind:") ||
+    lower.startsWith("state:");
+}
+
+function badgeTags(badge: BadgeRow) {
+  return (badge.tags ?? [])
+    .map((tag) => normalizeText(tag))
+    .filter((tag) => tag.length > 0);
+}
+
+function contentTags(badge: BadgeRow) {
+  return badgeTags(badge).filter((tag) => !isStructuralTag(tag));
+}
+
+function plannerKindFromBadge(badge: BadgeRow): PlannerKind | null {
+  const tags = badgeTags(badge).map((tag) => tag.toLowerCase());
+  if (tags.includes("kind:todo")) return "todo";
+  if (tags.includes("kind:nutrition")) return "nutrition";
+
+  const eventId = normalizeText(badge.event_id).toLowerCase();
+  if (eventId.startsWith("planner-todo:")) return "todo";
+  if (eventId.startsWith("planner-nutrition:")) return "nutrition";
+
+  const title = normalizeText(badge.title).toLowerCase();
+  if (title.includes("to-do")) return "todo";
+  if (title.includes("nutrition")) return "nutrition";
+  return null;
+}
+
+function plannerStateFromBadge(badge: BadgeRow): PlannerState {
+  const tags = badgeTags(badge).map((tag) => tag.toLowerCase());
+  if (tags.includes("state:done")) return "done";
+  if (tags.includes("state:partial") || tags.includes("state:in_progress")) {
+    return "partial";
+  }
+  if (tags.includes("state:skipped")) return "skipped";
+  if (tags.includes("state:pending")) return "pending";
+
+  const title = normalizeText(badge.title).toLowerCase();
+  if (title.startsWith("completed ")) return "done";
+  if (title.startsWith("in-progress ") || title.startsWith("partial ")) {
+    return "partial";
+  }
+  if (title.startsWith("skipped ")) return "skipped";
+  return "unknown";
+}
+
+function plannerLabelFromTitle(
+  title: string,
+  kind: PlannerKind,
+) {
+  let cleaned = normalizeText(title);
+  const patterns = kind === "todo"
+    ? [
+      /^completed to-do:\s*/i,
+      /^in-progress to-do:\s*/i,
+      /^skipped to-do:\s*/i,
+      /^to-do:\s*/i,
+    ]
+    : [
+      /^completed nutrition:\s*/i,
+      /^partial nutrition:\s*/i,
+      /^skipped nutrition:\s*/i,
+      /^nutrition:\s*/i,
+    ];
+
+  for (const pattern of patterns) {
+    cleaned = cleaned.replace(pattern, "");
+  }
+
+  return normalizeText(cleaned);
+}
+
+function normalizePlannerDetails(details: string) {
+  const cleaned = normalizeText(details);
+  if (!cleaned.length) return "";
+
+  const pieces = cleaned.split(".").map((part) => normalizeText(part)).filter(
+    Boolean,
+  );
+  const kept: string[] = [];
+
+  for (const piece of pieces) {
+    const lower = piece.toLowerCase();
+    if (
+      lower.startsWith("planner to-do for ") ||
+      lower.startsWith("planner nutrition entry for ")
+    ) {
+      continue;
+    }
+    if (lower.startsWith("state:")) continue;
+    if (lower.startsWith("source:")) {
+      kept.push(`source ${normalizeText(piece.slice("source:".length))}`);
+      continue;
+    }
+    if (lower.startsWith("purpose:")) {
+      kept.push(`purpose ${normalizeText(piece.slice("purpose:".length))}`);
+      continue;
+    }
+    kept.push(piece);
+  }
+
+  return kept.join(". ").trim();
+}
+
+function normalizedBadgeTitle(badge: BadgeRow) {
+  const rawTitle = normalizeText(badge.title);
+  const plannerKind = plannerKindFromBadge(badge);
+  if (!plannerKind) return rawTitle;
+
+  const label = plannerLabelFromTitle(rawTitle, plannerKind);
+  if (!label.length) return rawTitle;
+
+  const plannerState = plannerStateFromBadge(badge);
+  if (plannerKind === "todo") {
+    if (plannerState === "done") return `Completed task: ${label}`;
+    if (plannerState === "partial") return `In-progress task: ${label}`;
+    if (plannerState === "skipped") return `Skipped task: ${label}`;
+    return `Task: ${label}`;
+  }
+
+  if (plannerState === "done") return `Completed nutrition: ${label}`;
+  if (plannerState === "partial") return `Partial nutrition: ${label}`;
+  if (plannerState === "skipped") return `Skipped nutrition: ${label}`;
+  return `Nutrition: ${label}`;
+}
+
+function normalizedBadgeDetails(badge: BadgeRow) {
+  const rawDetails = normalizeText(badge.details);
+  if (!rawDetails.length) return "";
+  if (!plannerKindFromBadge(badge)) return rawDetails;
+  return normalizePlannerDetails(rawDetails);
+}
+
+function badgeKeywordText(badge: BadgeRow) {
+  return `${normalizedBadgeTitle(badge)} ${normalizedBadgeDetails(badge)}`
+    .trim();
+}
+
+function badgeExampleLabel(badge: BadgeRow) {
+  const plannerKind = plannerKindFromBadge(badge);
+  if (plannerKind) {
+    const label = plannerLabelFromTitle(
+      normalizeText(badge.title),
+      plannerKind,
+    );
+    if (label.length) return label;
+  }
+  return normalizedBadgeTitle(badge);
+}
+
+function topExamples(labels: string[]) {
+  const counts = new Map<string, number>();
+  for (const label of labels) {
+    const key = normalizeText(label);
+    if (!key.length) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 2)
+    .map(([label]) => label);
+}
+
+function joinExamples(labels: string[]) {
+  if (!labels.length) return "";
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels[0]}, ${labels[1]}, and ${labels[2]}`;
+}
+
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return count === 1 ? singular : plural;
+}
+
+function buildPlannerSummary(badges: BadgeRow[]): PlannerSummary {
+  const todoLabels: string[] = [];
+  const nutritionLabels: string[] = [];
+  const journalLabels: string[] = [];
+  let todoDone = 0;
+  let todoPartial = 0;
+  let todoSkipped = 0;
+  let nutritionDone = 0;
+  let nutritionPartial = 0;
+  let nutritionSkipped = 0;
+
+  for (const badge of badges) {
+    const plannerKind = plannerKindFromBadge(badge);
+    if (!plannerKind) {
+      const label = badgeExampleLabel(badge);
+      if (label.length) journalLabels.push(label);
+      continue;
+    }
+
+    const state = plannerStateFromBadge(badge);
+    const label = badgeExampleLabel(badge);
+    if (plannerKind === "todo") {
+      if (state === "done") todoDone++;
+      else if (state === "partial") todoPartial++;
+      else if (state === "skipped") todoSkipped++;
+      if (label.length) todoLabels.push(label);
+      continue;
+    }
+
+    if (state === "done") nutritionDone++;
+    else if (state === "partial") nutritionPartial++;
+    else if (state === "skipped") nutritionSkipped++;
+    if (label.length) nutritionLabels.push(label);
+  }
+
+  return {
+    total: todoDone + todoPartial + todoSkipped + nutritionDone +
+      nutritionPartial +
+      nutritionSkipped,
+    todoDone,
+    todoPartial,
+    todoSkipped,
+    nutritionDone,
+    nutritionPartial,
+    nutritionSkipped,
+    todoExamples: topExamples(todoLabels),
+    nutritionExamples: topExamples(nutritionLabels),
+    journalExamples: topExamples(journalLabels),
+  };
+}
+
+function buildPlannerSummaryLine(summary: PlannerSummary) {
+  if (!summary.total) return "";
+
+  const parts: string[] = [];
+  const todoParts: string[] = [];
+  const nutritionParts: string[] = [];
+
+  if (summary.todoDone) todoParts.push(`${summary.todoDone} done`);
+  if (summary.todoPartial) todoParts.push(`${summary.todoPartial} partial`);
+  if (summary.todoSkipped) todoParts.push(`${summary.todoSkipped} skipped`);
+  if (todoParts.length) {
+    parts.push(`to-dos ${todoParts.join(", ")}`);
+  }
+
+  if (summary.nutritionDone) {
+    nutritionParts.push(`${summary.nutritionDone} done`);
+  }
+  if (summary.nutritionPartial) {
+    nutritionParts.push(`${summary.nutritionPartial} partial`);
+  }
+  if (summary.nutritionSkipped) {
+    nutritionParts.push(`${summary.nutritionSkipped} skipped`);
+  }
+  if (nutritionParts.length) {
+    parts.push(`nutrition ${nutritionParts.join(", ")}`);
+  }
+
+  const examples: string[] = [];
+  if (summary.todoExamples.length) {
+    examples.push(`tasks: ${joinExamples(summary.todoExamples)}`);
+  }
+  if (summary.nutritionExamples.length) {
+    examples.push(`nutrition: ${joinExamples(summary.nutritionExamples)}`);
+  }
+
+  return `${parts.join("; ")}${
+    examples.length ? `. Examples: ${examples.join("; ")}.` : "."
+  }`;
+}
+
+function resolveThemeAxis(name?: string | null) {
+  if (!name) return null;
+  const lower = name.toLowerCase();
+  if (lower.includes("foreleg") || lower.includes("mswt")) {
+    return { primary: "stabilization and form", contrast: "expansion" };
+  }
+  if (lower.includes("birth of ra") || lower.includes("ra")) {
+    return { primary: "ignition and initiative", contrast: "hesitation" };
+  }
+  if (lower.includes("inundation") || lower.includes("flood")) {
+    return { primary: "replenishment", contrast: "overdrive" };
+  }
+  if (lower.includes("harvest")) {
+    return { primary: "consolidation and integration", contrast: "sprawl" };
+  }
+  return null;
+}
+
 function topTags(badges: BadgeRow[]) {
   const counts = new Map<string, number>();
   for (const b of badges) {
-    (b.tags ?? []).forEach((tag) => {
+    contentTags(b).forEach((tag) => {
       const key = tag.trim();
       if (!key) return;
       counts.set(key, (counts.get(key) ?? 0) + 1);
@@ -218,7 +559,9 @@ function topTags(badges: BadgeRow[]) {
   }
   const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
   if (!sorted.length) return "";
-  return sorted.slice(0, 8).map(([tag, count]) => `${tag}(${count})`).join(", ");
+  return sorted.slice(0, 8).map(([tag, count]) => `${tag}(${count})`).join(
+    ", ",
+  );
 }
 
 const STOP_WORDS = new Set([
@@ -273,7 +616,7 @@ const STOP_WORDS = new Set([
 function keywordCountsFromBadges(badges: BadgeRow[]) {
   const counts = new Map<string, number>();
   for (const b of badges) {
-    const text = `${normalizeText(b.title)} ${normalizeText(b.details)}`.toLowerCase();
+    const text = badgeKeywordText(b).toLowerCase();
     for (const word of text.split(/[^a-z]+/).filter((w) => w.length >= 4)) {
       if (STOP_WORDS.has(word)) continue;
       counts.set(word, (counts.get(word) ?? 0) + 1);
@@ -284,14 +627,15 @@ function keywordCountsFromBadges(badges: BadgeRow[]) {
 
 function pickTopKey(counts: Map<string, number> | undefined | null) {
   if (!counts || !counts.size) return null;
-  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+    null;
 }
 
 function buildEvidenceEntries(badges: BadgeRow[]): EvidenceEntry[] {
   return badges
     .map((b) => {
-      const title = normalizeText(b.title);
-      const details = normalizeText(b.details);
+      const title = normalizedBadgeTitle(b);
+      const details = normalizedBadgeDetails(b);
       if (!title && !details) return null;
 
       const parts: string[] = [];
@@ -299,7 +643,9 @@ function buildEvidenceEntries(badges: BadgeRow[]): EvidenceEntry[] {
       if (datePart) parts.push(datePart);
       if (title) parts.push(title);
       if (details) parts.push(details);
-      const tags = b.tags?.length ? `tags: ${b.tags.join(", ")}` : "";
+      const tags = contentTags(b).length
+        ? `tags: ${contentTags(b).join(", ")}`
+        : "";
       if (tags) parts.push(tags);
       const line = parts.join(" - ").trim();
       const hasDetails = !!details;
@@ -368,17 +714,25 @@ function selectEvidence(entries: EvidenceEntry[], window: DecanWindow) {
     for (const entry of remaining) {
       if (selected.size >= MAX_EVIDENCE) break;
       selected.add(entry);
-      if (selected.size >= MIN_EVIDENCE && selected.size >= entries.length) break;
+      if (selected.size >= MIN_EVIDENCE && selected.size >= entries.length) {
+        break;
+      }
     }
   }
 
   return Array.from(selected).sort((a, b) => {
-    if (a.occurredOn !== b.occurredOn) return a.occurredOn.localeCompare(b.occurredOn);
+    if (a.occurredOn !== b.occurredOn) {
+      return a.occurredOn.localeCompare(b.occurredOn);
+    }
     return b.score - a.score;
   });
 }
 
-function computeMetrics(badges: BadgeRow[], window: DecanWindow, evidenceCount: number): Metrics {
+function computeMetrics(
+  badges: BadgeRow[],
+  window: DecanWindow,
+  evidenceCount: number,
+): Metrics {
   const badgeCount = badges.length;
   const daySet = new Set<string>();
   let badgesWithDetails = 0;
@@ -387,13 +741,18 @@ function computeMetrics(badges: BadgeRow[], window: DecanWindow, evidenceCount: 
 
   for (const b of badges) {
     if (b.occurred_on) daySet.add(b.occurred_on);
-    if (normalizeText(b.details)) badgesWithDetails++;
-    progressMarkersCount += countProgressMarkers(`${normalizeText(b.title)} ${normalizeText(b.details)}`);
-    refinementHits += countRefinementHits(`${normalizeText(b.title)} ${normalizeText(b.details)}`);
+    if (normalizedBadgeDetails(b)) badgesWithDetails++;
+    const text = badgeKeywordText(b);
+    progressMarkersCount += countProgressMarkers(text);
+    refinementHits += countRefinementHits(text);
   }
 
   const tagStr = topTags(badges);
-  const tagList = tagStr ? tagStr.split(",").map((t) => t.replace(/\(\d+\)$/, "").trim()).filter(Boolean) : [];
+  const tagList = tagStr
+    ? tagStr.split(",").map((t) => t.replace(/\(\d+\)$/, "").trim()).filter(
+      Boolean,
+    )
+    : [];
 
   const keywordCounts = keywordCountsFromBadges(badges);
   const topKeyword = pickTopKey(keywordCounts);
@@ -413,15 +772,23 @@ function computeMetrics(badges: BadgeRow[], window: DecanWindow, evidenceCount: 
     const day = b.occurred_on ? parseDateOnly(b.occurred_on) : start;
     const offset = daysBetween(start, day);
     const targetMap = offset <= midPoint ? earlyCounts : lateCounts;
-    const text = `${normalizeText(b.title)} ${normalizeText(b.details)}`.toLowerCase();
+    const text = badgeKeywordText(b).toLowerCase();
     if (offset <= midPoint) {
-      if (EARLY_RESEARCH_TERMS.some((t) => text.includes(t))) earlyResearch = true;
-      if (LATE_PRACTICE_TERMS.some((t) => text.includes(t))) earlyPractice = true;
+      if (EARLY_RESEARCH_TERMS.some((t) => text.includes(t))) {
+        earlyResearch = true;
+      }
+      if (LATE_PRACTICE_TERMS.some((t) => text.includes(t))) {
+        earlyPractice = true;
+      }
     } else {
-      if (LATE_PRACTICE_TERMS.some((t) => text.includes(t))) latePractice = true;
-      if (EARLY_RESEARCH_TERMS.some((t) => text.includes(t))) lateResearch = true;
+      if (LATE_PRACTICE_TERMS.some((t) => text.includes(t))) {
+        latePractice = true;
+      }
+      if (EARLY_RESEARCH_TERMS.some((t) => text.includes(t))) {
+        lateResearch = true;
+      }
     }
-    const tags = b.tags ?? [];
+    const tags = contentTags(b);
     if (tags.length) {
       for (const t of tags) {
         const key = normalizeText(t).toLowerCase();
@@ -429,7 +796,7 @@ function computeMetrics(badges: BadgeRow[], window: DecanWindow, evidenceCount: 
         targetMap.set(key, (targetMap.get(key) ?? 0) + 1);
       }
     } else {
-      const words = `${normalizeText(b.title)} ${normalizeText(b.details)}`
+      const words = badgeKeywordText(b)
         .toLowerCase()
         .split(/[^a-z]+/)
         .filter((w) => w.length >= 4 && !STOP_WORDS.has(w));
@@ -442,8 +809,11 @@ function computeMetrics(badges: BadgeRow[], window: DecanWindow, evidenceCount: 
   const earlyTopThread = pickTopKey(earlyCounts);
   const lateTopThread = pickTopKey(lateCounts);
 
-  const detailsCoverage = badgeCount === 0 ? 0 : Math.round((badgesWithDetails / badgeCount) * 100);
-  const arcSignals = (earlyResearch && latePractice) || (earlyPractice && lateResearch);
+  const detailsCoverage = badgeCount === 0
+    ? 0
+    : Math.round((badgesWithDetails / badgeCount) * 100);
+  const arcSignals = (earlyResearch && latePractice) ||
+    (earlyPractice && lateResearch);
   const clusteredEffort = badgeCount >= 5 && daySet.size <= 3;
 
   return {
@@ -473,7 +843,9 @@ function buildHistoryComparisons(current: Metrics, history: HistoryMetrics[]) {
       deltas.push(`active days ${h.daysActive} -> ${current.daysActive}`);
     }
     if (h.progressMarkersCount !== current.progressMarkersCount) {
-      deltas.push(`refinement marks ${h.progressMarkersCount} -> ${current.progressMarkersCount}`);
+      deltas.push(
+        `refinement marks ${h.progressMarkersCount} -> ${current.progressMarkersCount}`,
+      );
     }
     if (h.topThread && current.topThread && h.topThread !== current.topThread) {
       deltas.push(`thread shift ${h.topThread} -> ${current.topThread}`);
@@ -486,11 +858,18 @@ function buildHistoryComparisons(current: Metrics, history: HistoryMetrics[]) {
   return lines;
 }
 
-function computeFallbackMetrics(evidenceLines: string[], badgeCount: number, topTags: string[]): Metrics {
+function computeFallbackMetrics(
+  evidenceLines: string[],
+  badgeCount: number,
+  topTags: string[],
+): Metrics {
   const combined = evidenceLines.join(" ");
   const progressMarkersCount = countProgressMarkers(combined);
   const refinementHits = countRefinementHits(combined);
-  const daysActive = Math.min(badgeCount, Math.max(1, Math.floor(badgeCount / 2)));
+  const daysActive = Math.min(
+    badgeCount,
+    Math.max(1, Math.floor(badgeCount / 2)),
+  );
   const clusteredEffort = badgeCount >= 5 && daysActive <= 3;
 
   return {
@@ -544,11 +923,14 @@ function disciplineClustersFromText(texts: string[]) {
     .map(([bucket]) => bucket);
 }
 
-function repetitionScoreFromBadges(badges: BadgeRow[], window: DecanWindow | undefined) {
+function repetitionScoreFromBadges(
+  badges: BadgeRow[],
+  window: DecanWindow | undefined,
+) {
   if (!badges.length) return { score: 1, repeatedTitles: [], diversity: 0 };
   const map = new Map<string, Set<string>>();
   for (const b of badges) {
-    const title = normalizeText(b.title).toLowerCase();
+    const title = normalizedBadgeTitle(b).toLowerCase();
     if (!title) continue;
     const day = b.occurred_on ?? window?.start ?? "";
     if (!map.has(title)) map.set(title, new Set<string>());
@@ -561,10 +943,17 @@ function repetitionScoreFromBadges(badges: BadgeRow[], window: DecanWindow | und
     if (size > maxCount) maxCount = size;
     if (size > 1) repeated.push(title);
   }
-  return { score: maxCount, repeatedTitles: repeated.slice(0, 3), diversity: map.size };
+  return {
+    score: maxCount,
+    repeatedTitles: repeated.slice(0, 3),
+    diversity: map.size,
+  };
 }
 
-function progressionFromBadges(badges: BadgeRow[], window: DecanWindow | undefined) {
+function progressionFromBadges(
+  badges: BadgeRow[],
+  window: DecanWindow | undefined,
+) {
   if (!badges.length || !window) return null;
   const start = parseDateOnly(window.start);
   const end = parseDateOnly(window.end);
@@ -575,7 +964,7 @@ function progressionFromBadges(badges: BadgeRow[], window: DecanWindow | undefin
   let lateExecution = 0;
 
   for (const b of badges) {
-    const text = `${normalizeText(b.title)} ${normalizeText(b.details)}`.toLowerCase();
+    const text = badgeKeywordText(b).toLowerCase();
     const day = b.occurred_on ? parseDateOnly(b.occurred_on) : start;
     const offset = daysBetween(start, day);
     const isEarly = offset <= mid;
@@ -605,13 +994,15 @@ function computeV3Signals(
   topTags: string[],
 ): V3Signals {
   let metrics: Metrics;
-  let anchors: string[] = badges.length ? extractAnchors(badges) : extractAnchorsFromText(evidenceLines);
+  let anchors: string[] = badges.length
+    ? extractAnchors(badges)
+    : extractAnchorsFromText(evidenceLines);
   const texts: string[] = [];
 
   if (badges.length && window) {
     metrics = computeMetrics(badges, window, evidenceLines.length);
     for (const b of badges) {
-      texts.push(`${normalizeText(b.title)} ${normalizeText(b.details)}`);
+      texts.push(badgeKeywordText(b));
     }
   } else {
     metrics = computeFallbackMetrics(evidenceLines, badgeCount, topTags);
@@ -620,8 +1011,12 @@ function computeV3Signals(
 
   const dominantVerbs = dominantVerbsFromText(texts);
   const disciplineClusters = disciplineClustersFromText(texts);
-  const repetitionData = badges.length ? repetitionScoreFromBadges(badges, window) : { score: 1, repeatedTitles: [], diversity: texts.length };
-  const progression = badges.length ? progressionFromBadges(badges, window) : null;
+  const repetitionData = badges.length
+    ? repetitionScoreFromBadges(badges, window)
+    : { score: 1, repeatedTitles: [], diversity: texts.length };
+  const progression = badges.length
+    ? progressionFromBadges(badges, window)
+    : null;
 
   return {
     metrics,
@@ -660,18 +1055,30 @@ function extractAnchors(badges: BadgeRow[]): string[] {
     "drill",
     "drills",
   ];
-  const artifactPhrases = ["brand story", "supplier", "samples", "materials", "sources", "credible sources"];
+  const artifactPhrases = [
+    "brand story",
+    "supplier",
+    "samples",
+    "materials",
+    "sources",
+    "credible sources",
+  ];
 
-  type AnchorCandidate = { phrase: string; type: "number" | "drill" | "artifact" | "refine" | "other"; order: number };
+  type AnchorCandidate = {
+    phrase: string;
+    type: "number" | "drill" | "artifact" | "refine" | "other";
+    order: number;
+  };
   const candidates: AnchorCandidate[] = [];
   const seen = new Set<string>();
 
   badges.forEach((b, idx) => {
-    const text = `${normalizeText(b.title)} ${normalizeText(b.details)}`.toLowerCase();
+    const text = badgeKeywordText(b).toLowerCase();
     if (!text.trim()) return;
 
     // Numbers + units
-    const numRegex = /(\d+)\s+(makes?|minutes?|rounds?|sources?|laps?|reps?|hours?|pages?|miles?|km|sets?)/g;
+    const numRegex =
+      /(\d+)\s+(makes?|minutes?|rounds?|sources?|laps?|reps?|hours?|pages?|miles?|km|sets?)/g;
     let m: RegExpExecArray | null;
     while ((m = numRegex.exec(text)) !== null) {
       const phrase = `${m[1]} ${m[2]}`.trim();
@@ -711,12 +1118,22 @@ function extractAnchors(badges: BadgeRow[]): string[] {
       const key = "refine:adjust-repeat-measure";
       if (!seen.has(key)) {
         seen.add(key);
-        candidates.push({ phrase: "adjust / repeat / measure", type: "refine", order: idx });
+        candidates.push({
+          phrase: "adjust / repeat / measure",
+          type: "refine",
+          order: idx,
+        });
       }
     }
   });
 
-  const buckets: Record<string, AnchorCandidate[]> = { number: [], drill: [], artifact: [], refine: [], other: [] };
+  const buckets: Record<string, AnchorCandidate[]> = {
+    number: [],
+    drill: [],
+    artifact: [],
+    refine: [],
+    other: [],
+  };
   for (const c of candidates) {
     (buckets[c.type] ?? buckets.other).push(c);
   }
@@ -752,8 +1169,20 @@ function extractAnchors(badges: BadgeRow[]): string[] {
 function extractAnchorsFromText(texts: string[]): string[] {
   const candidates: string[] = [];
   const seen = new Set<string>();
-  const numberRegex = /(\d+\s+(?:makes?|minutes?|rounds?|sources?|laps?|reps?|hours?|pages?|miles?|km|sets?))/gi;
-  const verbPhrases = ["adjust", "repeat", "measure", "track", "focus", "drill", "form", "footwork", "debate", "sources"];
+  const numberRegex =
+    /(\d+\s+(?:makes?|minutes?|rounds?|sources?|laps?|reps?|hours?|pages?|miles?|km|sets?))/gi;
+  const verbPhrases = [
+    "adjust",
+    "repeat",
+    "measure",
+    "track",
+    "focus",
+    "drill",
+    "form",
+    "footwork",
+    "debate",
+    "sources",
+  ];
 
   texts.forEach((line) => {
     const lower = line.toLowerCase();
@@ -772,7 +1201,10 @@ function extractAnchorsFromText(texts: string[]): string[] {
       if (idx !== -1) {
         const words = lower.split(/\s+/);
         const hitIdx = words.findIndex((w) => w.includes(verb));
-        const window = words.slice(Math.max(0, hitIdx - 2), Math.min(words.length, hitIdx + 4));
+        const window = words.slice(
+          Math.max(0, hitIdx - 2),
+          Math.min(words.length, hitIdx + 4),
+        );
         const phrase = window.join(" ").trim();
         if (phrase && !seen.has(phrase)) {
           seen.add(phrase);
@@ -796,7 +1228,12 @@ function sanitizeWindows(windows?: DecanWindow[]) {
     }));
 }
 
-async function fetchBadges(client: ReturnType<typeof createClient>, userId: string, start: string, end: string) {
+async function fetchBadges(
+  client: any,
+  userId: string,
+  start: string,
+  end: string,
+) {
   const { data, error } = await client
     .from("journal_badges")
     .select("title, details, tags, occurred_on, flow_id, event_id")
@@ -810,7 +1247,7 @@ async function fetchBadges(client: ReturnType<typeof createClient>, userId: stri
 }
 
 async function fetchHistoricalWindows(
-  client: ReturnType<typeof createClient>,
+  client: any,
   userId: string,
   currentStart: string,
   requested?: DecanWindow[],
@@ -831,14 +1268,21 @@ async function fetchHistoricalWindows(
     return [];
   }
 
-  return (data ?? []).map((row: { decan_start: string; decan_end: string }, idx: number) => ({
+  return (data ?? []).map((
+    row: { decan_start: string; decan_end: string },
+    idx: number,
+  ) => ({
     name: `Past decan ${idx + 1}`,
     start: row.decan_start,
     end: row.decan_end,
   }));
 }
 
-function buildSummary(badges: BadgeRow[], window: DecanWindow, label: string): Summary {
+function buildSummary(
+  badges: BadgeRow[],
+  window: DecanWindow,
+  label: string,
+): Summary {
   if (!badges.length) {
     return {
       label,
@@ -856,9 +1300,11 @@ function buildSummary(badges: BadgeRow[], window: DecanWindow, label: string): S
   const snippets = badges
     .slice(0, 4)
     .map((b) => {
-      const title = normalizeText(b.title);
-      const details = normalizeText(b.details);
-      const base = title || details ? `${title}${title && details ? " - " : ""}${details}` : "";
+      const title = normalizedBadgeTitle(b);
+      const details = normalizedBadgeDetails(b);
+      const base = title || details
+        ? `${title}${title && details ? " - " : ""}${details}`
+        : "";
       return base.trim().slice(0, 140);
     })
     .filter((s) => s.length > 0);
@@ -866,7 +1312,9 @@ function buildSummary(badges: BadgeRow[], window: DecanWindow, label: string): S
   return {
     label,
     badgeCount: badges.length,
-    tags: tagSummary ? tagSummary.split(", ").map((t) => t.trim()).filter(Boolean) : [],
+    tags: tagSummary
+      ? tagSummary.split(", ").map((t) => t.trim()).filter(Boolean)
+      : [],
     cadence: `${firstDate} -> ${lastDate}`,
     snippets,
   };
@@ -875,15 +1323,17 @@ function buildSummary(badges: BadgeRow[], window: DecanWindow, label: string): S
 function buildEvidenceLines(badges: BadgeRow[]) {
   return badges
     .map((b) => {
-      const title = normalizeText(b.title);
-      const details = normalizeText(b.details);
+      const title = normalizedBadgeTitle(b);
+      const details = normalizedBadgeDetails(b);
       if (!title && !details) return null; // skip if no usable content
 
       const parts: string[] = [];
       parts.push(b.occurred_on);
       if (title) parts.push(title);
       if (details) parts.push(details);
-      const tags = b.tags?.length ? `tags: ${b.tags.join(", ")}` : "";
+      const tags = contentTags(b).length
+        ? `tags: ${contentTags(b).join(", ")}`
+        : "";
       if (tags) parts.push(tags);
       const line = parts.join(" - ").trim();
       return line.length ? line : null;
@@ -898,37 +1348,60 @@ function buildEvidenceLinesLegacy(titles: string[]) {
     .map((t) => `badge: ${t}`);
 }
 
-function buildAnthropicPrompt(payload: ReflectionPayload, badgeLines: string[], topTags: string[], historySummaries: Summary[]) {
-  const header = `SCOPE: This reflection is for ONE DECAN ONLY (about 10 days within the month), not the full month. All evidence below is from this decan only. Reflect only on this period.
+function buildAnthropicPrompt(
+  payload: ReflectionPayload,
+  badges: BadgeRow[],
+  badgeLines: string[],
+  topTags: string[],
+  historySummaries: Summary[],
+) {
+  const header =
+    `SCOPE: This reflection is for ONE DECAN ONLY (about 10 days within the month), not the full month. All evidence below is from this decan only. Reflect only on this period.
 
 Decan: ${payload.decan_name}
 Theme: ${payload.decan_theme ?? ""}
-Decan window (exact date range): ${payload.decan_start ?? ""} to ${payload.decan_end ?? ""}`;
+Decan window (exact date range): ${payload.decan_start ?? ""} to ${
+      payload.decan_end ?? ""
+    }`;
 
-  const tagsLine = topTags.length ? `Top tags: ${topTags.join(", ")}` : "Top tags: none";
+  const plannerSummaryLine = buildPlannerSummaryLine(
+    buildPlannerSummary(badges),
+  );
+  const tagsLine = topTags.length
+    ? `Top tags: ${topTags.join(", ")}`
+    : "Top tags: none";
+  const plannerBlock = plannerSummaryLine.length
+    ? `PLANNER COMPLETIONS (checked-off to-dos and nutrition count as real evidence): ${plannerSummaryLine}`
+    : "PLANNER COMPLETIONS: none";
   const evidenceBlock = badgeLines.length
-    ? `BADGE EVIDENCE (use all of it; do not invent):
+    ? `BADGE EVIDENCE (journal badges plus checked-off planner items; use all of it; do not invent):
 ${badgeLines.join("\n")}`
     : "BADGE EVIDENCE: none";
 
   const historyBlock = historySummaries.length
     ? `PAST DECANS (each is a different 10-day decan, not a full month):
-${historySummaries
-      .map(
-        (h) =>
-          `- ${h.label} (${h.cadence})${h.tags.length ? ` | Tags: ${h.tags.join(", ")}` : ""}. What they marked: ${
-            h.snippets.length ? h.snippets.join(" | ") : "—"
-          }`,
-      )
-      .join("\n")}`
+${
+      historySummaries
+        .map(
+          (h) =>
+            `- ${h.label} (${h.cadence})${
+              h.tags.length ? ` | Tags: ${h.tags.join(", ")}` : ""
+            }. What they marked: ${
+              h.snippets.length ? h.snippets.join(" | ") : "—"
+            }`,
+        )
+        .join("\n")
+    }`
     : "PAST DECANS: none";
 
-  const instructions = `Write a reflection in 80-120 words. Be concise. Reflect only on this decan. Weave in 2-3 specific details from the badge evidence above (their phrases, numbers, or activity names) so the user feels recognized. Do not generalize (e.g. avoid "across a range of disciplines" unless the evidence shows it). Note trajectory and connect to the theme; end with one clear next step grounded in what they did. Non-judgmental, warm tone. Goal: they feel seen and inspired. No bullets, no metadata. If history is present, cite progress only when the evidence supports it.`;
+  const instructions =
+    `Write a reflection in 80-120 words. Be concise. Reflect only on this decan. Treat journal badges, checked-off to-dos, and checked-off nutrition as equally valid evidence. Weave in 2-3 specific details from the evidence above (their phrases, numbers, task names, or nutrition names) so the user feels recognized. Do not generalize (e.g. avoid "across a range of disciplines" unless the evidence shows it). Note trajectory and connect to the theme; end with one clear next step grounded in what they did. Non-judgmental, warm tone. Goal: they feel seen and inspired. No bullets, no metadata. If history is present, cite progress only when the evidence supports it.`;
 
   return `${instructions}
 
 ${header}
 ${tagsLine}
+${plannerBlock}
 ${evidenceBlock}
 ${historyBlock}`;
 }
@@ -950,7 +1423,10 @@ async function callAnthropic(messages: AnthropicMessage[]) {
       max_tokens: 300,
       temperature: 0.35,
       system: messages.find((m) => m.role === "system")?.content ?? "",
-      messages: messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.content })),
+      messages: messages.filter((m) => m.role !== "system").map((m) => ({
+        role: m.role,
+        content: m.content,
+      })),
     }),
   });
 
@@ -964,30 +1440,171 @@ async function callAnthropic(messages: AnthropicMessage[]) {
   return { text: content.trim(), modelUsed: data?.model ?? model };
 }
 
+function buildPlannerFocusedReflection(
+  payload: ReflectionPayload,
+  badgeCount: number,
+  evidenceCount: number,
+  topTags: string[],
+  plannerSummary: PlannerSummary,
+  branch: "decan" | "legacy",
+) {
+  const completedPlannerCount = plannerSummary.todoDone +
+    plannerSummary.nutritionDone;
+  const partialPlannerCount = plannerSummary.todoPartial +
+    plannerSummary.nutritionPartial;
+  const skippedPlannerCount = plannerSummary.todoSkipped +
+    plannerSummary.nutritionSkipped;
+  const themeName = payload.decan_name ?? payload.decan_theme ?? "this decan";
+  const axis = resolveThemeAxis(themeName);
+  const shortTheme = themeName.split("—")[0].split("-")[0].trim();
+
+  let blockA = "";
+  if (completedPlannerCount > 0) {
+    const completedParts: string[] = [];
+    if (plannerSummary.todoDone) {
+      completedParts.push(
+        `${plannerSummary.todoDone} completed ${
+          pluralize(plannerSummary.todoDone, "to-do")
+        }`,
+      );
+    }
+    if (plannerSummary.nutritionDone) {
+      completedParts.push(
+        `${plannerSummary.nutritionDone} completed nutrition ${
+          pluralize(plannerSummary.nutritionDone, "item")
+        }`,
+      );
+    }
+    blockA = `Follow-through had a visible shape this decan. You logged ${
+      completedParts.join(" and ")
+    }.`;
+  } else if (partialPlannerCount > 0) {
+    blockA =
+      `The planner itself became evidence this decan. You kept ${partialPlannerCount} ${
+        pluralize(partialPlannerCount, "planner mark")
+      } in motion, even when they stayed partial.`;
+  } else {
+    blockA =
+      `This decan showed its shape through what you tracked and what you had to set down. Even skipped marks told the truth about the rhythm.`;
+  }
+
+  const examples: string[] = [];
+  if (plannerSummary.todoExamples.length) {
+    examples.push(
+      `Tasks like ${
+        joinExamples(plannerSummary.todoExamples)
+      } moved from intention into record.`,
+    );
+  }
+  if (plannerSummary.nutritionExamples.length) {
+    examples.push(
+      `Nutrition stayed in the pattern through ${
+        joinExamples(plannerSummary.nutritionExamples)
+      }.`,
+    );
+  }
+  if (plannerSummary.journalExamples.length) {
+    examples.push(
+      `Your journal still pointed toward ${
+        joinExamples(plannerSummary.journalExamples)
+      }.`,
+    );
+  }
+  const blockB = examples.length
+    ? examples.join(" ")
+    : "The marks were simple, but they still made the decan legible.";
+
+  let blockC = "";
+  if (axis) {
+    if (axis.primary.includes("stabilization")) {
+      blockC = `${shortTheme}: form before speed, alignment before expansion.`;
+    } else if (axis.primary.includes("ignition")) {
+      blockC = `${shortTheme}: initiative mattered more than hesitation.`;
+    } else if (axis.primary.includes("replenishment")) {
+      blockC = `${shortTheme}: replenishment mattered more than overdrive.`;
+    } else if (axis.primary.includes("consolidation")) {
+      blockC = `${shortTheme}: consolidation mattered more than sprawl.`;
+    } else {
+      blockC = `${shortTheme}: more ${axis.primary} than ${axis.contrast}.`;
+    }
+  } else if (completedPlannerCount > 0) {
+    blockC =
+      "Progress came from keeping practical promises, not from adding more variety.";
+  } else {
+    blockC =
+      "Even partial follow-through can clarify what is ready to stay and what needs a simpler shape.";
+  }
+
+  let blockD = "";
+  if (partialPlannerCount > 0) {
+    blockD =
+      "Next decan, keep the same practical thread and finish one partial mark before adding another.";
+  } else if (skippedPlannerCount > 0) {
+    blockD =
+      "Next decan, protect one task and one nutrition check-in that are small enough to survive the days that usually slip.";
+  } else {
+    blockD =
+      "Next decan, protect one task and one nutrition check-in long enough for them to feel automatic.";
+  }
+
+  const question = "Which practical rhythm deserves protection next decan?";
+
+  return {
+    reflection: [blockA, blockB, blockC, blockD, question].filter(Boolean)
+      .join("\n\n"),
+    modelUsed: branch === "decan" ? "local-generator-v2" : "local-legacy-v2",
+    badgeCount,
+    evidenceCount,
+    topTags,
+    branch,
+  };
+}
+
 function buildV2Reflection(
   payload: ReflectionPayload,
   badgeCount: number,
   evidenceLines: string[],
   topTags: string[],
   branch: "decan" | "legacy",
-  options?: { badges?: BadgeRow[]; window?: DecanWindow; history?: HistoryMetrics[] },
+  options?: {
+    badges?: BadgeRow[];
+    window?: DecanWindow;
+    history?: HistoryMetrics[];
+  },
 ) {
   const evidenceCount = evidenceLines.length;
+  const badges = options?.badges ?? [];
+  const plannerSummary = buildPlannerSummary(badges);
 
   if (badgeCount === 0) {
     return {
-      reflection: `No badges landed this decan. Mark one small action tomorrow so the next reflection has something real to read.`,
+      reflection:
+        `No badges landed this decan. Mark one small action tomorrow so the next reflection has something real to read.`,
       modelUsed: branch === "decan" ? "local-generator-v2" : "local-legacy-v2",
       badgeCount,
       evidenceCount,
       topTags,
       branch,
     };
+  }
+
+  if (
+    plannerSummary.total >= Math.max(2, Math.ceil(badgeCount / 2))
+  ) {
+    return buildPlannerFocusedReflection(
+      payload,
+      badgeCount,
+      evidenceCount,
+      topTags,
+      plannerSummary,
+      branch,
+    );
   }
 
   if (evidenceCount < 2) {
     return {
-      reflection: `Badges exist but details are thin. Capture at least two badges next decan with clear titles and short notes so the trajectory is measurable.`,
+      reflection:
+        `Badges exist but details are thin. Capture at least two badges next decan with clear titles and short notes so the trajectory is measurable.`,
       modelUsed: branch === "decan" ? "local-generator-v2" : "local-legacy-v2",
       badgeCount,
       evidenceCount,
@@ -996,30 +1613,52 @@ function buildV2Reflection(
     };
   }
 
-  const badges = options?.badges ?? [];
   const window = options?.window;
-  const signals = computeV3Signals(badges, window, evidenceLines, badgeCount, topTags);
-  const windowDays = window ? daysBetween(parseDateOnly(window.start), parseDateOnly(window.end)) + 1 : Math.max(signals.metrics.daysActive, 1);
-  const anchorList = signals.anchors.slice(0, Math.max(3, Math.min(4, signals.anchors.length)));
+  const signals = computeV3Signals(
+    badges,
+    window,
+    evidenceLines,
+    badgeCount,
+    topTags,
+  );
+  const windowDays = window
+    ? daysBetween(parseDateOnly(window.start), parseDateOnly(window.end)) + 1
+    : Math.max(signals.metrics.daysActive, 1);
+  const anchorList = signals.anchors.slice(
+    0,
+    Math.max(3, Math.min(4, signals.anchors.length)),
+  );
   const anchorText = anchorList.length === 1
     ? anchorList[0]
     : anchorList.length === 2
-      ? `${anchorList[0]} and ${anchorList[1]}`
-      : anchorList.length >= 3
-        ? `${anchorList[0]}, ${anchorList[1]}, and ${anchorList[2]}`
-        : "";
+    ? `${anchorList[0]} and ${anchorList[1]}`
+    : anchorList.length >= 3
+    ? `${anchorList[0]}, ${anchorList[1]}, and ${anchorList[2]}`
+    : "";
 
   const thinDetails = signals.metrics.detailsCoverage < 30;
   const scattered = signals.diversityScore >= 5 && !signals.metrics.topThread;
-  const highConsistency = signals.metrics.daysActive >= Math.max(2, Math.floor(windowDays * 0.6));
-  const highRefinement = signals.metrics.refinementHits >= 3 || signals.metrics.progressMarkersCount >= 3 || signals.repetitionScore >= 2;
+  const highConsistency =
+    signals.metrics.daysActive >= Math.max(2, Math.floor(windowDays * 0.6));
+  const highRefinement = signals.metrics.refinementHits >= 3 ||
+    signals.metrics.progressMarkersCount >= 3 || signals.repetitionScore >= 2;
   const clusteredEffort = signals.metrics.clusteredEffort;
   const theoryToApplication = signals.progression === "theory_to_application";
-  const intentionalExecution = signals.metrics.detailsCoverage >= 60 && !scattered;
-  const explorationPhase = scattered || signals.dominantVerbs.includes("explore") || signals.disciplineClusters.length >= 2;
-  const mainAnchor = signals.metrics.topThread ?? signals.repeatedTitles[0] ?? anchorList[0] ?? "one thread";
+  const intentionalExecution = signals.metrics.detailsCoverage >= 60 &&
+    !scattered;
+  const explorationPhase = scattered ||
+    signals.dominantVerbs.includes("explore") ||
+    signals.disciplineClusters.length >= 2;
+  const mainAnchor = signals.metrics.topThread ?? signals.repeatedTitles[0] ??
+    anchorList[0] ?? "one thread";
 
-  let trajectoryLabel: "theory_to_application" | "refinement" | "intentional_execution" | "exploration" | "clustered" | "steady";
+  let trajectoryLabel:
+    | "theory_to_application"
+    | "refinement"
+    | "intentional_execution"
+    | "exploration"
+    | "clustered"
+    | "steady";
   if (theoryToApplication) {
     trajectoryLabel = "theory_to_application";
   } else if (highRefinement) {
@@ -1038,46 +1677,42 @@ function buildV2Reflection(
   let blockA = "";
   switch (trajectoryLabel) {
     case "theory_to_application":
-      blockA = `You moved from gathering to doing - exploration turned into execution${anchorText ? ` inside ${anchorText}` : ""}. You stopped chasing expansion and started tightening fundamentals.`;
+      blockA =
+        `You moved from gathering to doing - exploration turned into execution${
+          anchorText ? ` inside ${anchorText}` : ""
+        }. You stopped chasing expansion and started tightening fundamentals.`;
       break;
     case "refinement":
-      blockA = `You didn't chase variety this decan; you chased refinement${anchorText ? ` through ${anchorText}` : ""}. Not expansion - tightening fundamentals.`;
+      blockA = `You didn't chase variety this decan; you chased refinement${
+        anchorText ? ` through ${anchorText}` : ""
+      }. Not expansion - tightening fundamentals.`;
       break;
     case "intentional_execution":
-      blockA = `Intentional execution showed up - details stayed sharp${anchorText ? ` in ${anchorText}` : ""}.`;
+      blockA = `Intentional execution showed up - details stayed sharp${
+        anchorText ? ` in ${anchorText}` : ""
+      }.`;
       break;
     case "exploration":
-      blockA = `You sampled multiple threads${anchorText ? ` (${anchorText})` : ""}. Exploration is fine; name one thread to carry forward.`;
+      blockA = `You sampled multiple threads${
+        anchorText ? ` (${anchorText})` : ""
+      }. Exploration is fine; name one thread to carry forward.`;
       break;
     case "clustered":
-      blockA = `Effort came in deep bursts - few active days, many marks${anchorText ? `, grounded in ${anchorText}` : ""}.`;
+      blockA = `Effort came in deep bursts - few active days, many marks${
+        anchorText ? `, grounded in ${anchorText}` : ""
+      }.`;
       break;
     default:
-      blockA = `Attention had a clear shape${anchorText ? ` - ${anchorText}` : ""}.`;
+      blockA = `Attention had a clear shape${
+        anchorText ? ` - ${anchorText}` : ""
+      }.`;
       break;
   }
   if (!anchorText) {
-    blockA += " Add one concrete number or phrase next decan so we can name what you are building.";
+    blockA +=
+      " Add one concrete number or phrase next decan so we can name what you are building.";
   }
 
-  // Block B: theme lens
-  function resolveThemeAxis(name?: string | null) {
-    if (!name) return null;
-    const lower = name.toLowerCase();
-    if (lower.includes("foreleg") || lower.includes("mswt")) {
-      return { primary: "stabilization and form", contrast: "expansion" };
-    }
-    if (lower.includes("birth of ra") || lower.includes("ra")) {
-      return { primary: "ignition and initiative", contrast: "hesitation" };
-    }
-    if (lower.includes("inundation") || lower.includes("flood")) {
-      return { primary: "replenishment", contrast: "overdrive" };
-    }
-    if (lower.includes("harvest")) {
-      return { primary: "consolidation and integration", contrast: "sprawl" };
-    }
-    return null;
-  }
   const axis = resolveThemeAxis(payload.decan_name ?? payload.decan_theme);
   let blockB = "";
   const themeName = payload.decan_name ?? payload.decan_theme ?? "this decan";
@@ -1095,19 +1730,29 @@ function buildV2Reflection(
       blockB = `${shortTheme}: more ${axis.primary} than ${axis.contrast}.`;
     }
   } else {
-    blockB = highConsistency ? "Order came from steadiness, not variety." : "Let order do the work more than variety.";
+    blockB = highConsistency
+      ? "Order came from steadiness, not variety."
+      : "Let order do the work more than variety.";
   }
 
   // Block C: growth + intent
   let blockC = "";
   if (theoryToApplication) {
-    blockC = `You moved from exploration into tightening${anchorText ? ` on ${anchorText}` : ""}. Quiet, durable growth.`;
-  } else if (highRefinement && signals.metrics.detailsCoverage >= 50 && signals.diversityScore <= 3) {
-    blockC = `You kept returning to ${mainAnchor}, adjusting instead of adding more. You are building leverage, not activity.`;
+    blockC = `You moved from exploration into tightening${
+      anchorText ? ` on ${anchorText}` : ""
+    }. Quiet, durable growth.`;
+  } else if (
+    highRefinement && signals.metrics.detailsCoverage >= 50 &&
+    signals.diversityScore <= 3
+  ) {
+    blockC =
+      `You kept returning to ${mainAnchor}, adjusting instead of adding more. You are building leverage, not activity.`;
   } else if (intentionalExecution) {
-    blockC = "Precision beat volume this decan. That's a durable kind of progress.";
+    blockC =
+      "Precision beat volume this decan. That's a durable kind of progress.";
   } else if (explorationPhase) {
-    blockC = "Exploration set the table; naming one thread will let growth land.";
+    blockC =
+      "Exploration set the table; naming one thread will let growth land.";
   } else {
     blockC = "Pattern is solid; repetition is already carrying you forward.";
   }
@@ -1115,22 +1760,35 @@ function buildV2Reflection(
   // Block D: direction
   let blockD = "";
   if (thinDetails) {
-    blockD = "Next decan, write two badges with clear titles and one sentence each. Include one number and one quality cue so movement is trackable.";
+    blockD =
+      "Next decan, write two badges with clear titles and one sentence each. Include one number and one quality cue so movement is trackable.";
   } else if (scattered && signals.metrics.topThread) {
-    blockD = `Choose ${signals.metrics.topThread} as the anchor for 10 days. Track one number and one cue each time; drop the rest temporarily.`;
+    blockD =
+      `Choose ${signals.metrics.topThread} as the anchor for 10 days. Track one number and one cue each time; drop the rest temporarily.`;
   } else if (scattered) {
-    blockD = `Choose the thread that appeared most - ${mainAnchor} - and run it for 10 days. Track one number and one cue; pause the rest.`;
+    blockD =
+      `Choose the thread that appeared most - ${mainAnchor} - and run it for 10 days. Track one number and one cue; pause the rest.`;
   } else if (clusteredEffort) {
-    blockD = "Keep the deep bursts but schedule three touch points. Each time, log one number and one cue so the pattern holds.";
+    blockD =
+      "Keep the deep bursts but schedule three touch points. Each time, log one number and one cue so the pattern holds.";
   } else if (highRefinement || theoryToApplication) {
-    blockD = `Stay with one drill or discipline daily - ${mainAnchor}. Track one number (minutes/makes/rounds) and one cue (balance/control/clarity).`;
+    blockD =
+      `Stay with one drill or discipline daily - ${mainAnchor}. Track one number (minutes/makes/rounds) and one cue (balance/control/clarity).`;
   } else {
-    blockD = `Choose one discipline and deepen it daily - ${mainAnchor}. Track one number and one cue; let consistency do the heavy lifting.`;
+    blockD =
+      `Choose one discipline and deepen it daily - ${mainAnchor}. Track one number and one cue; let consistency do the heavy lifting.`;
   }
 
-  const question = `What will you protect next decan so ${mainAnchor} keeps tightening?`;
+  const question =
+    `What will you protect next decan so ${mainAnchor} keeps tightening?`;
 
-  const reflectionParts = [blockA.trim(), blockB.trim(), blockC.trim(), blockD.trim(), question.trim()];
+  const reflectionParts = [
+    blockA.trim(),
+    blockB.trim(),
+    blockC.trim(),
+    blockD.trim(),
+    question.trim(),
+  ];
 
   return {
     reflection: reflectionParts.filter((p) => p.trim().length).join("\n\n"),
@@ -1142,7 +1800,11 @@ function buildV2Reflection(
   };
 }
 
-function buildReflection(payload: ReflectionPayload, current: Summary, history: Summary[]) {
+function buildReflection(
+  payload: ReflectionPayload,
+  current: Summary,
+  history: Summary[],
+) {
   const sentences: string[] = [];
   sentences.push(`badge_count: ${current.badgeCount} - ${payload.decan_name}`);
 
@@ -1165,7 +1827,9 @@ function buildReflection(payload: ReflectionPayload, current: Summary, history: 
       const shift = h.tags.length ? `tags: ${h.tags.join(", ")}` : "tags: none";
       return `${h.label} (${h.badgeCount} badges, ${shift})`;
     });
-    historyLine = `Compared to recent decans, shifts appear in ${parts.join(" | ")}.`;
+    historyLine = `Compared to recent decans, shifts appear in ${
+      parts.join(" | ")
+    }.`;
   }
 
   const invitation =
@@ -1182,7 +1846,9 @@ function buildReflection(payload: ReflectionPayload, current: Summary, history: 
 }
 
 function buildLegacyReflection(payload: ReflectionPayload) {
-  const titles = (payload.badge_titles ?? []).filter((t) => t && t.trim().length).map((t) => t.trim());
+  const titles = (payload.badge_titles ?? []).filter((t) =>
+    t && t.trim().length
+  ).map((t) => t.trim());
   const count = payload.badge_count ?? titles.length;
   const sentences: string[] = [];
   sentences.push(`badge_count: ${count} - ${payload.decan_name}`);
@@ -1198,18 +1864,25 @@ function buildLegacyReflection(payload: ReflectionPayload) {
   }
 
   const day = payload.kemetic_day ? `on ${payload.kemetic_day}` : "this decan";
-  sentences.push(`Across ${day}, your marks show where attention gathered and where quiet remained.`);
-  sentences.push("Carry forward what rang true; let one space stay quiet if it needs to, and deepen one thread you named.");
+  sentences.push(
+    `Across ${day}, your marks show where attention gathered and where quiet remained.`,
+  );
+  sentences.push(
+    "Carry forward what rang true; let one space stay quiet if it needs to, and deepen one thread you named.",
+  );
 
   return sentences.filter((s) => s.trim().length).join(" ");
 }
 
 serve(async (req) => {
-  if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
+  if (req.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405 });
+  }
 
   try {
     const payload = (await req.json()) as ReflectionPayload;
-    const hasDecanWindow = !!(payload.user_id && payload.decan_start && payload.decan_end);
+    const hasDecanWindow =
+      !!(payload.user_id && payload.decan_start && payload.decan_end);
     const useV2 = payload.v2 !== false;
 
     if (hasDecanWindow) {
@@ -1232,10 +1905,15 @@ serve(async (req) => {
           tags: b.tags ?? null,
           occurred_on: b.occurred_on ?? currentWindow.start,
           flow_id: null,
-          event_id: null,
+          event_id: b.event_id ?? null,
         }));
       } else {
-        currentBadges = await fetchBadges(client, payload.user_id!, currentWindow.start, currentWindow.end);
+        currentBadges = await fetchBadges(
+          client,
+          payload.user_id!,
+          currentWindow.start,
+          currentWindow.end,
+        );
       }
       const evidenceLines = buildEvidenceLines(currentBadges);
       const tagStr = topTags(currentBadges);
@@ -1247,12 +1925,26 @@ serve(async (req) => {
       const historyMetrics: HistoryMetrics[] = [];
       const historySummaries: Summary[] = [];
       if (includeHistory) {
-        const historyWindows = await fetchHistoricalWindows(client, payload.user_id!, currentWindow.start, payload.past_decans);
+        const historyWindows = await fetchHistoricalWindows(
+          client,
+          payload.user_id!,
+          currentWindow.start,
+          payload.past_decans,
+        );
         for (const window of historyWindows) {
           try {
-            const historyBadges = await fetchBadges(client, payload.user_id!, window.start, window.end);
+            const historyBadges = await fetchBadges(
+              client,
+              payload.user_id!,
+              window.start,
+              window.end,
+            );
             const histEvidence = buildEvidenceLines(historyBadges);
-            const histMetrics = computeMetrics(historyBadges, window, histEvidence.length);
+            const histMetrics = computeMetrics(
+              historyBadges,
+              window,
+              histEvidence.length,
+            );
             historyMetrics.push({
               label: window.name ?? `Decan ${window.start} -> ${window.end}`,
               badgeCount: histMetrics.badgeCount,
@@ -1280,8 +1972,14 @@ serve(async (req) => {
       if (apiKey) {
         try {
           const systemPrompt =
-            "You write short decan reflections (one 10-day period). Be concise (80-120 words). Use only the badge evidence. Weave in 2-3 concrete details from the evidence (their words, numbers, drill names) so the user feels seen. No generalities—if you mention an activity, it must appear in the evidence. Note trajectory and theme; one clear next step grounded in what they did. Non-judgmental, warm tone. Aim for: seen and inspired. No bullets, no metadata, no generic advice.";
-          const userPrompt = buildAnthropicPrompt(payload, evidenceLines, topTagList, historySummaries);
+            "You write short decan reflections (one 10-day period). Be concise (80-120 words). Use only the badge evidence. Treat journal badges, checked-off to-dos, and checked-off nutrition as equally valid evidence. Weave in 2-3 concrete details from the evidence (their words, numbers, task names, nutrition names, or drill names) so the user feels seen. No generalities—if you mention an activity, it must appear in the evidence. Note trajectory and theme; one clear next step grounded in what they did. Non-judgmental, warm tone. Aim for: seen and inspired. No bullets, no metadata, no generic advice.";
+          const userPrompt = buildAnthropicPrompt(
+            payload,
+            currentBadges,
+            evidenceLines,
+            topTagList,
+            historySummaries,
+          );
           const res = await callAnthropic([
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
@@ -1291,7 +1989,10 @@ serve(async (req) => {
             modelUsed = res.modelUsed ?? modelUsed;
           }
         } catch (llmErr) {
-          console.error("Anthropic reflection error, falling back to deterministic v2:", llmErr);
+          console.error(
+            "Anthropic reflection error, falling back to deterministic v2:",
+            llmErr,
+          );
         }
       }
 
@@ -1302,7 +2003,11 @@ serve(async (req) => {
           evidenceLines,
           topTagList,
           "decan",
-          { badges: currentBadges, window: currentWindow, history: historyMetrics },
+          {
+            badges: currentBadges,
+            window: currentWindow,
+            history: historyMetrics,
+          },
         );
         reflectionText = v2.reflection.trim();
         modelUsed = v2.modelUsed;
@@ -1354,10 +2059,18 @@ serve(async (req) => {
 
     // Legacy fallback: no decan window provided; rely on badge_titles payload
     if (useV2) {
-      const titles = (payload.badge_titles ?? []).filter((t) => t && t.trim().length).map((t) => t.trim());
+      const titles = (payload.badge_titles ?? []).filter((t) =>
+        t && t.trim().length
+      ).map((t) => t.trim());
       const evidenceLines = buildEvidenceLinesLegacy(titles);
       const badgeCount = payload.badge_count ?? titles.length;
-      const v2 = buildV2Reflection(payload, badgeCount, evidenceLines, [], "legacy");
+      const v2 = buildV2Reflection(
+        payload,
+        badgeCount,
+        evidenceLines,
+        [],
+        "legacy",
+      );
       return new Response(
         JSON.stringify({
           success: true,
@@ -1381,7 +2094,8 @@ serve(async (req) => {
           modelUsed: "local-legacy",
           tokensIn: 0,
           tokensOut: 0,
-          badgeCount: payload.badge_count ?? (payload.badge_titles?.length ?? 0),
+          badgeCount: payload.badge_count ??
+            (payload.badge_titles?.length ?? 0),
         }),
         { headers: { "Content-Type": "application/json" } },
       );
@@ -1389,7 +2103,10 @@ serve(async (req) => {
   } catch (error) {
     console.error("Reflection generation error:", error);
     return new Response(
-      JSON.stringify({ success: false, error: error?.message ?? "Unknown error" }),
+      JSON.stringify({
+        success: false,
+        error: error?.message ?? "Unknown error",
+      }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }

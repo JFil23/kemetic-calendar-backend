@@ -6,13 +6,69 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+async function sendFlowSharePush({
+  authHeader,
+  recipientId,
+  senderId,
+  senderLabel,
+  flowName,
+  shareId,
+}: {
+  authHeader: string;
+  recipientId: string;
+  senderId: string;
+  senderLabel: string;
+  flowName: string;
+  shareId?: string | null;
+}) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send_push`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authHeader,
+      },
+      body: JSON.stringify({
+        userIds: [recipientId],
+        notification: {
+          title: `Flow shared by ${senderLabel}`,
+          body: flowName.trim() || "Tap to open in Inbox",
+        },
+        data: {
+          type: "dm",
+          kind: "dm",
+          sender_id: senderId,
+          share_id: shareId ?? undefined,
+          share_kind: "flow",
+        },
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("create_flow_share: push http error", {
+        recipientId,
+        senderId,
+        status: res.status,
+        body: text,
+      });
+    }
+  } catch (error) {
+    console.error("create_flow_share: push error", {
+      recipientId,
+      senderId,
+      error,
+    });
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+        "Access-Control-Allow-Headers":
+          "authorization, x-client-info, apikey, content-type",
       },
     });
   }
@@ -20,10 +76,13 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing authorization header" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -45,11 +104,17 @@ serve(async (req) => {
 
     const { flow_id, recipients, suggested_schedule } = await req.json();
 
-    if (!flow_id || !recipients || !Array.isArray(recipients) || recipients.length === 0) {
-      return new Response(JSON.stringify({ error: "Missing required fields" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+    if (
+      !flow_id || !recipients || !Array.isArray(recipients) ||
+      recipients.length === 0
+    ) {
+      return new Response(
+        JSON.stringify({ error: "Missing required fields" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     }
 
     // 1. Fetch the flow
@@ -67,17 +132,32 @@ serve(async (req) => {
     }
 
     if (flow.user_id !== user_id) {
-      return new Response(JSON.stringify({ error: "Not authorized to share this flow" }), {
-        status: 403,
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Not authorized to share this flow" }),
+        {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     }
 
-    // 2. ✅ Fetch sender's events for this flow (using admin client to bypass RLS)
-    const { data: events, error: eventsError } = await supabaseAdmin
-      .from("user_events")
-      .select("title, detail, location, all_day, starts_at, ends_at")
-      .eq("flow_local_id", flow_id)
+    const { data: senderProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("display_name, handle")
+      .eq("id", user_id)
+      .maybeSingle();
+    const senderLabel = senderProfile?.display_name?.trim() ||
+      (senderProfile?.handle
+        ? `@${String(senderProfile.handle).trim()}`
+        : "Someone");
+
+    // 2. Fetch sender's filed, client-safe events for this flow.
+    const { data: events, error: eventsError } = await supabaseUser
+      .from("user_event_filing_items_client")
+      .select(
+        "title, detail, location, all_day, starts_at, ends_at, action_id, behavior_payload",
+      )
+      .eq("filed_flow_id", flow_id)
       .order("starts_at", { ascending: true });
 
     if (eventsError) {
@@ -95,7 +175,7 @@ serve(async (req) => {
       for (const ev of events) {
         const start = new Date(ev.starts_at);
         const offsetDays = Math.round(
-          (start.getTime() - firstStartsAt.getTime()) / (1000 * 60 * 60 * 24)
+          (start.getTime() - firstStartsAt.getTime()) / (1000 * 60 * 60 * 24),
         );
 
         const snapshot: any = {
@@ -104,6 +184,14 @@ serve(async (req) => {
           detail: ev.detail || null,
           location: ev.location || null,
           all_day: ev.all_day || false,
+          action_id: typeof ev.action_id === "string" && ev.action_id.trim()
+            ? ev.action_id.trim()
+            : null,
+          behavior_payload: ev.behavior_payload &&
+              typeof ev.behavior_payload === "object" &&
+              !Array.isArray(ev.behavior_payload)
+            ? ev.behavior_payload
+            : null,
         };
 
         if (!ev.all_day) {
@@ -160,10 +248,13 @@ serve(async (req) => {
           }
 
           if (profileError || !profile || !profile.id) {
-            console.error("create_flow_share: failed to resolve user recipient", {
-              value: recipient.value,
-              profileError,
-            });
+            console.error(
+              "create_flow_share: failed to resolve user recipient",
+              {
+                value: recipient.value,
+                profileError,
+              },
+            );
             errors.push({
               recipient: recipient.value,
               error: "USER_NOT_FOUND",
@@ -199,6 +290,14 @@ serve(async (req) => {
           }
 
           shares.push(inserted);
+          await sendFlowSharePush({
+            authHeader,
+            recipientId,
+            senderId: user_id,
+            senderLabel,
+            flowName: String(flow.name ?? "").trim(),
+            shareId: inserted.id as string | undefined,
+          });
           continue;
         }
 
@@ -262,7 +361,7 @@ serve(async (req) => {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
         },
-      }
+      },
     );
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message }), {

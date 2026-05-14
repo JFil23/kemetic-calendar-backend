@@ -13,7 +13,7 @@ type EventRow = {
   created_at: string;
 };
 
-type ContentRow = { node_id: string; updated_at: string };
+type ContentRow = { node_id: string; updated_at: string; plain_text: string | null };
 
 type BadgeRow = {
   title: string | null;
@@ -230,7 +230,7 @@ serve(async (req) => {
         .gte("created_at", sinceIso),
       client
         .from("node_user_content")
-        .select("node_id,updated_at")
+        .select("node_id,updated_at,plain_text")
         .eq("user_id", user.id),
       client.from("nodes").select("id,slug,title,aliases"),
       client
@@ -261,6 +261,7 @@ serve(async (req) => {
     });
 
     (content ?? []).forEach((c: ContentRow) => {
+      if (!(c.plain_text ?? "").trim()) return;
       const slug = idToSlug.get(c.node_id);
       if (slug) addScore(nodeScores, slug, 4 * recencyWeight(c.updated_at));
     });
