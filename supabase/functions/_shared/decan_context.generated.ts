@@ -1,5 +1,5 @@
 // GENERATED FILE. Do not edit by hand.
-// Source: mobile/lib/widgets/kemetic_day_info.dart, mobile/lib/features/calendar/decan_metadata.dart, mobile/lib/features/calendar/decan_info_content.dart, mobile/lib/features/calendar/kemetic_month_metadata.dart
+// Source: mobile/lib/widgets/kemetic_day_info.dart, mobile/lib/features/calendar/decan_metadata.dart, ALL_36_DECANS_COMPLETE.txt, mobile/lib/features/calendar/kemetic_month_metadata.dart
 
 export const DECAN_CONTEXT = {
   "1-1": {
