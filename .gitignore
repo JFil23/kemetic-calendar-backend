@@ -5,3 +5,16 @@ SUPABASE_SERVICE_ROLE_KEY
 SUPABASE_ANON_KEY
 supabase/.temp
 supabase/config.toml
+
+# Local/editor artifacts
+.DS_Store
+.codex_snapshots/
+repo_audit_tmp/
+__pycache__/
+
+# Local audit/development notes
+docs/
+scripts/
+
+# This repo should not contain a duplicate app source tree.
+/lib/
