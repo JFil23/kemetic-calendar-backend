@@ -137,6 +137,11 @@ serve(async (req) => {
         status: "pending",
       });
       if (insertErr) {
+        if (insertErr.code === "23505") {
+          return new Response(JSON.stringify({ success: true }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
         console.error("insert schedule error", insertErr);
         return new Response("Insert error", { status: 500 });
       }

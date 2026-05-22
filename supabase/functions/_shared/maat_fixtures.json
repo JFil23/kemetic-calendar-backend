@@ -1,0 +1,900 @@
+{
+  "policy_version": "maat_policy_v3",
+  "fixtures": [
+    {
+      "id": "G1-01",
+      "description": "explicit first-person false record admission",
+      "input": {
+        "evidenceTexts": ["I falsified the record and lied about the task."],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": ["knowingly_false_record"],
+        "band": "isfet_patterned",
+        "reflectionMove": "correct",
+        "delivery": {
+          "kind": "drift_nudge",
+          "ctaType": "flow_template",
+          "ctaRef": "dawn-house-rite"
+        }
+      }
+    },
+    {
+      "id": "G1-FP01",
+      "description": "source-study language should not hard-gate as confession",
+      "input": {
+        "evidenceTexts": [
+          "The text says falsified weights are condemned in Amenemope."
+        ],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": [],
+        "notBand": "isfet_patterned"
+      }
+    },
+    {
+      "id": "G6-01",
+      "description": "two skipped nutrition items plus no food/water text",
+      "input": {
+        "evidenceTexts": [
+          "Skipped nutrition: lunch. No food.",
+          "Skipped nutrition: dinner. No water."
+        ],
+        "planner": {
+          "total": 2,
+          "nutritionSkipped": 2
+        }
+      },
+      "expect": {
+        "hardGates": ["life_supporting_flow_disrupted"],
+        "band": "isfet_patterned",
+        "reflectionMove": "correct",
+        "delivery": {
+          "kind": "drift_nudge",
+          "ctaType": "flow_template",
+          "ctaRef": "dawn-house-rite"
+        }
+      }
+    },
+    {
+      "id": "G6-02",
+      "description": "single skipped meal is soft evidence only",
+      "input": {
+        "evidenceTexts": ["Skipped nutrition: lunch."],
+        "planner": {
+          "total": 1,
+          "nutritionSkipped": 1
+        }
+      },
+      "expect": {
+        "hardGates": [],
+        "notBand": "isfet_patterned"
+      }
+    },
+    {
+      "id": "G6-FP01",
+      "description": "planning language with no skipped planner evidence should not hard-gate",
+      "input": {
+        "evidenceTexts": [
+          "Planning no food until the fast ends, with water and rest prepared."
+        ],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": [],
+        "notBand": "isfet_patterned"
+      }
+    },
+    {
+      "id": "G7-01",
+      "description": "self-punishment language hard-gates harm/excess force",
+      "input": {
+        "evidenceTexts": ["I punished myself today and ignored rest."],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": ["excessive_force_or_harm"],
+        "band": "isfet_patterned",
+        "reflectionMove": "correct",
+        "delivery": {
+          "kind": "drift_nudge",
+          "ctaType": "flow_template",
+          "ctaRef": "evening-threshold-rite"
+        }
+      }
+    },
+    {
+      "id": "G7-FP01",
+      "description": "common workout phrasing should not hard-gate",
+      "input": {
+        "evidenceTexts": ["Punishing workout, felt strong, hydrated after."],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": [],
+        "notBand": "isfet_patterned"
+      }
+    },
+    {
+      "id": "G4-AXIS01",
+      "description": "completed dependent-care language is affirming axis evidence, not a gate",
+      "input": {
+        "evidenceTexts": [
+          "Helped a dependent with food and reduced one burden."
+        ],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": [],
+        "axisAtLeast": {
+          "V": 0
+        }
+      }
+    },
+    {
+      "id": "G4-01",
+      "description": "repeated skipped dependent care hard-gates vulnerable deprivation at L2+",
+      "maturityLevel": "L2",
+      "input": {
+        "evidenceTexts": [
+          "Skipped care task: child medicine. The dependent was left without support.",
+          "Missed family care task: elder meal. No food was prepared."
+        ],
+        "planner": {
+          "total": 2,
+          "todoSkipped": 2
+        }
+      },
+      "expect": {
+        "hardGates": ["vulnerable_deprivation"],
+        "band": "isfet_patterned",
+        "reflectionMove": "correct",
+        "delivery": {
+          "kind": "drift_nudge",
+          "ctaType": "node",
+          "ctaRef": "instruction_amenemope"
+        }
+      }
+    },
+    {
+      "id": "G4-FP01",
+      "description": "one missed care item is soft evidence only",
+      "maturityLevel": "L2",
+      "input": {
+        "evidenceTexts": [
+          "Missed family care task: elder meal. I prepared water later."
+        ],
+        "planner": {
+          "total": 1,
+          "todoSkipped": 1
+        }
+      },
+      "expect": {
+        "hardGates": [],
+        "notBand": "isfet_patterned"
+      }
+    },
+    {
+      "id": "MAT-L1-G4",
+      "description": "cold-start users keep vulnerable deprivation structural evidence axis-only",
+      "maturityLevel": "L1",
+      "input": {
+        "evidenceTexts": [
+          "Skipped care task: child medicine. The dependent was left without support.",
+          "Missed family care task: elder meal. No food was prepared."
+        ],
+        "planner": {
+          "total": 2,
+          "todoSkipped": 2
+        }
+      },
+      "expect": {
+        "hardGates": [],
+        "notBand": "isfet_patterned"
+      }
+    },
+    {
+      "id": "G5-01",
+      "description": "explicit corrupt judgment admission hard-gates at L3",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": ["I accepted a bribe and twisted the court judgment."],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": ["corrupt_judgment"],
+        "band": "isfet_patterned",
+        "reflectionMove": "correct",
+        "delivery": {
+          "kind": "drift_nudge",
+          "ctaType": "node",
+          "ctaRef": "maat"
+        }
+      }
+    },
+    {
+      "id": "G5-FP01",
+      "description": "source-study language about bribes should not hard-gate as confession",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "The source says taking a bribe twists judgment in Amenemope."
+        ],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": [],
+        "notBand": "isfet_patterned"
+      }
+    },
+    {
+      "id": "MAT-L2-G5",
+      "description": "warming users keep corrupt-judgment regex axis-only",
+      "maturityLevel": "L2",
+      "input": {
+        "evidenceTexts": ["I accepted a bribe and twisted the court judgment."],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": [],
+        "notBand": "isfet_patterned"
+      }
+    },
+    {
+      "id": "G8-01",
+      "description": "explicit malicious social disruption admission hard-gates at L3",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "I spread a rumor to harm the team and turned people against each other."
+        ],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": ["malicious_social_disruption"],
+        "band": "isfet_patterned",
+        "reflectionMove": "correct",
+        "delivery": {
+          "kind": "drift_nudge",
+          "ctaType": "node",
+          "ctaRef": "maat"
+        }
+      }
+    },
+    {
+      "id": "G8-FP01",
+      "description": "source-study language about disruption should not hard-gate as confession",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "The text says incited conflict and malicious faction break cohesion."
+        ],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": [],
+        "notBand": "isfet_patterned"
+      }
+    },
+    {
+      "id": "MAT-L2-G8",
+      "description": "warming users keep malicious-social regex axis-only",
+      "maturityLevel": "L2",
+      "input": {
+        "evidenceTexts": [
+          "I spread a rumor to harm the team and turned people against each other."
+        ],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": [],
+        "notBand": "isfet_patterned"
+      }
+    },
+    {
+      "id": "G2-AXIS01",
+      "description": "distorted-measure concept remains axis-only while measure language raises M",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "Reviewed the measure, record, count, timer, reps, rounds, sets, and number for accuracy."
+        ],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": [],
+        "axisAtLeast": {
+          "M": 0.2
+        }
+      }
+    },
+    {
+      "id": "MAT-L1-G1",
+      "description": "cold-start users do not hard-gate false-record regex",
+      "maturityLevel": "L1",
+      "input": {
+        "evidenceTexts": ["I falsified the record and lied about the task."],
+        "planner": {}
+      },
+      "expect": {
+        "hardGates": [],
+        "notBand": "isfet_patterned"
+      }
+    },
+    {
+      "id": "MAT-L1-G6-02",
+      "description": "cold-start users need more structural G6 evidence than two skips",
+      "maturityLevel": "L1",
+      "input": {
+        "evidenceTexts": [
+          "Skipped nutrition: lunch. No food.",
+          "Skipped nutrition: dinner. No water."
+        ],
+        "planner": {
+          "total": 2,
+          "nutritionSkipped": 2
+        }
+      },
+      "expect": {
+        "hardGates": [],
+        "notBand": "isfet_patterned"
+      }
+    },
+    {
+      "id": "MAT-L1-G6-03",
+      "description": "cold-start users can still hard-gate structural provision collapse at three skips",
+      "maturityLevel": "L1",
+      "input": {
+        "evidenceTexts": [
+          "Skipped nutrition: breakfast.",
+          "Skipped nutrition: lunch.",
+          "Skipped nutrition: dinner."
+        ],
+        "planner": {
+          "total": 3,
+          "nutritionSkipped": 3
+        }
+      },
+      "expect": {
+        "hardGates": ["life_supporting_flow_disrupted"],
+        "band": "isfet_patterned",
+        "reflectionMove": "correct",
+        "delivery": {
+          "kind": "drift_nudge",
+          "ctaType": "flow_template",
+          "ctaRef": "dawn-house-rite"
+        }
+      }
+    },
+    {
+      "id": "HY-01",
+      "description": "drift waits for opening on decan day one",
+      "scenario": "drift_decision",
+      "input": {
+        "current": {
+          "band": "leaning_isfet",
+          "reflectionMove": "inquire",
+          "hardGates": []
+        },
+        "previous": [{ "band": "mixed", "reflectionMove": "inquire" }],
+        "driftParams": {
+          "openingHandled": false,
+          "decanDayIndex": 1,
+          "now": "2026-05-16T18:00:00.000Z"
+        }
+      },
+      "expect": {
+        "driftDecision": {
+          "create": false,
+          "reason": "opening_first"
+        }
+      }
+    },
+    {
+      "id": "HY-02",
+      "description": "drift cooldown blocks repeat nudges inside 48 hours",
+      "scenario": "drift_decision",
+      "input": {
+        "current": {
+          "band": "leaning_isfet",
+          "reflectionMove": "inquire",
+          "hardGates": []
+        },
+        "previous": [{ "band": "mixed", "reflectionMove": "inquire" }],
+        "driftParams": {
+          "driftCount": 1,
+          "openingHandled": true,
+          "decanDayIndex": 4,
+          "lastDriftAt": "2026-05-18T18:00:00.000Z",
+          "now": "2026-05-19T18:00:00.000Z"
+        }
+      },
+      "expect": {
+        "driftDecision": {
+          "create": false,
+          "reason": "cooldown"
+        }
+      }
+    },
+    {
+      "id": "HY-03",
+      "description": "band worsening creates a drift nudge after opening",
+      "scenario": "drift_decision",
+      "input": {
+        "current": {
+          "band": "leaning_isfet",
+          "reflectionMove": "inquire",
+          "hardGates": []
+        },
+        "previous": [{ "band": "mixed", "reflectionMove": "inquire" }],
+        "driftParams": {
+          "openingHandled": true,
+          "decanDayIndex": 4,
+          "now": "2026-05-19T18:00:00.000Z"
+        }
+      },
+      "expect": {
+        "driftDecision": {
+          "create": true,
+          "reason": "band_worsened"
+        }
+      }
+    },
+    {
+      "id": "HY-04",
+      "description": "single correct move waits for hysteresis",
+      "scenario": "drift_decision",
+      "input": {
+        "current": {
+          "band": "mixed",
+          "reflectionMove": "correct",
+          "hardGates": []
+        },
+        "previous": [{ "band": "mixed", "reflectionMove": "inquire" }],
+        "driftParams": {
+          "openingHandled": true,
+          "decanDayIndex": 4,
+          "now": "2026-05-19T18:00:00.000Z"
+        }
+      },
+      "expect": {
+        "driftDecision": {
+          "create": false,
+          "reason": "wait_for_hysteresis"
+        }
+      }
+    },
+    {
+      "id": "G5-REVIEW01",
+      "description": "first corrupt-judgment hard gate opens review instead of immediate nudge",
+      "scenario": "drift_decision",
+      "input": {
+        "current": {
+          "band": "isfet_patterned",
+          "reflectionMove": "correct",
+          "hardGates": ["corrupt_judgment"]
+        },
+        "previous": [],
+        "driftParams": {
+          "openingHandled": true,
+          "decanDayIndex": 4,
+          "reviewOnlyHardGates": [
+            "corrupt_judgment",
+            "malicious_social_disruption"
+          ],
+          "now": "2026-05-19T18:00:00.000Z"
+        }
+      },
+      "expect": {
+        "driftDecision": {
+          "create": false,
+          "reason": "review_only_gate"
+        }
+      }
+    },
+    {
+      "id": "G8-REVIEW02",
+      "description": "repeated malicious-social hard gate can nudge after review persistence",
+      "scenario": "drift_decision",
+      "input": {
+        "current": {
+          "band": "isfet_patterned",
+          "reflectionMove": "correct",
+          "hardGates": ["malicious_social_disruption"]
+        },
+        "previous": [
+          {
+            "band": "isfet_patterned",
+            "reflectionMove": "correct",
+            "hardGates": ["malicious_social_disruption"]
+          }
+        ],
+        "driftParams": {
+          "openingHandled": true,
+          "decanDayIndex": 5,
+          "reviewOnlyHardGates": [
+            "corrupt_judgment",
+            "malicious_social_disruption"
+          ],
+          "now": "2026-05-20T18:00:00.000Z"
+        }
+      },
+      "expect": {
+        "driftDecision": {
+          "create": true,
+          "reason": "hard_gate"
+        }
+      }
+    },
+    {
+      "id": "OBS-01",
+      "description": "winning outcome flips an axis-based measure CTA toward a node",
+      "scenario": "cta_resolution",
+      "input": {
+        "mode": "drift",
+        "current": {
+          "leadAxis": "M",
+          "correctionAxes": ["M"],
+          "hardGates": []
+        },
+        "outcomeSignals": [
+          {
+            "ctaType": "flow_template",
+            "ctaRef": "dawn-house-rite",
+            "outcomeFlag": "negative",
+            "completedWindowCount": 8,
+            "weightedDeltaDoneRate": -0.09
+          },
+          {
+            "ctaType": "node",
+            "ctaRef": "djehuty",
+            "outcomeFlag": "winning",
+            "completedWindowCount": 8,
+            "weightedDeltaDoneRate": 0.08
+          }
+        ]
+      },
+      "expect": {
+        "cta": {
+          "ctaType": "node",
+          "ctaRef": "djehuty",
+          "reasonIncludes": "outcome_winning"
+        }
+      }
+    },
+    {
+      "id": "OBS-02",
+      "description": "hard gates ignore outcome penalties on their corrective template",
+      "scenario": "cta_resolution",
+      "input": {
+        "mode": "drift",
+        "current": {
+          "leadAxis": "M",
+          "correctionAxes": ["M"],
+          "hardGates": ["life_supporting_flow_disrupted"]
+        },
+        "outcomeSignals": [
+          {
+            "ctaType": "flow_template",
+            "ctaRef": "dawn-house-rite",
+            "outcomeFlag": "negative",
+            "completedWindowCount": 8,
+            "weightedDeltaDoneRate": -0.09
+          }
+        ]
+      },
+      "expect": {
+        "cta": {
+          "ctaType": "flow_template",
+          "ctaRef": "dawn-house-rite",
+          "reasonIncludes": "gate:life_supporting_flow_disrupted"
+        }
+      }
+    },
+    {
+      "id": "STR-01",
+      "description": "strength nudge uses outcome signal among axis candidates",
+      "scenario": "strength_draft",
+      "input": {
+        "current": {
+          "leadAxis": "M",
+          "hardGates": []
+        },
+        "outcomeSignals": [
+          {
+            "ctaType": "flow_template",
+            "ctaRef": "dawn-house-rite",
+            "outcomeFlag": "negative",
+            "completedWindowCount": 8,
+            "weightedDeltaDoneRate": -0.09
+          },
+          {
+            "ctaType": "node",
+            "ctaRef": "djehuty",
+            "outcomeFlag": "winning",
+            "completedWindowCount": 8,
+            "weightedDeltaDoneRate": 0.08
+          }
+        ]
+      },
+      "expect": {
+        "delivery": {
+          "kind": "strength_nudge",
+          "ctaType": "node",
+          "ctaRef": "djehuty"
+        }
+      }
+    },
+    {
+      "id": "G5-FP-FICTION-01",
+      "description": "fictional judge accepting a bribe is not a first-person confession",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "In my story, the judge accepted a bribe and the hero exposed it."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G5-FP-FICTION-02",
+      "description": "character quote with first-person bribe language stays source context",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "My character says, 'I accepted a bribe,' before the trial scene."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G5-FP-SARCASM-01",
+      "description": "sarcastic bribe phrasing with adverb is not admission regex",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "Sure, I totally accepted a bribe from my laundry pile: coffee."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G5-FP-QUOTE-01",
+      "description": "quoted first-person bribe sentence is not user admission",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "Quote: I accepted a bribe. We discussed why that line marks corruption."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G5-FP-HISTORY-01",
+      "description": "historical account of false witness does not hard-gate",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "In history class, officials bore false witness in the source we read."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G5-FP-WORK-01",
+      "description": "work metaphor about rigged scheduling should not hard-gate",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "The meeting felt rigged, so I documented the decision path."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G5-FP-NEGATION-01",
+      "description": "explicit negation of bribe admission should not match",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "I did not accept a bribe; I reported the pressure instead."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G5-FP-ROLEPLAY-01",
+      "description": "tabletop roleplay bribe scene is not hard-gated",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "In D&D, my rogue paid a bribe to the guard during the session."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G5-FP-LYRICS-01",
+      "description": "song lyric mention is treated as quote context",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "Quoted lyrics about a rigged court, then moved on to practice."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G5-FP-THIRD-PERSON-01",
+      "description": "third-person corrupt judgment language is not user confession",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": ["They twisted the court judgment in the case study."],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G8-FP-FICTION-01",
+      "description": "fictional rumor plot does not hard-gate",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "In my story, the villain spread a rumor to harm the court."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G8-FP-FICTION-02",
+      "description": "character first-person disruption line remains source context",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "The character says, 'I spread a rumor to harm the team,' then loses trust."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G8-FP-SARCASM-01",
+      "description": "sarcastic conflict phrasing is not admission regex",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "Apparently I personally incited a conflict by choosing the wrong font."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G8-FP-QUOTE-01",
+      "description": "quote context suppresses first-person rumor language",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "Quote: I spread a rumor to harm the team. We analyzed why the source condemns it."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G8-FP-HISTORY-01",
+      "description": "historical account of incited conflict is not user admission",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "The article says a faction incited conflict during the succession crisis."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G8-FP-WORK-01",
+      "description": "workplace trust repair language is not betrayal admission",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "I worried the delay betrayed trust, so I sent a clear update."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G8-FP-NEGATION-01",
+      "description": "negated sabotage sentence does not hard-gate",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "I did not sabotage the team; I asked for a calmer plan."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G8-FP-ROLEPLAY-01",
+      "description": "tabletop roleplay social disruption is not hard-gated",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "In D&D, our party incited a fight at the tavern as part of the scene."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G8-FP-LYRICS-01",
+      "description": "lyric mention of betrayal stays quote context",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "Quoted a lyric about betrayed trust while studying metaphor."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G8-FP-THIRD-PERSON-01",
+      "description": "third-person community sabotage is not user confession",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": ["They sabotaged the group in the case we reviewed."],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G5-FP-NOVEL-01",
+      "description": "novel-writing first-person bribe line stays fiction context",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "Writing my novel: I accepted a bribe because the character demanded it."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G8-FP-API-01",
+      "description": "work metaphor about turning people against an API is not social-disruption admission",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": [
+          "We turned people against the old API in the design review."
+        ],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    },
+    {
+      "id": "G8-FP-HYPOTHETICAL-01",
+      "description": "hypothetical rumor language with refusal should not hard-gate",
+      "maturityLevel": "L3",
+      "input": {
+        "evidenceTexts": ["I could spread a rumor but I won't."],
+        "planner": {}
+      },
+      "expect": { "hardGates": [], "notBand": "isfet_patterned" }
+    }
+  ]
+}

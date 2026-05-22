@@ -1,5 +1,25 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
+import { getDecanContext } from "../_shared/decan_context.ts";
+import { guidanceEvidencePhrasesFromLines } from "../_shared/guidance_evidence.ts";
+import {
+  buildGuidanceShapingFingerprint,
+  type GuidanceGoalProfile,
+  type GuidancePersonalBaseline,
+  MAAT_GUIDANCE_POLICY_VERSION,
+  resolveGatePolicyForMaturity,
+  resolveGraphAxisPriors,
+  resolveGuidanceMaturity,
+} from "../_shared/maat_guidance.ts";
+import { buildUserMemoryBrief } from "../_shared/user_memory_brief.ts";
+import {
+  buildMaatDimensionSnapshot as buildMaatDimensionSnapshotFromSignals,
+  buildReflectionDecisionMatrix as buildReflectionDecisionMatrixFromSnapshot,
+  type MaatAxisCode,
+  type MaatDimensionSnapshot,
+  type ReflectionDecisionMatrixV1,
+  type ReflectionProfileRow,
+} from "./maat_decision.ts";
 
 type BadgeRow = {
   title: string | null;
@@ -8,6 +28,35 @@ type BadgeRow = {
   occurred_on: string;
   flow_id?: number | null;
   event_id?: string | null;
+};
+
+type JournalEntryRow = {
+  id: string;
+  greg_date: string;
+  body: string | null;
+  meta?: Record<string, unknown> | null;
+};
+
+type TodoRow = {
+  id: string;
+  title: string | null;
+  notes: string | null;
+  due_date: string | null;
+  status: string | null;
+  completed_at?: string | null;
+};
+
+type NutritionItemRow = {
+  id: string;
+  nutrient: string | null;
+  source: string | null;
+  purpose: string | null;
+  mode: string | null;
+  days_of_week: number[] | null;
+  decan_days: number[] | null;
+  repeat: boolean | null;
+  enabled: boolean | null;
+  created_at?: string | null;
 };
 
 type DecanWindow = {
@@ -28,6 +77,8 @@ type ReflectionPayload = {
   include_history?: boolean; // default true
   v2?: boolean;
   persist?: boolean;
+  use_knowledge_graph?: boolean;
+  use_decision_matrix?: boolean;
   badges?: InputBadge[]; // optional client-provided badges
   // Legacy fallback fields
   badge_titles?: string[];
@@ -107,9 +158,11 @@ type PlannerSummary = {
   todoDone: number;
   todoPartial: number;
   todoSkipped: number;
+  todoPending: number;
   nutritionDone: number;
   nutritionPartial: number;
   nutritionSkipped: number;
+  nutritionPending: number;
   todoExamples: string[];
   nutritionExamples: string[];
   journalExamples: string[];
@@ -234,6 +287,30 @@ function parseDateOnly(value: string) {
 function daysBetween(start: Date, end: Date) {
   const msPerDay = 24 * 60 * 60 * 1000;
   return Math.max(0, Math.floor((end.getTime() - start.getTime()) / msPerDay));
+}
+
+function dateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function dateKeysInRange(start: string, end: string) {
+  const dates: string[] = [];
+  const cursor = parseDateOnly(start);
+  const last = parseDateOnly(end);
+  while (cursor.getTime() <= last.getTime()) {
+    dates.push(dateKey(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function isoWeekday(date: string) {
+  const day = parseDateOnly(date).getUTCDay();
+  return day === 0 ? 7 : day;
+}
+
+function decanDayIndex(start: string, date: string) {
+  return daysBetween(parseDateOnly(start), parseDateOnly(date)) + 1;
 }
 
 function countProgressMarkers(text: string) {
@@ -446,9 +523,11 @@ function buildPlannerSummary(badges: BadgeRow[]): PlannerSummary {
   let todoDone = 0;
   let todoPartial = 0;
   let todoSkipped = 0;
+  let todoPending = 0;
   let nutritionDone = 0;
   let nutritionPartial = 0;
   let nutritionSkipped = 0;
+  let nutritionPending = 0;
 
   for (const badge of badges) {
     const plannerKind = plannerKindFromBadge(badge);
@@ -464,6 +543,7 @@ function buildPlannerSummary(badges: BadgeRow[]): PlannerSummary {
       if (state === "done") todoDone++;
       else if (state === "partial") todoPartial++;
       else if (state === "skipped") todoSkipped++;
+      else if (state === "pending") todoPending++;
       if (label.length) todoLabels.push(label);
       continue;
     }
@@ -471,19 +551,23 @@ function buildPlannerSummary(badges: BadgeRow[]): PlannerSummary {
     if (state === "done") nutritionDone++;
     else if (state === "partial") nutritionPartial++;
     else if (state === "skipped") nutritionSkipped++;
+    else if (state === "pending") nutritionPending++;
     if (label.length) nutritionLabels.push(label);
   }
 
   return {
-    total: todoDone + todoPartial + todoSkipped + nutritionDone +
+    total: todoDone + todoPartial + todoSkipped + todoPending + nutritionDone +
       nutritionPartial +
-      nutritionSkipped,
+      nutritionSkipped +
+      nutritionPending,
     todoDone,
     todoPartial,
     todoSkipped,
+    todoPending,
     nutritionDone,
     nutritionPartial,
     nutritionSkipped,
+    nutritionPending,
     todoExamples: topExamples(todoLabels),
     nutritionExamples: topExamples(nutritionLabels),
     journalExamples: topExamples(journalLabels),
@@ -500,6 +584,9 @@ function buildPlannerSummaryLine(summary: PlannerSummary) {
   if (summary.todoDone) todoParts.push(`${summary.todoDone} done`);
   if (summary.todoPartial) todoParts.push(`${summary.todoPartial} partial`);
   if (summary.todoSkipped) todoParts.push(`${summary.todoSkipped} skipped`);
+  if (summary.todoPending) {
+    todoParts.push(`${summary.todoPending} unchecked`);
+  }
   if (todoParts.length) {
     parts.push(`to-dos ${todoParts.join(", ")}`);
   }
@@ -512,6 +599,9 @@ function buildPlannerSummaryLine(summary: PlannerSummary) {
   }
   if (summary.nutritionSkipped) {
     nutritionParts.push(`${summary.nutritionSkipped} skipped`);
+  }
+  if (summary.nutritionPending) {
+    nutritionParts.push(`${summary.nutritionPending} unchecked`);
   }
   if (nutritionParts.length) {
     parts.push(`nutrition ${nutritionParts.join(", ")}`);
@@ -528,6 +618,228 @@ function buildPlannerSummaryLine(summary: PlannerSummary) {
   return `${parts.join("; ")}${
     examples.length ? `. Examples: ${examples.join("; ")}.` : "."
   }`;
+}
+
+function buildMaatFallbackNextStep(
+  snapshot: MaatDimensionSnapshot | null | undefined,
+  fallback: string,
+) {
+  if (!snapshot) return fallback;
+
+  const axisSteps: Record<MaatAxisCode, string> = {
+    T: "write one truthful mark with one concrete detail",
+    M: "track one number or finish condition",
+    H: "protect the rhythm that keeps effort livable",
+    V: "reduce one burden before adding another",
+    J: "choose the proportionate next step",
+    S: "protect one provision thread",
+    E: "restore one life-supporting rhythm",
+    R: "downshift force before adding more",
+    C: "keep one role or promise coherent",
+  };
+  const action = axisSteps[snapshot.leadAxis];
+
+  if (snapshot.reflectionMove === "correct") {
+    return `Next decan, ${action}; restore the balance before adding more.`;
+  }
+  if (snapshot.reflectionMove === "inquire") {
+    return `Next decan, test one small question: can you ${action}?`;
+  }
+  return `Next decan, protect what worked: ${action}.`;
+}
+
+async function fetchReflectionProfile(
+  supabaseClient: any,
+  userId: string,
+): Promise<ReflectionProfileRow | null> {
+  if (!supabaseClient || !userId) {
+    return null;
+  }
+  try {
+    const { data, error } = await supabaseClient
+      .from("reflection_profiles")
+      .select(
+        "top_nodes,top_edges,dominant_patterns,tension_pairs,maat_score,isfet_risk_score,last_computed_at",
+      )
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) {
+      console.log(
+        "reflection_profiles fetch error:",
+        error.message ?? error,
+      );
+      return null;
+    }
+    return (data ?? null) as ReflectionProfileRow | null;
+  } catch (err) {
+    console.log("reflection_profiles fetch threw:", err?.message ?? err);
+    return null;
+  }
+}
+
+async function fetchMaatSnapshotCount(
+  supabaseClient: any,
+  userId: string,
+  decanPeriodKey: string,
+): Promise<number> {
+  if (!supabaseClient || !userId || !decanPeriodKey) {
+    return 0;
+  }
+  try {
+    const { count, error } = await supabaseClient
+      .from("maat_snapshots")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("decan_period_key", decanPeriodKey);
+    if (error) {
+      console.log("maat_snapshots count error:", error.message ?? error);
+      return 0;
+    }
+    return count ?? 0;
+  } catch (err) {
+    console.log("maat_snapshots count threw:", err?.message ?? err);
+    return 0;
+  }
+}
+
+async function fetchGuidanceGoalProfile(
+  supabaseClient: any,
+  userId: string,
+): Promise<GuidanceGoalProfile | null> {
+  if (!supabaseClient || !userId) return null;
+  try {
+    const { data: nutritionRows } = await supabaseClient
+      .from("nutrition_items")
+      .select("id,nutrient,purpose,enabled")
+      .eq("user_id", userId)
+      .eq("enabled", true)
+      .limit(5);
+    const { data: flowRows } = await supabaseClient
+      .from("flows")
+      .select("id,name,notes,active,is_hidden")
+      .eq("user_id", userId)
+      .eq("active", true)
+      .eq("is_hidden", false)
+      .limit(10);
+
+    const axes = new Set<GuidanceGoalProfile["axes"][number]>();
+    const source: string[] = [];
+    const activeFlowIds: Array<string | number> = [];
+    let nutritionGoal = (nutritionRows ?? []).length > 0;
+    let careObligations = false;
+    let measureWeek = false;
+    let restRestraint = false;
+    let cosmicRhythm = false;
+
+    if (nutritionGoal) {
+      source.push("nutrition_items");
+      axes.add("S");
+      axes.add("E");
+      axes.add("H");
+    }
+
+    for (const row of flowRows ?? []) {
+      activeFlowIds.push(row.id);
+      const text = `${row.name ?? ""} ${row.notes ?? ""}`.toLowerCase();
+      if (
+        /\b(food|water|hydration|hydrate|nutrition|meal|provision)\b/.test(text)
+      ) {
+        nutritionGoal = true;
+        source.push(`flow:${row.id}:provision`);
+        axes.add("S");
+        axes.add("E");
+        axes.add("H");
+      }
+      if (
+        /\b(child|dependent|elder|family|care|caregiving|medicine|support)\b/
+          .test(text)
+      ) {
+        careObligations = true;
+        source.push(`flow:${row.id}:care`);
+        axes.add("V");
+        axes.add("J");
+        axes.add("S");
+      }
+      if (/\b(measure|record|track|timer|reps|count|review)\b/.test(text)) {
+        measureWeek = true;
+        source.push(`flow:${row.id}:measure`);
+        axes.add("M");
+        axes.add("T");
+      }
+      if (/\b(rest|sleep|pacing|restraint|pause|evening)\b/.test(text)) {
+        restRestraint = true;
+        source.push(`flow:${row.id}:restraint`);
+        axes.add("R");
+        axes.add("H");
+      }
+      if (/\b(sky|star|decan|dawn|sunrise|cosmic)\b/.test(text)) {
+        cosmicRhythm = true;
+        source.push(`flow:${row.id}:cosmic`);
+        axes.add("E");
+        axes.add("C");
+      }
+    }
+
+    if (
+      !nutritionGoal && !careObligations && !measureWeek && !restRestraint &&
+      !cosmicRhythm
+    ) {
+      return null;
+    }
+
+    const key: GuidanceGoalProfile["key"] = nutritionGoal
+      ? "provision"
+      : careObligations
+      ? "care_dependents"
+      : measureWeek
+      ? "measure"
+      : restRestraint
+      ? "rest_restraint"
+      : cosmicRhythm
+      ? "cosmic_rhythm"
+      : "default_decan";
+
+    return {
+      key,
+      active: true,
+      axes: [...axes],
+      nutritionGoal,
+      careObligations,
+      measureWeek,
+      activeFlowIds,
+      source,
+    };
+  } catch (err) {
+    console.log("guidance goal profile fetch threw:", err?.message ?? err);
+    return null;
+  }
+}
+
+async function fetchGuidancePersonalBaseline(
+  supabaseClient: any,
+  userId: string,
+): Promise<GuidancePersonalBaseline | null> {
+  if (!supabaseClient || !userId) return null;
+  try {
+    const { data, error } = await supabaseClient
+      .from("maat_user_baselines")
+      .select("computed_at,stats")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error || !data) return null;
+    const stats = data.stats ?? {};
+    return {
+      computedAt: data.computed_at ?? null,
+      snapshotCount: Number(stats.snapshot_count ?? 0),
+      medianScore: stats.median_score ?? null,
+      medianBandRank: stats.median_band_rank ?? null,
+      nutritionDoneRate: stats.nutrition_done_rate ?? null,
+      axisMedians: stats.axis_medians ?? null,
+    };
+  } catch (err) {
+    console.log("guidance personal baseline fetch threw:", err?.message ?? err);
+    return null;
+  }
 }
 
 function resolveThemeAxis(name?: string | null) {
@@ -1228,7 +1540,7 @@ function sanitizeWindows(windows?: DecanWindow[]) {
     }));
 }
 
-async function fetchBadges(
+async function fetchStoredBadgeRows(
   client: any,
   userId: string,
   start: string,
@@ -1244,6 +1556,366 @@ async function fetchBadges(
 
   if (error) throw error;
   return (data ?? []) as BadgeRow[];
+}
+
+function coerceStringList(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => entry == null ? "" : String(entry)).filter(
+      Boolean,
+    );
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value).map((entry) =>
+      entry == null ? "" : String(entry)
+    ).filter(Boolean);
+  }
+  return [];
+}
+
+function extractRawBadgeTokens(text: string) {
+  return text.match(/⟦EVENT_BADGE[\s\S]*?⟧/g) ?? [];
+}
+
+function parseRawBadgeToken(raw: string) {
+  const trimmed = raw.trim();
+  const content = trimmed.startsWith("⟦EVENT_BADGE")
+    ? trimmed
+      .replace(/^⟦EVENT_BADGE/, "")
+      .replace(/⟧$/, "")
+      .trim()
+    : trimmed;
+  if (!content) return null;
+
+  const values: Record<string, string> = {};
+  const regex = /(\w+)=(?:"((?:\\.|[^"])*)"|([^\s]+))/g;
+  for (const match of content.matchAll(regex)) {
+    const key = match[1];
+    const value = match[2] ?? match[3] ?? "";
+    values[key] = value.replace(/\\"/g, '"').replace(/\\n/g, "\n");
+  }
+
+  const id = values.id ?? values.badgeId;
+  const title = values.title;
+  if (!id || !title) return null;
+  return {
+    id,
+    eventId: values.eventId ?? null,
+    title,
+    start: values.start ?? null,
+    description: values.description ?? values.desc ?? null,
+  };
+}
+
+function dateFromMaybeIso(value: string | null | undefined, fallback: string) {
+  if (!value) return fallback;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return fallback;
+  return dateKey(parsed);
+}
+
+function badgeFromJournalToken(
+  token: ReturnType<typeof parseRawBadgeToken>,
+  fallbackDate: string,
+): BadgeRow | null {
+  if (!token) return null;
+  return {
+    title: token.title,
+    details: token.description ?? null,
+    tags: ["journal"],
+    occurred_on: dateFromMaybeIso(token.start, fallbackDate),
+    flow_id: null,
+    event_id: token.eventId ?? token.id,
+  };
+}
+
+function rawBadgeTokensFromJournalEntry(row: JournalEntryRow) {
+  const tokens: string[] = [];
+  const body = (row.body ?? "").trim();
+
+  tokens.push(...coerceStringList(row.meta?.badges));
+
+  if (body.startsWith("{") && body.includes('"version"')) {
+    try {
+      const doc = JSON.parse(body) as Record<string, unknown>;
+      const docMeta = doc.meta && typeof doc.meta === "object"
+        ? doc.meta as Record<string, unknown>
+        : null;
+      tokens.push(...coerceStringList(docMeta?.badges));
+
+      if (!tokens.length && Array.isArray(doc.blocks)) {
+        for (const block of doc.blocks) {
+          if (!block || typeof block !== "object") continue;
+          const ops = (block as { ops?: unknown }).ops;
+          if (!Array.isArray(ops)) continue;
+          for (const op of ops) {
+            const insert = op && typeof op === "object"
+              ? (op as { insert?: unknown }).insert
+              : null;
+            if (typeof insert === "string") {
+              tokens.push(...extractRawBadgeTokens(insert));
+            }
+          }
+        }
+      }
+      return tokens;
+    } catch (_err) {
+      // Fall through to legacy plain-text scan below.
+    }
+  }
+
+  if (body.length) tokens.push(...extractRawBadgeTokens(body));
+  return tokens;
+}
+
+async function fetchJournalEntryBadges(
+  client: any,
+  userId: string,
+  start: string,
+  end: string,
+) {
+  const { data, error } = await client
+    .from("journal_entries")
+    .select("id, greg_date, body, meta")
+    .eq("user_id", userId)
+    .gte("greg_date", start)
+    .lte("greg_date", end)
+    .order("greg_date", { ascending: true });
+
+  if (error) throw error;
+
+  const badges: BadgeRow[] = [];
+  for (const row of (data ?? []) as JournalEntryRow[]) {
+    for (const rawToken of rawBadgeTokensFromJournalEntry(row)) {
+      const badge = badgeFromJournalToken(
+        parseRawBadgeToken(rawToken),
+        row.greg_date,
+      );
+      if (badge) badges.push(badge);
+    }
+  }
+  return badges;
+}
+
+function plannerStateFromTodoStatus(status: string | null): PlannerState {
+  switch (normalizeText(status).toLowerCase()) {
+    case "done":
+      return "done";
+    case "partial":
+    case "in_progress":
+      return "partial";
+    case "skipped":
+    case "archived":
+      return "skipped";
+    case "pending":
+    default:
+      return "pending";
+  }
+}
+
+function plannerTagsFor(kind: PlannerKind, state: PlannerState) {
+  return ["planner", `kind:${kind}`, `state:${state}`];
+}
+
+function todoEvidenceTitle(title: string, state: PlannerState) {
+  const label = normalizeText(title) || "Task";
+  if (state === "done") return `Completed to-do: ${label}`;
+  if (state === "partial") return `In-progress to-do: ${label}`;
+  if (state === "skipped") return `Skipped to-do: ${label}`;
+  return `To-do: ${label}`;
+}
+
+function todoEvidenceDetails(todo: TodoRow, state: PlannerState) {
+  const parts = [
+    `Planner to-do for ${todo.due_date}.`,
+    `State: ${state}.`,
+  ];
+  const notes = normalizeText(todo.notes);
+  if (notes) parts.push(notes);
+  if (state === "pending") {
+    parts.push("Not checked off by decan end.");
+  }
+  return parts.join(" ");
+}
+
+async function fetchTodoEvidence(
+  client: any,
+  userId: string,
+  start: string,
+  end: string,
+) {
+  const { data, error } = await client
+    .from("todos")
+    .select("id, title, notes, due_date, status, completed_at")
+    .eq("user_id", userId)
+    .gte("due_date", start)
+    .lte("due_date", end)
+    .order("due_date", { ascending: true });
+
+  if (error) throw error;
+
+  return ((data ?? []) as TodoRow[])
+    .filter((todo) => !!todo.due_date)
+    .map((todo) => {
+      const state = plannerStateFromTodoStatus(todo.status);
+      return {
+        title: todoEvidenceTitle(todo.title ?? "", state),
+        details: todoEvidenceDetails(todo, state),
+        tags: plannerTagsFor("todo", state),
+        occurred_on: todo.due_date!,
+        flow_id: null,
+        event_id: `planner-todo:${todo.due_date}:${todo.id}`,
+      };
+    });
+}
+
+function nutritionLabel(item: NutritionItemRow) {
+  return normalizeText(item.nutrient) || normalizeText(item.source) ||
+    "Nutrition";
+}
+
+function nutritionOccursOnDate(
+  item: NutritionItemRow,
+  date: string,
+  start: string,
+) {
+  if (item.enabled === false) return false;
+  const mode = normalizeText(item.mode).toLowerCase();
+  if (mode === "weekday") {
+    const days = item.days_of_week ?? [];
+    return days.includes(isoWeekday(date));
+  }
+  if (mode === "decan") {
+    const days = item.decan_days ?? [];
+    return days.includes(decanDayIndex(start, date));
+  }
+  return false;
+}
+
+function nutritionPendingDetails(item: NutritionItemRow, date: string) {
+  const parts = [
+    `Planner nutrition entry for ${date}.`,
+    "State: pending.",
+    "Not checked off by decan end.",
+  ];
+  const source = normalizeText(item.source);
+  const purpose = normalizeText(item.purpose);
+  if (source) parts.push(`Source: ${source}.`);
+  if (purpose) parts.push(`Purpose: ${purpose}.`);
+  return parts.join(" ");
+}
+
+function nutritionCreatedOnOrBefore(item: NutritionItemRow, date: string) {
+  if (!item.created_at) return true;
+  const createdOn = dateFromMaybeIso(item.created_at, date);
+  return date >= createdOn;
+}
+
+async function fetchPendingNutritionEvidence(
+  client: any,
+  userId: string,
+  start: string,
+  end: string,
+  existingEventIds: Set<string>,
+) {
+  const { data, error } = await client
+    .from("nutrition_items")
+    .select(
+      "id, nutrient, source, purpose, mode, days_of_week, decan_days, repeat, enabled, created_at",
+    )
+    .eq("user_id", userId)
+    .eq("enabled", true);
+
+  if (error) throw error;
+
+  const dates = dateKeysInRange(start, end);
+  const badges: BadgeRow[] = [];
+  for (const item of (data ?? []) as NutritionItemRow[]) {
+    for (const date of dates) {
+      if (!nutritionCreatedOnOrBefore(item, date)) continue;
+      if (!nutritionOccursOnDate(item, date, start)) continue;
+      const eventId = `planner-nutrition:${date}:${item.id}`;
+      if (existingEventIds.has(eventId)) continue;
+      badges.push({
+        title: `Nutrition: ${nutritionLabel(item)}`,
+        details: nutritionPendingDetails(item, date),
+        tags: plannerTagsFor("nutrition", "pending"),
+        occurred_on: date,
+        flow_id: null,
+        event_id: eventId,
+      });
+    }
+  }
+  return badges;
+}
+
+function dedupeBadges(badges: BadgeRow[]) {
+  const seen = new Set<string>();
+  const deduped: BadgeRow[] = [];
+  for (const badge of badges) {
+    const eventId = normalizeText(badge.event_id);
+    const key = eventId.length
+      ? `event:${eventId}`
+      : `${badge.occurred_on}:${normalizeText(badge.title).toLowerCase()}`;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(badge);
+  }
+  return deduped.sort((a, b) =>
+    a.occurred_on.localeCompare(b.occurred_on) ||
+    normalizeText(a.title).localeCompare(normalizeText(b.title))
+  );
+}
+
+async function fetchBadges(
+  client: any,
+  userId: string,
+  start: string,
+  end: string,
+) {
+  const storedBadges = await fetchStoredBadgeRows(client, userId, start, end);
+
+  const journalBadges = await fetchJournalEntryBadges(
+    client,
+    userId,
+    start,
+    end,
+  ).catch((error) => {
+    console.error("Journal entry badge fetch error:", error);
+    return [] as BadgeRow[];
+  });
+  const todoBadges = await fetchTodoEvidence(client, userId, start, end).catch(
+    (error) => {
+      console.error("Todo evidence fetch error:", error);
+      return [] as BadgeRow[];
+    },
+  );
+
+  const mergedBeforeNutrition = dedupeBadges([
+    ...journalBadges,
+    ...todoBadges,
+    ...storedBadges,
+  ]);
+  const existingEventIds = new Set(
+    mergedBeforeNutrition
+      .map((badge) => normalizeText(badge.event_id))
+      .filter(Boolean),
+  );
+  const pendingNutritionBadges = await fetchPendingNutritionEvidence(
+    client,
+    userId,
+    start,
+    end,
+    existingEventIds,
+  ).catch((error) => {
+    console.error("Nutrition evidence fetch error:", error);
+    return [] as BadgeRow[];
+  });
+
+  return dedupeBadges([...mergedBeforeNutrition, ...pendingNutritionBadges]);
 }
 
 async function fetchHistoricalWindows(
@@ -1341,6 +2013,10 @@ function buildEvidenceLines(badges: BadgeRow[]) {
     .filter((l): l is string => !!l);
 }
 
+function evidenceExamplePhrases(evidenceLines: string[], limit = 3) {
+  return guidanceEvidencePhrasesFromLines(evidenceLines, limit);
+}
+
 function buildEvidenceLinesLegacy(titles: string[]) {
   return titles
     .map((t) => normalizeText(t))
@@ -1354,6 +2030,11 @@ function buildAnthropicPrompt(
   badgeLines: string[],
   topTags: string[],
   historySummaries: Summary[],
+  decisionMatrix?: ReflectionDecisionMatrixV1 | null,
+  options?: {
+    memoryBriefMarkdown?: string | null;
+    targetWordRange?: string;
+  },
 ) {
   const header =
     `SCOPE: This reflection is for ONE DECAN ONLY (about 10 days within the month), not the full month. All evidence below is from this decan only. Reflect only on this period.
@@ -1371,10 +2052,10 @@ Decan window (exact date range): ${payload.decan_start ?? ""} to ${
     ? `Top tags: ${topTags.join(", ")}`
     : "Top tags: none";
   const plannerBlock = plannerSummaryLine.length
-    ? `PLANNER COMPLETIONS (checked-off to-dos and nutrition count as real evidence): ${plannerSummaryLine}`
-    : "PLANNER COMPLETIONS: none";
+    ? `PLANNER EVIDENCE (to-dos and nutrition, including checked, partial, skipped, and unchecked items): ${plannerSummaryLine}`
+    : "PLANNER EVIDENCE: none";
   const evidenceBlock = badgeLines.length
-    ? `BADGE EVIDENCE (journal badges plus checked-off planner items; use all of it; do not invent):
+    ? `BADGE EVIDENCE (journal badges plus planner item states; use all of it; do not invent):
 ${badgeLines.join("\n")}`
     : "BADGE EVIDENCE: none";
 
@@ -1393,17 +2074,21 @@ ${
         .join("\n")
     }`
     : "PAST DECANS: none";
+  const decisionMatrixBlock = decisionMatrix?.promptBlock ?? "";
+  const memoryBlock = options?.memoryBriefMarkdown?.trim() ?? "";
+  const targetWordRange = options?.targetWordRange ?? "90-140";
 
   const instructions =
-    `Write a reflection in 80-120 words. Be concise. Reflect only on this decan. Treat journal badges, checked-off to-dos, and checked-off nutrition as equally valid evidence. Weave in 2-3 specific details from the evidence above (their phrases, numbers, task names, or nutrition names) so the user feels recognized. Do not generalize (e.g. avoid "across a range of disciplines" unless the evidence shows it). Note trajectory and connect to the theme; end with one clear next step grounded in what they did. Non-judgmental, warm tone. Goal: they feel seen and inspired. No bullets, no metadata. If history is present, cite progress only when the evidence supports it.`;
+    `Write a reflection in ${targetWordRange} words. Be concise, but allow depth when the evidence is rich. Reflect only on this decan. Treat journal badges and planner item states (checked, partial, skipped, and unchecked to-dos/nutrition) as real evidence. Weave in 2-3 specific details from the evidence above (their phrases, numbers, task names, or nutrition names) so the user feels recognized. Do not generalize (e.g. avoid "across a range of disciplines" unless the evidence shows it). Note trajectory and connect to the theme; end with one clear next step grounded in what they did and what stayed unchecked. Non-judgmental, warm tone. Goal: they feel seen and inspired. No bullets, no metadata. If history is present, cite progress only when the evidence supports it. If a memory brief or hidden decision matrix is supplied, use it only to choose tone, continuity, and one closing move; never mention scores, gates, bands, slugs, or matrix language.`;
 
   return `${instructions}
 
 ${header}
 ${tagsLine}
+${memoryBlock ? `${memoryBlock}\n` : ""}
 ${plannerBlock}
 ${evidenceBlock}
-${historyBlock}`;
+${historyBlock}${decisionMatrixBlock ? `\n${decisionMatrixBlock}` : ""}`;
 }
 
 async function callAnthropic(messages: AnthropicMessage[]) {
@@ -1420,7 +2105,7 @@ async function callAnthropic(messages: AnthropicMessage[]) {
     },
     body: JSON.stringify({
       model,
-      max_tokens: 300,
+      max_tokens: 420,
       temperature: 0.35,
       system: messages.find((m) => m.role === "system")?.content ?? "",
       messages: messages.filter((m) => m.role !== "system").map((m) => ({
@@ -1444,9 +2129,11 @@ function buildPlannerFocusedReflection(
   payload: ReflectionPayload,
   badgeCount: number,
   evidenceCount: number,
+  evidenceLines: string[],
   topTags: string[],
   plannerSummary: PlannerSummary,
   branch: "decan" | "legacy",
+  maatSnapshot?: MaatDimensionSnapshot | null,
 ) {
   const completedPlannerCount = plannerSummary.todoDone +
     plannerSummary.nutritionDone;
@@ -1454,6 +2141,8 @@ function buildPlannerFocusedReflection(
     plannerSummary.nutritionPartial;
   const skippedPlannerCount = plannerSummary.todoSkipped +
     plannerSummary.nutritionSkipped;
+  const pendingPlannerCount = plannerSummary.todoPending +
+    plannerSummary.nutritionPending;
   const themeName = payload.decan_name ?? payload.decan_theme ?? "this decan";
   const axis = resolveThemeAxis(themeName);
   const shortTheme = themeName.split("—")[0].split("-")[0].trim();
@@ -1483,17 +2172,28 @@ function buildPlannerFocusedReflection(
       `The planner itself became evidence this decan. You kept ${partialPlannerCount} ${
         pluralize(partialPlannerCount, "planner mark")
       } in motion, even when they stayed partial.`;
+  } else if (pendingPlannerCount > 0) {
+    blockA =
+      `The planner itself became evidence this decan. ${pendingPlannerCount} ${
+        pluralize(pendingPlannerCount, "planned check")
+      } stayed unchecked, which still shows where the rhythm met resistance.`;
   } else {
     blockA =
       `This decan showed its shape through what you tracked and what you had to set down. Even skipped marks told the truth about the rhythm.`;
   }
 
   const examples: string[] = [];
+  const evidenceExamples = evidenceExamplePhrases(evidenceLines, 3);
+  if (evidenceExamples.length) {
+    examples.push(
+      `Concrete marks included ${joinExamples(evidenceExamples)}.`,
+    );
+  }
   if (plannerSummary.todoExamples.length) {
     examples.push(
       `Tasks like ${
         joinExamples(plannerSummary.todoExamples)
-      } moved from intention into record.`,
+      } stayed visible in the record.`,
     );
   }
   if (plannerSummary.nutritionExamples.length) {
@@ -1542,10 +2242,14 @@ function buildPlannerFocusedReflection(
   } else if (skippedPlannerCount > 0) {
     blockD =
       "Next decan, protect one task and one nutrition check-in that are small enough to survive the days that usually slip.";
+  } else if (pendingPlannerCount > 0) {
+    blockD =
+      "Next decan, choose one unchecked task or nutrition check-in and make it small enough to complete once.";
   } else {
     blockD =
       "Next decan, protect one task and one nutrition check-in long enough for them to feel automatic.";
   }
+  blockD = buildMaatFallbackNextStep(maatSnapshot, blockD);
 
   const question = "Which practical rhythm deserves protection next decan?";
 
@@ -1570,6 +2274,7 @@ function buildV2Reflection(
     badges?: BadgeRow[];
     window?: DecanWindow;
     history?: HistoryMetrics[];
+    maatSnapshot?: MaatDimensionSnapshot | null;
   },
 ) {
   const evidenceCount = evidenceLines.length;
@@ -1578,8 +2283,10 @@ function buildV2Reflection(
 
   if (badgeCount === 0) {
     return {
-      reflection:
-        `No badges landed this decan. Mark one small action tomorrow so the next reflection has something real to read.`,
+      reflection: buildMaatFallbackNextStep(
+        options?.maatSnapshot,
+        "No badges landed this decan. Mark one small action tomorrow so the next reflection has something real to read.",
+      ),
       modelUsed: branch === "decan" ? "local-generator-v2" : "local-legacy-v2",
       badgeCount,
       evidenceCount,
@@ -1589,22 +2296,27 @@ function buildV2Reflection(
   }
 
   if (
-    plannerSummary.total >= Math.max(2, Math.ceil(badgeCount / 2))
+    plannerSummary.total >= Math.max(3, Math.ceil(badgeCount * 0.75)) &&
+    evidenceCount < 5
   ) {
     return buildPlannerFocusedReflection(
       payload,
       badgeCount,
       evidenceCount,
+      evidenceLines,
       topTags,
       plannerSummary,
       branch,
+      options?.maatSnapshot,
     );
   }
 
   if (evidenceCount < 2) {
     return {
-      reflection:
-        `Badges exist but details are thin. Capture at least two badges next decan with clear titles and short notes so the trajectory is measurable.`,
+      reflection: buildMaatFallbackNextStep(
+        options?.maatSnapshot,
+        "Badges exist but details are thin. Capture at least two badges next decan with clear titles and short notes so the trajectory is measurable.",
+      ),
       modelUsed: branch === "decan" ? "local-generator-v2" : "local-legacy-v2",
       badgeCount,
       evidenceCount,
@@ -1651,6 +2363,7 @@ function buildV2Reflection(
     signals.disciplineClusters.length >= 2;
   const mainAnchor = signals.metrics.topThread ?? signals.repeatedTitles[0] ??
     anchorList[0] ?? "one thread";
+  const evidenceExamples = evidenceExamplePhrases(evidenceLines, 3);
 
   let trajectoryLabel:
     | "theory_to_application"
@@ -1778,12 +2491,16 @@ function buildV2Reflection(
     blockD =
       `Choose one discipline and deepen it daily - ${mainAnchor}. Track one number and one cue; let consistency do the heavy lifting.`;
   }
+  blockD = buildMaatFallbackNextStep(options?.maatSnapshot, blockD);
 
   const question =
     `What will you protect next decan so ${mainAnchor} keeps tightening?`;
 
   const reflectionParts = [
     blockA.trim(),
+    evidenceExamples.length
+      ? `The record was specific: ${joinExamples(evidenceExamples)}.`
+      : "",
     blockB.trim(),
     blockC.trim(),
     blockD.trim(),
@@ -1889,17 +2606,32 @@ serve(async (req) => {
       const includeHistory = payload.include_history !== false;
       const client = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-      // Current decan evidence: prefer client-provided badges if present
+      // Current decan evidence: merge client-provided journal badges with
+      // server-only planner evidence so app and cron paths stay aligned.
       const currentWindow: DecanWindow = {
         name: payload.decan_name,
         theme: payload.decan_theme ?? null,
         start: payload.decan_start!,
         end: payload.decan_end!,
       };
+      const decanPeriodKey = [
+        currentWindow.start,
+        currentWindow.end,
+        payload.decan_context_key ?? payload.decan_name,
+      ].join(":");
+      const useKnowledgeGraph = payload.use_knowledge_graph === true ||
+        payload.use_decision_matrix === true;
+      const useDecisionMatrix = payload.use_decision_matrix === true;
 
-      let currentBadges: BadgeRow[] = [];
+      const serverBadges = await fetchBadges(
+        client,
+        payload.user_id!,
+        currentWindow.start,
+        currentWindow.end,
+      );
+      let clientBadges: BadgeRow[] = [];
       if (payload.badges?.length) {
-        currentBadges = payload.badges.map((b) => ({
+        clientBadges = payload.badges.map((b) => ({
           title: b.title ?? null,
           details: b.details ?? null,
           tags: b.tags ?? null,
@@ -1907,19 +2639,103 @@ serve(async (req) => {
           flow_id: null,
           event_id: b.event_id ?? null,
         }));
-      } else {
-        currentBadges = await fetchBadges(
-          client,
-          payload.user_id!,
-          currentWindow.start,
-          currentWindow.end,
-        );
       }
+      const currentBadges = dedupeBadges([...clientBadges, ...serverBadges]);
       const evidenceLines = buildEvidenceLines(currentBadges);
       const tagStr = topTags(currentBadges);
       const topTagList = tagStr
         ? tagStr.split(",").map((t) => t.trim()).filter(Boolean)
         : [];
+      const plannerSummary = buildPlannerSummary(currentBadges);
+      const decanContext = getDecanContext(payload.decan_context_key);
+      const currentMetrics = computeMetrics(
+        currentBadges,
+        currentWindow,
+        evidenceLines.length,
+      );
+      const reflectionProfile = await fetchReflectionProfile(
+        client,
+        payload.user_id!,
+      );
+      const snapshotCount = Math.max(
+        currentMetrics.daysActive,
+        await fetchMaatSnapshotCount(client, payload.user_id!, decanPeriodKey),
+      );
+      const goalProfile = await fetchGuidanceGoalProfile(
+        client,
+        payload.user_id!,
+      );
+      const personalBaseline = await fetchGuidancePersonalBaseline(
+        client,
+        payload.user_id!,
+      );
+      const guidanceMaturity = resolveGuidanceMaturity({
+        badgeCount: currentBadges.length,
+        snapshotCount,
+        profile: reflectionProfile,
+        goalProfile,
+        personalBaseline,
+      });
+      const gatePolicy = resolveGatePolicyForMaturity(
+        guidanceMaturity,
+        goalProfile,
+      );
+      const axisPriors = resolveGraphAxisPriors({
+        profile: reflectionProfile,
+        maturity: guidanceMaturity,
+      });
+      const maatSnapshot = buildMaatDimensionSnapshotFromSignals({
+        decanName: payload.decan_name,
+        decanTheme: payload.decan_theme ?? null,
+        decanContext,
+        evidenceTexts: currentBadges.map((badge) => badgeKeywordText(badge)),
+        badgeCount: currentBadges.length,
+        badgesWithDetails: currentBadges.filter((badge) =>
+          normalizedBadgeDetails(badge).length > 0
+        ).length,
+        activeDays: currentMetrics.daysActive,
+        windowStart: currentWindow.start,
+        windowEnd: currentWindow.end,
+        plannerSummary,
+        gatePolicy,
+        axisPriors,
+      });
+      const decisionMatrix = buildReflectionDecisionMatrixFromSnapshot(
+        useKnowledgeGraph ? reflectionProfile : null,
+        maatSnapshot,
+        {
+          useKnowledgeGraph,
+          useDecisionMatrix,
+        },
+      );
+      const plannerSummaryForBrief = buildPlannerSummary(currentBadges);
+      const plannerSummaryLineForBrief = buildPlannerSummaryLine(
+        plannerSummaryForBrief,
+      );
+      const memoryBrief = buildUserMemoryBrief({
+        profile: useKnowledgeGraph ? reflectionProfile : null,
+        badges: currentBadges,
+        evidencePhrases: evidenceExamplePhrases(evidenceLines, 4),
+        plannerSummaryLine: plannerSummaryLineForBrief,
+        snapshot: maatSnapshot,
+        decanContext,
+        decanName: payload.decan_name,
+        decanTheme: payload.decan_theme,
+      });
+      const targetWordRange = evidenceLines.length >= 6 ||
+          currentBadges.length >= 8 ||
+          (maatSnapshot.source.details_coverage ?? 0) >= 0.35
+        ? "150-220"
+        : "90-140";
+      const shapingFingerprint = buildGuidanceShapingFingerprint({
+        maturity: guidanceMaturity,
+        profile: reflectionProfile,
+        gatePolicy,
+        axisPriors,
+        goalProfile,
+        personalBaseline,
+        decisionMatrixFingerprint: decisionMatrix?.fingerprint ?? null,
+      });
 
       // Optional history (recent decans) with metrics for comparison
       const historyMetrics: HistoryMetrics[] = [];
@@ -1972,13 +2788,18 @@ serve(async (req) => {
       if (apiKey) {
         try {
           const systemPrompt =
-            "You write short decan reflections (one 10-day period). Be concise (80-120 words). Use only the badge evidence. Treat journal badges, checked-off to-dos, and checked-off nutrition as equally valid evidence. Weave in 2-3 concrete details from the evidence (their words, numbers, task names, nutrition names, or drill names) so the user feels seen. No generalities—if you mention an activity, it must appear in the evidence. Note trajectory and theme; one clear next step grounded in what they did. Non-judgmental, warm tone. Aim for: seen and inspired. No bullets, no metadata, no generic advice.";
+            `You write decan reflections (one 10-day period). Use only the evidence provided. Target ${targetWordRange} words: concise when evidence is thin, deeper when evidence is rich. Treat journal badges and planner item states (checked, partial, skipped, and unchecked to-dos/nutrition) as equally valid evidence. Weave in 2-3 concrete details from the evidence (their words, numbers, task names, nutrition names, or drill names) so the user feels seen. No generalities—if you mention an activity, it must appear in the evidence. Note trajectory and theme; one clear next step grounded in what they did and what stayed unchecked. Non-judgmental, warm tone. Aim for: seen and inspired. No bullets, no metadata, no generic advice. If hidden Ma'at/Isfet guardrails or memory brief are present, use them only for tone and closing strategy; never expose scores, gates, labels, slugs, or matrix language.`;
           const userPrompt = buildAnthropicPrompt(
             payload,
             currentBadges,
             evidenceLines,
             topTagList,
             historySummaries,
+            decisionMatrix,
+            {
+              memoryBriefMarkdown: memoryBrief.markdown,
+              targetWordRange,
+            },
           );
           const res = await callAnthropic([
             { role: "system", content: systemPrompt },
@@ -2007,6 +2828,7 @@ serve(async (req) => {
             badges: currentBadges,
             window: currentWindow,
             history: historyMetrics,
+            maatSnapshot,
           },
         );
         reflectionText = v2.reflection.trim();
@@ -2014,12 +2836,13 @@ serve(async (req) => {
       }
 
       let reflectionId: string | null = null;
+      let reflectionGenerationId: string | null = null;
 
       if (payload.persist) {
         try {
           const { data: insertData, error: insertErr } = await client
             .from("decan_reflections")
-            .insert({
+            .upsert({
               user_id: payload.user_id!,
               decan_name: payload.decan_name,
               decan_theme: payload.decan_theme ?? null,
@@ -2027,6 +2850,8 @@ serve(async (req) => {
               decan_end: payload.decan_end!,
               badge_count: currentBadges.length,
               reflection_text: reflectionText,
+            }, {
+              onConflict: "user_id,decan_start",
             })
             .select("id")
             .single();
@@ -2037,6 +2862,78 @@ serve(async (req) => {
           }
         } catch (persistErr) {
           console.error("Persist reflection exception:", persistErr);
+        }
+
+        try {
+          const { data: generationData, error: generationErr } = await client
+            .from("reflection_generations")
+            .insert({
+              user_id: payload.user_id!,
+              period_type: "decan",
+              period_key: decanPeriodKey,
+              anchor_nodes: decisionMatrix?.anchorNodes ?? [],
+              source_snapshot: {
+                decan_name: payload.decan_name,
+                decan_theme: payload.decan_theme ?? null,
+                decan_context_key: payload.decan_context_key ?? null,
+                decan_start: currentWindow.start,
+                decan_end: currentWindow.end,
+                badge_count: currentBadges.length,
+                evidence_count: evidenceLines.length,
+                top_tags: topTagList,
+                planner_summary: plannerSummary,
+                history_windows: historySummaries.length,
+                decan_reflection_id: reflectionId,
+                maturity_level: guidanceMaturity.level,
+                maturity_confidence: guidanceMaturity.confidence,
+                gate_policy: shapingFingerprint.gate_policy,
+                shaping_fingerprint: shapingFingerprint,
+                memory_brief: {
+                  context_quality: memoryBrief.contextQuality,
+                  anchor_labels: memoryBrief.anchorLabels,
+                  tension_labels: memoryBrief.tensionLabels,
+                  evidence_phrases: memoryBrief.evidencePhrases,
+                },
+              },
+              generated_text: reflectionText,
+              model_version: modelUsed,
+              metadata: {
+                policy_version: "decan_maat_dm_v1",
+                guidance_policy_version: MAAT_GUIDANCE_POLICY_VERSION,
+                use_knowledge_graph: useKnowledgeGraph,
+                use_decision_matrix: useDecisionMatrix,
+                maturity_level: guidanceMaturity.level,
+                maturity_label: guidanceMaturity.label,
+                maturity_confidence: guidanceMaturity.confidence,
+                gate_policy: shapingFingerprint.gate_policy,
+                shaping_fingerprint: shapingFingerprint,
+                maat_dimensions: maatSnapshot.dimensions,
+                maat_dimension_score: maatSnapshot.score,
+                maat_dimension_band: maatSnapshot.band,
+                reflection_move: maatSnapshot.reflectionMove,
+                lead_axis: maatSnapshot.leadAxis,
+                correction_axes: maatSnapshot.correctionAxes,
+                hard_gates: maatSnapshot.hardGates,
+                dimension_source: maatSnapshot.source,
+                decision_matrix: decisionMatrix?.fingerprint ?? null,
+                memory_context_quality: memoryBrief.contextQuality,
+              },
+            })
+            .select("id")
+            .single();
+          if (!generationErr) {
+            reflectionGenerationId = generationData?.id ?? null;
+          } else {
+            console.error(
+              "Persist reflection generation error:",
+              generationErr,
+            );
+          }
+        } catch (generationPersistErr) {
+          console.error(
+            "Persist reflection generation exception:",
+            generationPersistErr,
+          );
         }
       }
 
@@ -2052,6 +2949,9 @@ serve(async (req) => {
           topTags: topTagList,
           branch: "decan",
           reflection_id: reflectionId,
+          reflection_generation_id: reflectionGenerationId,
+          knowledgeGraphUsed: useKnowledgeGraph && !!reflectionProfile,
+          decisionMatrixUsed: useDecisionMatrix && !!decisionMatrix,
         }),
         { headers: { "Content-Type": "application/json" } },
       );
