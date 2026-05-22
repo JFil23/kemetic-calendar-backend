@@ -5,6 +5,7 @@ import {
   type MaatAxisCode,
   type MaatPlannerSummaryInput,
 } from "../ai_generate_reflection/maat_decision.ts";
+import fixtureCatalogJson from "./maat_fixtures.json" with { type: "json" };
 import {
   buildDriftNudgeDraft,
   buildGuidanceSnapshot,
@@ -76,8 +77,7 @@ type Fixture = {
   };
 };
 
-const fixtureFile = new URL("./maat_fixtures.json", import.meta.url);
-const fixtureCatalog = JSON.parse(await Deno.readTextFile(fixtureFile)) as {
+const fixtureCatalog = fixtureCatalogJson as {
   policy_version: string;
   fixtures: Fixture[];
 };
