@@ -58,6 +58,15 @@ type Payload = {
   max_runtime_ms?: number | string;
 };
 
+type OpeningCronResult = {
+  user_id: string;
+  delivery?: unknown;
+  created?: boolean;
+  enriched?: boolean;
+  refreshed?: boolean;
+  error?: string;
+};
+
 function boundedInteger(
   value: number | string | null | undefined,
   fallback: number,
@@ -476,7 +485,7 @@ export function createCronMaatDecanOpeningHandler(options?: {
         120000,
       );
 
-      const results = [];
+      const results: OpeningCronResult[] = [];
       const startedAt = Date.now();
       let offset = 0;
       let batches = 0;

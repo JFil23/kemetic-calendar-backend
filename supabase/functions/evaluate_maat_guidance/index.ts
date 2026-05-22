@@ -28,6 +28,7 @@ import {
   shouldCreateDriftNudge,
   shouldCreateStrengthNudge,
   snapshotFromRow,
+  type SnapshotRowLike,
 } from "../_shared/maat_guidance.ts";
 import { buildUserMemoryBrief } from "../_shared/user_memory_brief.ts";
 import type { ReflectionProfileRow } from "../ai_generate_reflection/maat_decision.ts";
@@ -99,6 +100,17 @@ type NutritionItemRow = {
   days_of_week: number[] | null;
   decan_days: number[] | null;
   enabled: boolean | null;
+  created_at?: string | null;
+};
+
+type MaatSnapshotRow = SnapshotRowLike & {
+  window_date: string;
+};
+
+type GuidanceDeliveryRow = {
+  kind: string;
+  status: string;
+  shown_at?: string | null;
   created_at?: string | null;
 };
 
@@ -762,7 +774,7 @@ async function refreshPersonalBaseline(
     return null;
   }
 
-  const snapshots = rows ?? [];
+  const snapshots = (rows ?? []) as MaatSnapshotRow[];
   if (snapshots.length < 10) return null;
 
   const axisMedians: Record<string, number | null> = {};
@@ -780,7 +792,7 @@ async function refreshPersonalBaseline(
       const total = Number(source.planner_total ?? 0);
       return total > 0 ? done / total : null;
     })
-    .filter((value): value is number => value !== null);
+    .filter((value: number | null): value is number => value !== null);
 
   const baseline: GuidancePersonalBaseline = {
     computedAt: now.toISOString(),
@@ -1072,8 +1084,8 @@ export function createEvaluateMaatGuidanceHandler(options?: {
         .eq("decan_period_key", periodKey)
         .order("window_date", { ascending: false })
         .limit(11);
-      const priorSnapshotRows = (snapshotRows ?? [])
-        .filter((row) => row.window_date !== localDate);
+      const priorSnapshotRows = ((snapshotRows ?? []) as MaatSnapshotRow[])
+        .filter((row: MaatSnapshotRow) => row.window_date !== localDate);
       const goalProfile = await fetchGoalProfile(client, user.id);
       const personalBaseline = await refreshPersonalBaseline(
         client,
@@ -1237,7 +1249,7 @@ export function createEvaluateMaatGuidanceHandler(options?: {
         .eq("user_id", user.id)
         .eq("decan_period_key", periodKey)
         .order("created_at", { ascending: false });
-      const deliveries = deliveryRows ?? [];
+      const deliveries = (deliveryRows ?? []) as GuidanceDeliveryRow[];
       const driftCount = deliveries.filter((row) =>
         row.kind === "drift_nudge"
       ).length;
@@ -1262,7 +1274,9 @@ export function createEvaluateMaatGuidanceHandler(options?: {
         snapshot,
         ...(priorSnapshotRows
           .map(snapshotFromRow)
-          .filter((row): row is typeof snapshot => !!row)),
+          .filter((row: typeof snapshot | null): row is typeof snapshot =>
+            !!row
+          )),
       ];
       const priorSnapshotRow = priorSnapshotRows[0] ?? null;
       const dayIndex = decanDayIndex(window.start, localDate);

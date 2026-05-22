@@ -59,12 +59,14 @@ class MockSupabaseQuery {
   }
 
   gte(column: string, value: unknown) {
-    this.filters.push((row) => row[column] >= value);
+    const comparable = value as string | number;
+    this.filters.push((row) => row[column] >= comparable);
     return this;
   }
 
   lte(column: string, value: unknown) {
-    this.filters.push((row) => row[column] <= value);
+    const comparable = value as string | number;
+    this.filters.push((row) => row[column] <= comparable);
     return this;
   }
 
