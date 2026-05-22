@@ -19,6 +19,25 @@ Ma'at, Isfet, opening, or reflection gates.
 - `admin_maat_ops?action=evaluations`: support lookup for recent evaluation
   decisions by user.
 
+## Verification Gate
+
+The full backend gate is:
+
+```bash
+deno test --allow-env supabase/functions/
+```
+
+Expected result after the guidance rollout:
+
+```text
+ok | 221 passed | 0 failed
+```
+
+Do not add `--allow-read` to make fixture tests pass. `maat_fixtures_test.ts`
+imports `maat_fixtures.json` statically so the suite can run under minimal CI
+permissions. If the result is about `168 passed, 1 failed`, the fixture module
+failed to load before its fixture cases ran.
+
 ## Debug Fields
 
 `evaluate_maat_guidance` returns:

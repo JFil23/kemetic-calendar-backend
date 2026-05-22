@@ -1,0 +1,20 @@
+name: supabase-functions
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  edge-functions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Test Supabase edge functions
+        run: deno test --allow-env supabase/functions/
