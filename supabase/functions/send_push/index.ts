@@ -236,6 +236,21 @@ function buildAppTargetUrl(data?: Record<string, unknown>) {
     }
   }
 
+  if (kind === "flow_share") {
+    const shareId = firstString(data?.share_id) ??
+      firstString(data?.shareId);
+    const senderId = firstString(data?.sender_id) ??
+      firstString(data?.senderId);
+    const params = new URLSearchParams({ push_kind: "flow_share" });
+    if (shareId) {
+      params.set("share_id", shareId);
+    }
+    if (senderId) {
+      params.set("sender_id", senderId);
+    }
+    return `/?${params.toString()}`;
+  }
+
   if (kind === "dm") {
     const senderId = firstString(data?.sender_id) ??
       firstString(data?.senderId);
@@ -247,6 +262,16 @@ function buildAppTargetUrl(data?: Record<string, unknown>) {
     }
     if (shareId) {
       params.set("share_id", shareId);
+    }
+    return `/?${params.toString()}`;
+  }
+
+  if (kind === "follow") {
+    const senderId = firstString(data?.sender_id) ??
+      firstString(data?.senderId);
+    const params = new URLSearchParams({ push_kind: "follow" });
+    if (senderId) {
+      params.set("sender_id", senderId);
     }
     return `/?${params.toString()}`;
   }

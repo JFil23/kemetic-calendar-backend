@@ -35,8 +35,8 @@ async function sendFlowSharePush({
           body: flowName.trim() || "Tap to open in Inbox",
         },
         data: {
-          type: "dm",
-          kind: "dm",
+          type: "flow_share",
+          kind: "flow_share",
           sender_id: senderId,
           share_id: shareId ?? undefined,
           share_kind: "flow",
