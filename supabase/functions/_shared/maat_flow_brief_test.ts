@@ -37,13 +37,13 @@ Deno.test("flow brief composes deterministic provision restore recipe", () => {
     window,
     maturity: l3,
     triggerReason: "hard_gate",
-    fallbackTemplateKey: "dawn-house-rite",
+    fallbackTemplateKey: "the-offering-table",
   });
 
   assertEquals(brief?.policyVersion, "maat_flow_brief_v1");
   assertEquals(brief?.intent, "restore");
   assertEquals(brief?.durationDays, 10);
-  assertEquals(brief?.fallbackTemplateKey, "dawn-house-rite");
+  assertEquals(brief?.fallbackTemplateKey, "the-offering-table");
   assertStringIncludes(brief?.sourceText ?? "", "MAAT_FLOW_BRIEF v1");
   assertStringIncludes(brief?.preview.overviewSummary ?? "", "10 days");
 });
@@ -58,7 +58,7 @@ Deno.test("flow brief refuses cold start and review-only gates", () => {
     mode: "drift",
     window,
     maturity: { level: "L1", label: "cold_start" },
-    fallbackTemplateKey: "dawn-house-rite",
+    fallbackTemplateKey: "the-offering-table",
   });
   assertEquals(cold, null);
 
@@ -86,12 +86,34 @@ Deno.test("flow brief composes strength rhythm recipe", () => {
     mode: "strength",
     window,
     maturity: l3,
-    fallbackTemplateKey: "track-the-sky",
+    fallbackTemplateKey: "the-course",
   });
 
   assertEquals(brief?.intent, "strengthen");
   assertEquals(brief?.durationDays, 14);
   assertEquals(brief?.domain, "rhythm");
+  assertEquals(brief?.fallbackTemplateKey, "the-course");
+});
+
+Deno.test("flow brief uses The Weighing for measure and record recipes", () => {
+  const base = buildGuidanceSnapshot({ window, badges: [] });
+  const brief = composeMaatFlowBrief({
+    snapshot: {
+      ...base,
+      leadAxis: "M",
+      correctionAxes: ["M"],
+      hardGates: [],
+    },
+    mode: "drift",
+    window,
+    maturity: l3,
+    fallbackTemplateKey: "the-weighing",
+  });
+
+  assertEquals(brief?.intent, "restore");
+  assertEquals(brief?.domain, "measure");
+  assertEquals(brief?.fallbackTemplateKey, "the-weighing");
+  assertEquals(brief?.fingerprint.recipe_key, "restore-measure-axis");
 });
 
 Deno.test("flow brief composes care-axis restore recipe", () => {
@@ -106,12 +128,35 @@ Deno.test("flow brief composes care-axis restore recipe", () => {
     mode: "drift",
     window,
     maturity: l3,
-    fallbackTemplateKey: "dawn-house-rite",
+    fallbackTemplateKey: "the-tending",
   });
 
   assertEquals(brief?.intent, "protect");
   assertEquals(brief?.durationDays, 7);
   assertEquals(brief?.domain, "care");
+  assertEquals(brief?.fallbackTemplateKey, "the-tending");
   assertEquals(brief?.plannerHints.cueType, "care");
   assertEquals(brief?.fingerprint.recipe_key, "restore-care-axis");
+});
+
+Deno.test("flow brief composes cohesion-axis restore recipe", () => {
+  const base = buildGuidanceSnapshot({ window, badges: [] });
+  const brief = composeMaatFlowBrief({
+    snapshot: {
+      ...base,
+      leadAxis: "C",
+      correctionAxes: ["C"],
+      hardGates: [],
+    },
+    mode: "drift",
+    window,
+    maturity: l3,
+    fallbackTemplateKey: "the-kept-word",
+  });
+
+  assertEquals(brief?.intent, "restore");
+  assertEquals(brief?.domain, "cohesion");
+  assertEquals(brief?.fallbackTemplateKey, "the-kept-word");
+  assertEquals(brief?.plannerHints.cueType, "rhythm");
+  assertEquals(brief?.fingerprint.recipe_key, "restore-cohesion-axis");
 });

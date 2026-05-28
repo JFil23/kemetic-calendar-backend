@@ -1,3 +1,8 @@
+import {
+  buildPlannerMaatLedger,
+  type MaatLedgerSummary,
+} from "../_shared/maat_ledger.ts";
+
 export type MaatAxisCode = "T" | "M" | "H" | "V" | "J" | "S" | "E" | "R" | "C";
 
 export type MaatPlannerSummaryInput = {
@@ -5,9 +10,11 @@ export type MaatPlannerSummaryInput = {
   todoDone: number;
   todoPartial: number;
   todoSkipped: number;
+  todoPending?: number;
   nutritionDone: number;
   nutritionPartial: number;
   nutritionSkipped: number;
+  nutritionPending?: number;
 };
 
 export type MaatDimensionSnapshotInput = {
@@ -60,6 +67,10 @@ export type MaatDimensionSnapshot = {
     completed_planner: number;
     partial_planner: number;
     skipped_planner: number;
+    pending_planner: number;
+    open_obligations: number;
+    unresolved_obligations: number;
+    ledger?: MaatLedgerSummary;
     details_coverage: number;
     days_active: number;
     axis_priors?: Partial<Record<MaatAxisCode, number>>;
@@ -195,7 +206,7 @@ function roundTo(value: number, places = 3): number {
   return Math.round(value * factor) / factor;
 }
 
-function toNumber(value: any): number | null {
+function toNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
@@ -358,10 +369,19 @@ export function resolveDecanPrimaryAxes(
   return uniqueAxes(axes).slice(0, 3);
 }
 
-function weightedPlannerRatio(done: number, partial: number, skipped: number) {
-  const total = done + partial + skipped;
+function weightedPlannerRatio(
+  done: number,
+  partial: number,
+  skipped: number,
+  pending = 0,
+) {
+  const total = done + partial + skipped + pending;
   if (!total) return 0;
-  return clamp((done + 0.35 * partial - skipped) / total, -1, 1);
+  return clamp(
+    (done + 0.35 * partial - skipped - 0.55 * pending) / total,
+    -1,
+    1,
+  );
 }
 
 function countTermHits(text: string, terms: string[]) {
@@ -459,20 +479,30 @@ export function buildMaatDimensionSnapshot(
     plannerSummary.nutritionPartial;
   const skippedPlanner = plannerSummary.todoSkipped +
     plannerSummary.nutritionSkipped;
+  const todoPending = plannerSummary.todoPending ?? 0;
+  const nutritionPending = plannerSummary.nutritionPending ?? 0;
+  const pendingPlanner = todoPending + nutritionPending;
+  const ledger = buildPlannerMaatLedger(plannerSummary, {
+    evidenceTexts: input.evidenceTexts,
+    decanTheme: input.decanTheme ?? input.decanName ?? null,
+  });
   const plannerRatio = weightedPlannerRatio(
     completedPlanner,
     partialPlanner,
     skippedPlanner,
+    pendingPlanner,
   );
   const todoRatio = weightedPlannerRatio(
     plannerSummary.todoDone,
     plannerSummary.todoPartial,
     plannerSummary.todoSkipped,
+    todoPending,
   );
   const nutritionRatio = weightedPlannerRatio(
     plannerSummary.nutritionDone,
     plannerSummary.nutritionPartial,
     plannerSummary.nutritionSkipped,
+    nutritionPending,
   );
   const detailsCoverage = input.badgeCount
     ? input.badgesWithDetails / input.badgeCount
@@ -613,9 +643,17 @@ export function buildMaatDimensionSnapshot(
       1,
     )
     : 0;
-  const skippedRatio = plannerSummary.total
-    ? skippedPlanner / plannerSummary.total
+  const computedPlannerTotal = completedPlanner + partialPlanner +
+    skippedPlanner + pendingPlanner;
+  const plannerTotal = Math.max(plannerSummary.total, computedPlannerTotal);
+  const skippedRatio = plannerTotal ? skippedPlanner / plannerTotal : 0;
+  const unresolvedRatio = plannerTotal
+    ? ledger.unresolved_obligations / plannerTotal
     : 0;
+  const pendingNutritionRatio = plannerTotal
+    ? nutritionPending / plannerTotal
+    : 0;
+  const pendingTodoRatio = plannerTotal ? todoPending / plannerTotal : 0;
 
   const dimensions: Record<MaatAxisCode, number> = {
     T: clamp(
@@ -627,13 +665,14 @@ export function buildMaatDimensionSnapshot(
     M: clamp(
       plannerRatio * 0.65 + Math.min(0.25, measureHits * 0.05) +
         Math.min(0.15, refinementHits * 0.04) +
-        Math.min(0.1, progressHits * 0.02),
+        Math.min(0.1, progressHits * 0.02) - pendingTodoRatio * 0.1,
       -1,
       1,
     ),
     H: clamp(
       nutritionRatio * 0.45 + Math.min(0.25, provisionHits * 0.04) -
-        Math.min(0.8, overreachHits * 0.35) - skippedRatio * 0.15,
+        Math.min(0.8, overreachHits * 0.35) - skippedRatio * 0.15 -
+        pendingNutritionRatio * 0.08,
       -1,
       1,
     ),
@@ -650,12 +689,13 @@ export function buildMaatDimensionSnapshot(
     ),
     S: clamp(
       todoRatio * 0.25 + nutritionRatio * 0.45 +
-        Math.min(0.3, provisionHits * 0.05),
+        Math.min(0.3, provisionHits * 0.05) - pendingNutritionRatio * 0.1,
       -1,
       1,
     ),
     E: clamp(
-      nutritionRatio * 0.25 + Math.min(0.35, provisionHits * 0.04),
+      nutritionRatio * 0.25 + Math.min(0.35, provisionHits * 0.04) -
+        pendingNutritionRatio * 0.08,
       -1,
       1,
     ),
@@ -667,7 +707,8 @@ export function buildMaatDimensionSnapshot(
       1,
     ),
     C: clamp(
-      daysActiveRatio * 0.55 + plannerRatio * 0.25 - skippedRatio * 0.15,
+      daysActiveRatio * 0.55 + plannerRatio * 0.25 - skippedRatio * 0.15 -
+        unresolvedRatio * 0.08,
       -1,
       1,
     ),
@@ -697,8 +738,11 @@ export function buildMaatDimensionSnapshot(
     : score > -60
     ? "leaning_isfet"
     : "isfet_patterned";
+  const effectiveUnresolvedScore = ledger.dominant_leak?.score ?? 0;
+  const unresolvedCorrectionNeeded = effectiveUnresolvedScore >= 2.25 &&
+    unresolvedRatio >= 0.67;
   const reflectionMove: MaatDimensionSnapshot["reflectionMove"] =
-    hardGates.length || score <= -25
+    hardGates.length || score <= -25 || unresolvedCorrectionNeeded
       ? "correct"
       : score < 25
       ? "inquire"
@@ -741,10 +785,14 @@ export function buildMaatDimensionSnapshot(
     hardGates,
     decanPrimaryAxes,
     source: {
-      planner_total: plannerSummary.total,
+      planner_total: plannerTotal,
       completed_planner: completedPlanner,
       partial_planner: partialPlanner,
       skipped_planner: skippedPlanner,
+      pending_planner: pendingPlanner,
+      open_obligations: ledger.open_obligations,
+      unresolved_obligations: ledger.unresolved_obligations,
+      ledger,
       details_coverage: roundTo(detailsCoverage, 3),
       days_active: input.activeDays,
       axis_priors: axisPriors,

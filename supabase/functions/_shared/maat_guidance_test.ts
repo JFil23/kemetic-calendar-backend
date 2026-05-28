@@ -1,3 +1,5 @@
+// deno-lint-ignore-file no-import-prefix
+
 import {
   assertEquals,
   assertStringIncludes,
@@ -11,11 +13,13 @@ import {
   buildStrengthNudgeDraft,
   decanDayIndex,
   type GuidanceBadgeRow,
+  renderGuidanceDraftWithLlm,
   resolveGatePolicyForMaturity,
   resolveGraphAxisPriors,
   resolveGuidanceCta,
   resolveGuidanceMaturity,
   shouldCompleteOpenCorrection,
+  shouldCreateDayFiveCadenceNudge,
   shouldCreateDriftNudge,
   shouldCreateStrengthNudge,
 } from "./maat_guidance.ts";
@@ -29,6 +33,114 @@ const window = {
   decanTheme: "measure",
   decanContextKey: "1-1",
 };
+
+Deno.test("pending planner badges become Ma'at ledger obligations", () => {
+  const badges: GuidanceBadgeRow[] = [{
+    title: "Nutrition: water",
+    details: "Planner nutrition entry for 2026-05-19. State: pending.",
+    tags: ["planner", "kind:nutrition", "state:pending"],
+    occurred_on: "2026-05-19",
+  }, {
+    title: "Nutrition: bee bread",
+    details: "Planner nutrition entry for 2026-05-19. State: pending.",
+    tags: ["planner", "kind:nutrition", "state:pending"],
+    occurred_on: "2026-05-19",
+  }, {
+    title: "To-do: file notes",
+    details: "Planner to-do entry for 2026-05-19. State: pending.",
+    tags: ["planner", "kind:todo", "state:pending"],
+    occurred_on: "2026-05-19",
+  }];
+
+  const summary = buildPlannerSummaryFromBadges(badges);
+  const snapshot = buildGuidanceSnapshot({ window, badges });
+
+  assertEquals(summary.total, 3);
+  assertEquals(summary.nutritionPending, 2);
+  assertEquals(summary.todoPending, 1);
+  assertEquals(snapshot.source.pending_planner, 3);
+  assertEquals(snapshot.source.open_obligations, 3);
+  assertEquals(snapshot.source.ledger?.dominant_leak?.field, "visible_work");
+  assertEquals(
+    snapshot.source.ledger?.suggested_restoration?.action,
+    "complete one to-do with a clear finish condition",
+  );
+
+  const nutritionOnly = buildGuidanceSnapshot({
+    window,
+    badges: badges.filter((badge) => badge.tags.includes("kind:nutrition")),
+  });
+  assertEquals(nutritionOnly.source.ledger?.dominant_leak?.field, "provision");
+  assertEquals(
+    nutritionOnly.source.ledger?.suggested_restoration?.action,
+    "complete one nutrition check today",
+  );
+});
+
+Deno.test("drift nudge chooses the largest Ma'at ledger restoration target", () => {
+  const snapshot = buildGuidanceSnapshot({
+    window,
+    badges: [{
+      title: "To-do: file notes",
+      details: "Planner to-do entry for 2026-05-19. State: pending.",
+      tags: ["planner", "kind:todo", "state:pending"],
+      occurred_on: "2026-05-19",
+    }, {
+      title: "To-do: revise plan",
+      details: "Planner to-do entry for 2026-05-19. State: pending.",
+      tags: ["planner", "kind:todo", "state:pending"],
+      occurred_on: "2026-05-19",
+    }, {
+      title: "Nutrition: water",
+      details: "Planner nutrition entry for 2026-05-19. State: pending.",
+      tags: ["planner", "kind:nutrition", "state:pending"],
+      occurred_on: "2026-05-19",
+    }],
+  });
+
+  const draft = buildDriftNudgeDraft({
+    snapshot,
+    window,
+    triggerReason: "test_pending_obligations",
+  });
+
+  assertStringIncludes(draft.teaserText, "open endings");
+  assertStringIncludes(
+    draft.bodyText,
+    "Choose the task with the clearest finish line",
+  );
+  assertEquals(draft.bodyText.includes("failure"), false);
+});
+
+Deno.test("Moon Return backlog records are not planner skip evidence", () => {
+  const badges: GuidanceBadgeRow[] = [{
+    title: "Moon Return: Whole Eye",
+    details: "Backfilled lunar calendar record.",
+    tags: ["maat", "flow:the-moon-return"],
+    occurred_on: "2026-05-17",
+    flow_id: 43,
+    event_id: "moon-return:43:full:2026-05-17",
+  }, {
+    title: "Moon Return: Empty Eye",
+    details: "Future lunar calendar record.",
+    tags: ["maat", "flow:the-moon-return"],
+    occurred_on: "2026-05-31",
+    flow_id: 43,
+    event_id: "moon-return:43:new:2026-05-31",
+  }];
+
+  const summary = buildPlannerSummaryFromBadges(badges);
+  const snapshot = buildGuidanceSnapshot({ window, badges });
+
+  assertEquals(summary.total, 0);
+  assertEquals(summary.todoSkipped, 0);
+  assertEquals(summary.nutritionSkipped, 0);
+  assertEquals(snapshot.source.planner_total, 0);
+  assertEquals(snapshot.source.skipped_planner, 0);
+  assertEquals(snapshot.source.pending_planner, 0);
+  assertEquals(snapshot.source.open_obligations, 0);
+  assertEquals(snapshot.hardGates, []);
+});
 
 Deno.test("opening guidance keeps scores hidden while naming one action", () => {
   const snapshot = buildGuidanceSnapshot({
@@ -52,16 +164,43 @@ Deno.test("opening guidance keeps scores hidden while naming one action", () => 
   });
 
   assertEquals(draft.kind, "decan_opening");
-  assertEquals(draft.ctaType, "node");
-  assertEquals(draft.ctaRef, "maat");
-  assertStringIncludes(draft.teaserText, "Begin with one measured act");
-  assertStringIncludes(draft.teaserText, "Today centers Record honestly");
+  assertEquals(draft.ctaType, "flow_template");
+  assertEquals(draft.ctaRef, "the-decan-watch");
+  assertStringIncludes(draft.teaserText, "sets records in order");
+  assertStringIncludes(draft.bodyText, "Today centers Record honestly");
+  const compiledPackage = draft.payload.compiled_output_package as {
+    package_version?: string;
+    final_text?: string;
+    teaser_text?: string | null;
+    push_text?: string | null;
+    cta_type?: string | null;
+    cta_ref?: string | null;
+    destination?: { type?: string; ref?: string; source?: string };
+    compiler?: {
+      surface?: string;
+      status?: string;
+      renderer?: string;
+      fallback_used?: boolean;
+    };
+  };
+  assertEquals(compiledPackage.package_version, "compiled_output_package_v1");
+  assertEquals(compiledPackage.final_text, draft.bodyText);
+  assertEquals(compiledPackage.teaser_text, draft.teaserText);
+  assertEquals(compiledPackage.push_text?.length > 0, true);
+  assertEquals(compiledPackage.cta_type, "flow_template");
+  assertEquals(compiledPackage.cta_ref, "the-decan-watch");
+  assertEquals(compiledPackage.destination?.ref, "the-decan-watch");
+  assertEquals(compiledPackage.destination?.source, "calendar_arc");
+  assertEquals(compiledPackage.compiler?.surface, "opening");
+  assertEquals(compiledPackage.compiler?.status, "compiled");
+  assertEquals(compiledPackage.compiler?.renderer, "controlled_output");
+  assertEquals(compiledPackage.compiler?.fallback_used, false);
   assertEquals(draft.teaserText.includes("Today's card names"), false);
   assertEquals(draft.teaserText.includes("score"), false);
   assertEquals(draft.teaserText.includes("isfet"), false);
 });
 
-Deno.test("guidance drafts can include user memory evidence without leaking internals", () => {
+Deno.test("guidance drafts season from memory without reciting activities", () => {
   const snapshot = buildGuidanceSnapshot({
     window,
     badges: [{
@@ -90,6 +229,11 @@ Deno.test("guidance drafts can include user memory evidence without leaking inte
     window,
     snapshot,
     memoryBrief,
+    dayCard: {
+      date: "2026-05-16",
+      maatPrinciple: "Record honestly",
+      decanDayAction: "Write one true mark",
+    },
   });
   const drift = buildDriftNudgeDraft({
     snapshot: { ...snapshot, reflectionMove: "correct", correctionAxes: ["M"] },
@@ -103,12 +247,155 @@ Deno.test("guidance drafts can include user memory evidence without leaking inte
     memoryBrief,
   });
 
-  assertStringIncludes(opening.bodyText, "write one true mark");
-  assertStringIncludes(drift.bodyText, "write one true mark");
-  assertStringIncludes(strength.bodyText, "write one true mark");
+  assertStringIncludes(opening.bodyText, "Write one true mark");
+  assertEquals(drift.bodyText.includes("write one true mark"), false);
+  assertEquals(strength.bodyText.includes("write one true mark"), false);
+  assertEquals(drift.bodyText.includes("Tend to"), false);
+  assertStringIncludes(drift.bodyText, "One piece of the work");
+  assertStringIncludes(strength.teaserText, "is holding");
   assertEquals(opening.bodyText.includes("memory brief"), false);
   assertEquals(drift.bodyText.includes("hard gate"), false);
   assertEquals(strength.bodyText.includes("score"), false);
+});
+
+Deno.test("LLM nudge renderer uses render contract, evidence anchors, and example helper", async () => {
+  const badges: GuidanceBadgeRow[] = [{
+    title: "Nutrition: bee bread",
+    details: "Planner nutrition entry for 2026-05-19. State: pending.",
+    tags: ["planner", "kind:nutrition", "state:pending"],
+    occurred_on: "2026-05-19",
+  }, {
+    title: "Nutrition: coconut water",
+    details: "Planner nutrition entry for 2026-05-19. State: pending.",
+    tags: ["planner", "kind:nutrition", "state:pending"],
+    occurred_on: "2026-05-19",
+  }, {
+    title: "Nutrition: banana",
+    details: "Planner nutrition entry for 2026-05-19. State: pending.",
+    tags: ["planner", "kind:nutrition", "state:pending"],
+    occurred_on: "2026-05-19",
+  }];
+  const snapshot = buildGuidanceSnapshot({ window, badges });
+  const memoryBrief = buildUserMemoryBrief({
+    profile: null,
+    badges,
+    evidencePhrases: [
+      "bee bread, coconut water, and banana are open support marks",
+    ],
+    snapshot,
+    decanName: window.decanName,
+  });
+  const draft = buildDriftNudgeDraft({
+    snapshot,
+    triggerReason: "admin_preview",
+    window,
+    memoryBrief,
+  });
+  const rendered = await renderGuidanceDraftWithLlm(draft, {
+    renderer: async ({ userPrompt }) => {
+      assertStringIncludes(userPrompt, "EVIDENCE ANCHORS");
+      assertStringIncludes(userPrompt, "TARGET QUALITY EXAMPLE");
+      assertStringIncludes(userPrompt, "bee bread");
+      return {
+        modelUsed: "mock-nudge-model",
+        text:
+          "Bee bread, coconut water, and banana are open as separate supports. Choose the one source that carries the most real nourishment today and close that single mark. A smaller account kept cleanly gives the body more order than a wider list left waiting.",
+      };
+    },
+  });
+
+  assertStringIncludes(rendered.bodyText, "Bee bread");
+  assertStringIncludes(rendered.bodyText, "single mark");
+  assertEquals(rendered.bodyText.includes("Several support marks"), false);
+  assertEquals(
+    (rendered.payload.nudge_renderer as { model_version?: string })
+      .model_version,
+    "mock-nudge-model",
+  );
+  assertEquals(
+    (rendered.payload.nudge_renderer as { renderer?: string }).renderer,
+    "anthropic",
+  );
+  assertEquals(
+    (rendered.payload.output_compiler as { status?: string }).status,
+    "compiled",
+  );
+  assertEquals(
+    (rendered.payload.output_compiler as { fallback_used?: boolean })
+      .fallback_used,
+    false,
+  );
+  assertEquals(
+    (rendered.payload.compiled_output_package as {
+      package_version?: string;
+      fallback_used?: boolean;
+    }).package_version,
+    "compiled_output_package_v1",
+  );
+  assertEquals(
+    (rendered.payload.compiled_output_package as { fallback_used?: boolean })
+      .fallback_used,
+    false,
+  );
+});
+
+Deno.test("LLM nudge fallback is compiler-marked archive-only and not quality proof", async () => {
+  const badges: GuidanceBadgeRow[] = [{
+    title: "Nutrition: bee bread",
+    details: "Planner nutrition entry for 2026-05-19. State: pending.",
+    tags: ["planner", "kind:nutrition", "state:pending"],
+    occurred_on: "2026-05-19",
+  }];
+  const snapshot = buildGuidanceSnapshot({ window, badges });
+  const draft = buildDriftNudgeDraft({
+    snapshot,
+    triggerReason: "admin_preview",
+    window,
+  });
+  const rendered = await renderGuidanceDraftWithLlm(draft, {
+    enabled: false,
+  });
+  const compiler = rendered.payload.output_compiler as {
+    status?: string;
+    fallback_used?: boolean;
+    fallback_quality?: boolean;
+    not_quality_proof?: boolean;
+    delivery_recommendation?: string;
+  };
+
+  assertEquals(compiler.status, "fallback");
+  assertEquals(compiler.fallback_used, true);
+  assertEquals(compiler.fallback_quality, true);
+  assertEquals(compiler.not_quality_proof, true);
+  assertEquals(compiler.delivery_recommendation, "archive_only");
+  assertEquals(rendered.ctaType, "none");
+  assertEquals(rendered.ctaRef, null);
+  assertEquals(rendered.payload.delivery_channel, "archive_only");
+  assertEquals(rendered.payload.cta_type, "none");
+  assertEquals(rendered.payload.cta_ref, null);
+  assertEquals(
+    (rendered.payload.destination as { type?: string }).type,
+    "none",
+  );
+  assertEquals(
+    (rendered.payload.compiled_output_package as {
+      delivery_recommendation?: string;
+      cta_type?: string | null;
+      cta_ref?: string | null;
+      destination?: unknown;
+    }).delivery_recommendation,
+    "archive_only",
+  );
+  assertEquals(
+    (rendered.payload.compiled_output_package as { cta_type?: string | null })
+      .cta_type,
+    null,
+  );
+  assertEquals(
+    (rendered.payload.compiled_output_package as { cta_ref?: string | null })
+      .cta_ref,
+    null,
+  );
 });
 
 Deno.test("guidance copy audit samples keep internal labels hidden", () => {
@@ -238,8 +525,11 @@ Deno.test("drift hysteresis waits for repeated correction unless hard gate trigg
   });
   assertEquals(draft.kind, "drift_nudge");
   assertEquals(draft.ctaType, "flow_template");
-  assertEquals(draft.ctaRef, "dawn-house-rite");
-  assertStringIncludes(draft.bodyText, "next step");
+  assertEquals(draft.ctaRef, "the-offering-table");
+  assertStringIncludes(draft.bodyText, "The same provision thread");
+  assertStringIncludes(draft.bodyText, "Choose the nutrition source");
+  assertEquals(draft.bodyText.includes("failure"), false);
+  assertEquals(draft.bodyText.includes("Corrective act"), false);
 });
 
 Deno.test("drift timing covers opening-first, cooldown, and band hysteresis", () => {
@@ -335,24 +625,166 @@ Deno.test("strength nudge requires three strong snapshots after opening", () => 
     snapshots: [strong, strong, strong],
     strengthCount: 0,
     driftCount: 0,
-    decanDayIndex: 4,
+    decanDayIndex: 5,
     openingHandled: true,
   });
   assertEquals(shouldCreate, true);
+
+  const dayFourBlocked = shouldCreateStrengthNudge({
+    snapshots: [strong, strong, strong],
+    strengthCount: 0,
+    driftCount: 0,
+    decanDayIndex: 4,
+    openingHandled: true,
+  });
+  assertEquals(dayFourBlocked, false);
 
   const blockedByCorrection = shouldCreateStrengthNudge({
     snapshots: [strong, strong, strong],
     strengthCount: 0,
     driftCount: 0,
     openCorrectionExists: true,
-    decanDayIndex: 4,
+    decanDayIndex: 5,
     openingHandled: true,
   });
   assertEquals(blockedByCorrection, false);
 
   const draft = buildStrengthNudgeDraft({ snapshot: strong, window });
   assertEquals(draft.kind, "strength_nudge");
-  assertStringIncludes(draft.teaserText, "Your rhythm is holding");
+  assertStringIncludes(draft.teaserText, "is holding");
+});
+
+Deno.test("day-five cadence chooses Ma'at affirmation or Isfet correction", () => {
+  const strong = buildGuidanceSnapshot({
+    window,
+    badges: [{
+      title: "Completed to-do: review",
+      details: "Measured 30 minutes and recorded 4 notes.",
+      tags: ["planner", "kind:todo", "state:done"],
+      occurred_on: "2026-05-20",
+    }, {
+      title: "Completed nutrition: water",
+      details: "Food and water protected.",
+      tags: ["planner", "kind:nutrition", "state:done"],
+      occurred_on: "2026-05-20",
+    }],
+  });
+  const stable = {
+    ...strong,
+    band: "maat" as const,
+    reflectionMove: "affirm" as const,
+    hardGates: [],
+  };
+
+  const maatDecision = shouldCreateDayFiveCadenceNudge({
+    current: stable,
+    decanDayIndex: 5,
+    driftCount: 0,
+    strengthCount: 0,
+  });
+  assertEquals(maatDecision, {
+    create: true,
+    mode: "maat",
+    kind: "strength_nudge",
+    reason: "decan_day_5_maat",
+  });
+
+  const isfetDecision = shouldCreateDayFiveCadenceNudge({
+    current: {
+      ...stable,
+      band: "leaning_isfet",
+      reflectionMove: "correct",
+      correctionAxes: ["H"],
+      hardGates: ["life_supporting_flow_disrupted"],
+    },
+    decanDayIndex: 5,
+    driftCount: 0,
+    strengthCount: 0,
+  });
+  assertEquals(isfetDecision, {
+    create: true,
+    mode: "isfet",
+    kind: "drift_nudge",
+    reason: "decan_day_5_isfet",
+  });
+
+  const cappedIsfetDecision = shouldCreateDayFiveCadenceNudge({
+    current: {
+      ...stable,
+      band: "mixed",
+      reflectionMove: "correct",
+    },
+    decanDayIndex: 5,
+    driftCount: 2,
+    strengthCount: 0,
+  });
+  assertEquals(cappedIsfetDecision.reason, "drift_cap_reached");
+
+  const lowDataDecision = shouldCreateDayFiveCadenceNudge({
+    current: buildGuidanceSnapshot({ window, badges: [] }),
+    decanDayIndex: 5,
+    driftCount: 0,
+    strengthCount: 0,
+  });
+  assertEquals(lowDataDecision, {
+    create: true,
+    mode: "inquire",
+    kind: "drift_nudge",
+    reason: "decan_day_5_insufficient_signal",
+  });
+
+  const lowDataDraft = buildDriftNudgeDraft({
+    snapshot: buildGuidanceSnapshot({ window, badges: [] }),
+    window,
+    triggerReason: "decan_day_5_insufficient_signal",
+  });
+  assertStringIncludes(lowDataDraft.bodyText, "The record is too thin");
+  assertEquals(lowDataDraft.bodyText.includes("failure"), false);
+  const lowDataControl = lowDataDraft.payload.output_control as {
+    grade: { pass: boolean };
+  };
+  assertEquals(lowDataControl.grade.pass, true);
+
+  const maatDraft = buildStrengthNudgeDraft({
+    snapshot: stable,
+    window,
+    triggerReason: "decan_day_5_maat",
+    celebrationOnly: true,
+  });
+  assertEquals(maatDraft.triggerReason, "decan_day_5_maat");
+  assertEquals(maatDraft.ctaType, "none");
+
+  const isfetDraft = buildDriftNudgeDraft({
+    snapshot: {
+      ...stable,
+      band: "mixed" as const,
+      reflectionMove: "correct" as const,
+      leadAxis: "M" as const,
+      correctionAxes: ["M" as const],
+      hardGates: [],
+    },
+    window,
+    triggerReason: "decan_day_5_isfet",
+    enablePersonalizedFlow: true,
+    outcomeSignals: [{
+      ctaType: "node",
+      ctaRef: "djehuty",
+      outcomeFlag: "winning",
+      completedWindowCount: 8,
+      weightedDeltaDoneRate: 0.08,
+    }, {
+      ctaType: "flow_template",
+      ctaRef: "dawn-house-rite",
+      outcomeFlag: "winning",
+      completedWindowCount: 8,
+      weightedDeltaDoneRate: 0.08,
+    }],
+  });
+  assertEquals(isfetDraft.triggerReason, "decan_day_5_isfet");
+  assertEquals(isfetDraft.ctaType, "flow_template");
+  assertEquals(isfetDraft.ctaRef, "the-weighing");
+  assertEquals(isfetDraft.payload.cta_reason, "axis:M");
+  assertEquals(isfetDraft.payload.fallback_template_key ?? null, null);
 });
 
 Deno.test("guidance CTA resolver maps existing flow templates conservatively", () => {
@@ -370,8 +802,23 @@ Deno.test("guidance CTA resolver maps existing flow templates conservatively", (
     resolveGuidanceCta({ snapshot: skyStrength, mode: "strength" }),
     {
       ctaType: "flow_template",
-      ctaRef: "track-the-sky",
-      reason: "axis:E",
+      ctaRef: "the-course",
+      reason: "axis:E:temporal",
+    },
+  );
+
+  const rhythmDrift = {
+    ...baseline,
+    leadAxis: "E" as const,
+    correctionAxes: ["E" as const],
+    hardGates: [],
+  };
+  assertEquals(
+    resolveGuidanceCta({ snapshot: rhythmDrift, mode: "drift" }),
+    {
+      ctaType: "flow_template",
+      ctaRef: "the-course",
+      reason: "axis:E:temporal",
     },
   );
 
@@ -389,6 +836,82 @@ Deno.test("guidance CTA resolver maps existing flow templates conservatively", (
       reason: "axis:J:node_fallback",
     },
   );
+
+  const measureDrift = {
+    ...baseline,
+    leadAxis: "M" as const,
+    correctionAxes: ["M" as const],
+    hardGates: [],
+  };
+  assertEquals(
+    resolveGuidanceCta({ snapshot: measureDrift, mode: "drift" }),
+    {
+      ctaType: "flow_template",
+      ctaRef: "the-weighing",
+      reason: "axis:M",
+    },
+  );
+
+  const falseRecord = {
+    ...measureDrift,
+    hardGates: ["knowingly_false_record" as const],
+  };
+  assertEquals(
+    resolveGuidanceCta({ snapshot: falseRecord, mode: "drift" }),
+    {
+      ctaType: "flow_template",
+      ctaRef: "the-weighing",
+      reason: "gate:knowingly_false_record",
+    },
+  );
+
+  const provisionDrift = {
+    ...baseline,
+    leadAxis: "S" as const,
+    correctionAxes: ["S" as const],
+    hardGates: [],
+  };
+  assertEquals(
+    resolveGuidanceCta({ snapshot: provisionDrift, mode: "drift" }),
+    {
+      ctaType: "flow_template",
+      ctaRef: "the-offering-table",
+      reason: "axis:S",
+    },
+  );
+
+  const careDrift = {
+    ...baseline,
+    leadAxis: "V" as const,
+    correctionAxes: ["V" as const],
+    hardGates: [],
+  };
+  assertEquals(
+    resolveGuidanceCta({ snapshot: careDrift, mode: "drift" }),
+    {
+      ctaType: "flow_template",
+      ctaRef: "the-tending",
+      reason: "axis:V",
+    },
+  );
+
+  const cohesionDrift = {
+    ...baseline,
+    leadAxis: "C" as const,
+    correctionAxes: ["C" as const],
+    hardGates: [],
+  };
+  const cohesionCta = resolveGuidanceCta({
+    snapshot: cohesionDrift,
+    mode: "drift",
+  });
+  assertEquals(cohesionCta, {
+    ctaType: "flow_template",
+    ctaRef: "the-kept-word",
+    reason: "axis:C",
+  });
+  assertEquals(cohesionCta.ctaRef === "the-tending", false);
+  assertEquals(cohesionCta.ctaRef === "dawn-house-rite", false);
 });
 
 Deno.test("CTA resolver uses outcome flags only as a conservative preference", () => {
@@ -424,6 +947,50 @@ Deno.test("CTA resolver uses outcome flags only as a conservative preference", (
   assertEquals(outcomeWeighted.ctaRef, "djehuty");
   assertStringIncludes(outcomeWeighted.reason, "outcome_winning");
 
+  const rhythmDrift = {
+    ...baseline,
+    leadAxis: "E" as const,
+    correctionAxes: ["E" as const],
+    hardGates: [],
+  };
+  const skyOutcomeWeighted = resolveGuidanceCta({
+    snapshot: rhythmDrift,
+    mode: "drift",
+    outcomeSignals: [{
+      ctaType: "flow_template",
+      ctaRef: "track-the-sky",
+      outcomeFlag: "winning",
+      completedWindowCount: 8,
+      weightedDeltaDoneRate: 0.04,
+    }],
+  });
+  assertEquals(skyOutcomeWeighted.ctaType, "flow_template");
+  assertEquals(skyOutcomeWeighted.ctaRef, "track-the-sky");
+  assertStringIncludes(skyOutcomeWeighted.reason, "axis:E:sky");
+  assertStringIncludes(skyOutcomeWeighted.reason, "outcome_winning");
+
+  const structuralCohesion = {
+    ...baseline,
+    leadAxis: "C" as const,
+    correctionAxes: ["C" as const],
+    hardGates: [],
+  };
+  const djedOutcomeWeighted = resolveGuidanceCta({
+    snapshot: structuralCohesion,
+    mode: "drift",
+    outcomeSignals: [{
+      ctaType: "flow_template",
+      ctaRef: "the-djed",
+      outcomeFlag: "winning",
+      completedWindowCount: 8,
+      weightedDeltaDoneRate: 0.04,
+    }],
+  });
+  assertEquals(djedOutcomeWeighted.ctaType, "flow_template");
+  assertEquals(djedOutcomeWeighted.ctaRef, "the-djed");
+  assertStringIncludes(djedOutcomeWeighted.reason, "axis:C:structural");
+  assertStringIncludes(djedOutcomeWeighted.reason, "outcome_winning");
+
   const hardGate = {
     ...measureDrift,
     hardGates: ["life_supporting_flow_disrupted"],
@@ -433,14 +1000,14 @@ Deno.test("CTA resolver uses outcome flags only as a conservative preference", (
     mode: "drift",
     outcomeSignals: [{
       ctaType: "flow_template",
-      ctaRef: "dawn-house-rite",
+      ctaRef: "the-offering-table",
       outcomeFlag: "negative",
       completedWindowCount: 8,
       weightedDeltaDoneRate: -0.09,
     }],
   });
   assertEquals(gateDecision.ctaType, "flow_template");
-  assertEquals(gateDecision.ctaRef, "dawn-house-rite");
+  assertEquals(gateDecision.ctaRef, "the-offering-table");
   assertEquals(gateDecision.reason, "gate:life_supporting_flow_disrupted");
 });
 
@@ -512,7 +1079,7 @@ Deno.test("soft care-axis drift can offer a personalized care brief", () => {
   });
 
   assertEquals(draft.ctaType, "flow_personalized");
-  assertEquals(draft.payload.fallback_template_key, "dawn-house-rite");
+  assertEquals(draft.payload.fallback_template_key, "the-tending");
   assertEquals(
     (draft.payload.flow_brief as { fingerprint?: { recipe_key?: string } })
       .fingerprint?.recipe_key,

@@ -9,7 +9,49 @@ import {
   type ReflectionProfileRow,
 } from "../ai_generate_reflection/maat_decision.ts";
 import { composeMaatFlowBrief, type MaatFlowBrief } from "./maat_flow_brief.ts";
-import { joinGuidancePhrases } from "./guidance_evidence.ts";
+import { maatLedgerPayload, type MaatLedgerSummary } from "./maat_ledger.ts";
+import {
+  interpretMaatSituation,
+  type MaatSituationInterpretation,
+  maatSituationPayload,
+} from "./maat_situation_interpreter.ts";
+import {
+  buildControlledOutput,
+  type ControlledMeaningLayer,
+  type ControlledOutputKind,
+  type ControlledOutputPlan,
+  type ControlledSurfaceConstraints,
+  type ControlledSurfaceVariants,
+  DEFAULT_OUTPUT_BANNED_PHRASES,
+  evidenceAnchorsFromMemoryPhrases,
+  gradeOutputTextAgainstPolicy,
+  OUTPUT_CONTROL_POLICY_VERSION,
+  outputControlPayload,
+  outputSurfaceVariantsPayload,
+  validateSurfaceVariants,
+} from "./output_control.ts";
+import {
+  MAAT_CONSTITUTION_VERSION,
+  MAAT_OUTPUT_FORCE_PRINCIPLE,
+  MAAT_OUTPUT_NORTH_STAR,
+} from "./maat_constitution.ts";
+import {
+  buildCompiledOutputPackage,
+  buildOutputCompilerTrace,
+  type CompiledOutputDestination,
+  type CompiledOutputPackage,
+  type OutputCompilerTrace,
+} from "./output_compiler.ts";
+import {
+  compiledDestinationForPackage,
+  destinationPayload,
+  firstNodeForAxis as destinationFirstNodeForAxis,
+  MAAT_FLOW_TEMPLATES,
+  type MaatDestinationResolution,
+  noMaatDestination,
+  resolveMaatGuidanceDestination,
+  resolveMaatOpeningDestination,
+} from "./maat_destination_resolver.ts";
 import type { UserMemoryBrief } from "./user_memory_brief.ts";
 
 export type GuidanceKind = "decan_opening" | "drift_nudge" | "strength_nudge";
@@ -64,6 +106,30 @@ export type GuidanceDraft = {
   ctaType: GuidanceCtaType;
   ctaRef: string | null;
   triggerReason: string;
+};
+
+export const DECAN_CONTEXT_OPENING_TRACK = "decan_context_opening";
+export const DECAN_CONTEXT_OPENING_SOURCE = "calendar_month_decan_day1_context";
+
+export type NudgeLlmRenderer = (params: {
+  systemPrompt: string;
+  userPrompt: string;
+}) => Promise<{ text: string; modelUsed?: string | null }>;
+
+export type NudgeLlmRenderOptions = {
+  enabled?: boolean;
+  renderer?: NudgeLlmRenderer;
+  apiKey?: string | null;
+  model?: string | null;
+};
+
+export type DayFiveCadenceMode = "maat" | "isfet" | "inquire";
+
+export type DayFiveCadenceDecision = {
+  create: boolean;
+  mode: DayFiveCadenceMode | null;
+  kind: Extract<GuidanceKind, "drift_nudge" | "strength_nudge"> | null;
+  reason: string;
 };
 
 export type SnapshotRowLike = {
@@ -130,9 +196,11 @@ type PlannerSummary = {
   todoDone: number;
   todoPartial: number;
   todoSkipped: number;
+  todoPending: number;
   nutritionDone: number;
   nutritionPartial: number;
   nutritionSkipped: number;
+  nutritionPending: number;
 };
 
 const AXIS_LABELS: Record<MaatAxisCode, string> = {
@@ -157,18 +225,6 @@ const AXIS_NEXT_STEP: Record<MaatAxisCode, string> = {
   E: "restore one life-supporting rhythm",
   R: "downshift force before adding more",
   C: "keep one role or promise coherent",
-};
-
-const AXIS_NODE_CANDIDATES: Record<MaatAxisCode, string[]> = {
-  T: ["maat", "djehuty"],
-  M: ["djehuty", "maat"],
-  H: ["ka", "sekhmet"],
-  V: ["instruction_amenemope", "renenutet"],
-  J: ["maat", "instruction_amenemope"],
-  S: ["renenutet", "nile"],
-  E: ["nile", "renenutet"],
-  R: ["instruction_amenemope", "sekhmet"],
-  C: ["ptah", "maat"],
 };
 
 const GRAPH_NODE_AXIS_PRIORS: Record<string, MaatAxisCode[]> = {
@@ -487,6 +543,7 @@ function plannerState(row: GuidanceBadgeRow) {
     return "partial";
   }
   if (tags.includes("state:skipped")) return "skipped";
+  if (tags.includes("state:pending")) return "pending";
   return null;
 }
 
@@ -498,9 +555,11 @@ export function buildPlannerSummaryFromBadges(
     todoDone: 0,
     todoPartial: 0,
     todoSkipped: 0,
+    todoPending: 0,
     nutritionDone: 0,
     nutritionPartial: 0,
     nutritionSkipped: 0,
+    nutritionPending: 0,
   };
 
   for (const badge of badges) {
@@ -511,6 +570,7 @@ export function buildPlannerSummaryFromBadges(
     if (kind === "todo" && state === "done") summary.todoDone += 1;
     if (kind === "todo" && state === "partial") summary.todoPartial += 1;
     if (kind === "todo" && state === "skipped") summary.todoSkipped += 1;
+    if (kind === "todo" && state === "pending") summary.todoPending += 1;
     if (kind === "nutrition" && state === "done") {
       summary.nutritionDone += 1;
     }
@@ -519,6 +579,9 @@ export function buildPlannerSummaryFromBadges(
     }
     if (kind === "nutrition" && state === "skipped") {
       summary.nutritionSkipped += 1;
+    }
+    if (kind === "nutrition" && state === "pending") {
+      summary.nutritionPending += 1;
     }
   }
 
@@ -613,6 +676,10 @@ export function snapshotFromRow(
       completed_planner: Number(row.source?.completed_planner ?? 0),
       partial_planner: Number(row.source?.partial_planner ?? 0),
       skipped_planner: Number(row.source?.skipped_planner ?? 0),
+      pending_planner: Number(row.source?.pending_planner ?? 0),
+      open_obligations: Number(row.source?.open_obligations ?? 0),
+      unresolved_obligations: Number(row.source?.unresolved_obligations ?? 0),
+      ledger: row.source?.ledger as MaatLedgerSummary | undefined,
       details_coverage: Number(row.source?.details_coverage ?? 0),
       days_active: Number(row.source?.days_active ?? 0),
     },
@@ -638,101 +705,1000 @@ function dayCardLine(dayCard?: DayCardGuidanceInput | null) {
   return parts.length ? sentence(parts.join("; ")) : "";
 }
 
-function memoryEvidenceLine(
-  memoryBrief?: UserMemoryBrief | null,
-  mode: "opening" | "drift" | "strength" = "opening",
+function guidanceSurfaceConstraints(
+  kind: ControlledOutputKind,
+): ControlledSurfaceConstraints {
+  switch (kind) {
+    case "decan_opening":
+      return {
+        teaserCharsMax: 220,
+        pushExcerptCharsMax: 120,
+        archivePreviewCharsMax: 160,
+        bodySentencesMax: 8,
+        bodyParagraphsMax: 5,
+        bannedPhrases: DEFAULT_OUTPUT_BANNED_PHRASES,
+      };
+    case "drift_nudge":
+      return {
+        teaserCharsMax: 160,
+        pushExcerptCharsMax: 110,
+        archivePreviewCharsMax: 150,
+        bodySentencesMax: 6,
+        bodyParagraphsMax: 4,
+        bannedPhrases: DEFAULT_OUTPUT_BANNED_PHRASES,
+      };
+    case "strength_nudge":
+      return {
+        teaserCharsMax: 160,
+        pushExcerptCharsMax: 110,
+        archivePreviewCharsMax: 150,
+        bodySentencesMax: 6,
+        bodyParagraphsMax: 4,
+        bannedPhrases: DEFAULT_OUTPUT_BANNED_PHRASES,
+      };
+  }
+}
+
+function memoryAnchorsForOutput(
+  memoryBrief: UserMemoryBrief | null | undefined,
+  prefix: string,
 ) {
-  if (!memoryBrief) return "";
-  const evidence = memoryBrief.evidencePhrases.slice(0, 2);
-  if (evidence.length) {
-    if (mode === "strength") {
-      return sentence(
-        `Keep faith with what is already visible in ${
-          joinGuidancePhrases(evidence)
-        }`,
-      );
-    }
-    if (mode === "drift") {
-      return sentence(
-        `Use one concrete mark already in the record, ${
-          joinGuidancePhrases(evidence)
-        }, as the place to restore measure`,
-      );
-    }
-    return sentence(
-      `Recent marks such as ${
-        joinGuidancePhrases(evidence)
-      } can anchor the first step`,
-    );
+  const phraseAnchors = evidenceAnchorsFromMemoryPhrases(
+    memoryBrief?.evidencePhrases,
+    { prefix, sourceType: "memory", limit: 3 },
+  );
+  if (phraseAnchors.length > 0) return phraseAnchors;
+  const anchor = normalizeText(memoryBrief?.anchorLabels[0]);
+  if (!anchor) return [];
+  return evidenceAnchorsFromMemoryPhrases([`recurring anchor of ${anchor}`], {
+    prefix,
+    sourceType: "memory",
+    limit: 1,
+  });
+}
+
+function firstMemoryPhrase(memoryBrief: UserMemoryBrief | null | undefined) {
+  return normalizeText(memoryBrief?.evidencePhrases?.[0]).toLowerCase();
+}
+
+function firstMemoryDomain(memoryBrief: UserMemoryBrief | null | undefined) {
+  const phrase = firstMemoryPhrase(memoryBrief);
+  if (!phrase) return "";
+  if (phrase.includes("nutrition") || phrase.includes("meal")) {
+    return "provision";
   }
-  const anchor = memoryBrief.anchorLabels[0];
-  if (anchor) {
-    return sentence(
-      `Let the recurring anchor of ${anchor} shape the first step`,
-    );
+  if (
+    phrase.includes("planner item") ||
+    phrase.includes("to-do") ||
+    phrase.includes("task")
+  ) {
+    return "visible work";
   }
+  if (phrase.includes("journal")) return "truthful record";
   return "";
+}
+
+function personalSeasoning(
+  memoryBrief: UserMemoryBrief | null | undefined,
+  mode: "opening" | "drift" | "strength",
+) {
+  const domain = firstMemoryDomain(memoryBrief);
+  const hasMemory = domain || (memoryBrief?.anchorLabels.length ?? 0) > 0 ||
+    (memoryBrief?.tensionLabels.length ?? 0) > 0;
+  if (!hasMemory) return null;
+  if (mode === "opening") {
+    return "Let this meet the life already in motion. Receive it quietly; make the first mark without performance.";
+  }
+  if (mode === "drift") {
+    return domain
+      ? `The ${domain} is already known; give it one clean enforcement.`
+      : "The pattern is already known; give it one clean enforcement.";
+  }
+  return domain
+    ? `The ${domain} is worth protecting because it is already becoming a pattern.`
+    : "The working pattern is worth protecting before anything new is added.";
+}
+
+function evidenceShapedAction(
+  fallback: string,
+  mode: "drift" | "strength",
+  memoryBrief: UserMemoryBrief | null | undefined,
+) {
+  const phrase = firstMemoryPhrase(memoryBrief);
+  if (!phrase) return fallback;
+
+  if (phrase.includes("nutrition") || phrase.includes("meal")) {
+    if (mode === "drift") {
+      return "complete one nutrition check today";
+    }
+    return "protect the nutrition rhythm before adding another demand";
+  }
+
+  if (
+    phrase.includes("planner item") ||
+    phrase.includes("to-do") ||
+    phrase.includes("task")
+  ) {
+    if (mode === "drift") {
+      return "finish or resize one visible task so the line closes cleanly";
+    }
+    return "protect the finished-task rhythm before expanding the list";
+  }
+
+  if (phrase.includes("journal")) {
+    if (mode === "drift") {
+      return "turn the honest note into one small return";
+    }
+    return "protect the truthful note by repeating one visible act";
+  }
+
+  return fallback;
+}
+
+function ledgerShapedAction(
+  snapshot: MaatDimensionSnapshot,
+  fallback: string,
+  mode: "drift" | "strength",
+  memoryBrief: UserMemoryBrief | null | undefined,
+) {
+  const ledgerAction = normalizeText(
+    snapshot.source.ledger?.suggested_restoration?.action,
+  );
+  if (mode === "drift" && ledgerAction) return ledgerAction;
+  return evidenceShapedAction(fallback, mode, memoryBrief);
+}
+
+function evidenceDensityForSnapshot(snapshot: MaatDimensionSnapshot) {
+  const count = snapshot.source.planner_total + snapshot.source.days_active;
+  if (count >= 8 || snapshot.source.details_coverage >= 0.7) return "high";
+  if (count >= 3 || snapshot.source.details_coverage >= 0.35) return "medium";
+  return "low";
+}
+
+function confidenceForSnapshot(snapshot: MaatDimensionSnapshot) {
+  if (snapshot.hardGates.length > 0) return "high";
+  if (snapshot.source.days_active >= 3 || snapshot.source.planner_total >= 5) {
+    return "medium";
+  }
+  return "low";
+}
+
+function ledgerEvidenceLine(snapshot: MaatDimensionSnapshot) {
+  const restoration = snapshot.source.ledger?.suggested_restoration;
+  if (!restoration) return "";
+  if (restoration.field === "provision") {
+    return "Provision needs one gentle return.";
+  }
+  if (restoration.field === "visible_work") {
+    return "The work needs one clean edge.";
+  }
+  if (restoration.field === "truthful_record") {
+    return "The record needs one trustworthy point.";
+  }
+  return restoration.user_facing_evidence;
+}
+
+function guidanceMeaning(params: {
+  snapshot: MaatDimensionSnapshot;
+  axisLabel: string;
+  primaryAction: string;
+  triggerReason: string;
+  mode: "drift" | "strength";
+  window: GuidanceWindow;
+  situation?: MaatSituationInterpretation | null;
+}): ControlledMeaningLayer {
+  if (params.situation) {
+    const renderContract = params.situation.renderContract;
+    return {
+      dominantField: params.situation.field,
+      humanLabel: params.situation.humanLabel,
+      whyThisFieldWon:
+        `${params.situation.key} matched the current ledger pattern.`,
+      userFacingEvidenceLine: params.situation.userFacingDiagnosis,
+      caseKey: params.situation.key,
+      maatMeaning: params.situation.maatMeaning,
+      userTranslation: params.situation.userTranslation,
+      likelyUserCondition: params.situation.likelyUserCondition,
+      selectedOffering: params.situation.selectedOffering,
+      whyThisOfferingWon: params.situation.whyThisOfferingWon,
+      userFacingDiagnosis: renderContract.diagnosis,
+      evidenceDensity: params.situation.evidenceDensity,
+      confidence: params.situation.confidence,
+      rhetoricalFrame: params.mode === "strength"
+        ? "witness and protect what is working"
+        : "case diagnosis before correction",
+      decanOrDayAnchor: params.window.decanTheme ?? params.window.decanName,
+      specificAction: renderContract.concreteAction,
+      bannedTerms: [
+        ...DEFAULT_OUTPUT_BANNED_PHRASES,
+        ...params.situation.forbiddenGenericPhrases,
+      ],
+      baselineDeviation: params.situation.baselineDeviation,
+      voiceDirection: params.situation.voiceDirection,
+      resolutionCondition: params.situation.resolutionCondition,
+      exampleReference: params.situation.exampleReference,
+      offeringRender: {
+        diagnosis: renderContract.diagnosis,
+        concreteAction: renderContract.concreteAction,
+        caseConcreteAction: renderContract.caseConcreteAction,
+        offeringRationale: renderContract.offeringRationale,
+        exampleId: renderContract.exampleId,
+        exampleNudge: renderContract.exampleNudge,
+        exampleReflection: renderContract.exampleReflection,
+        voiceDirection: renderContract.voiceDirection,
+        bannedPhrases: renderContract.bannedPhrases,
+      },
+    };
+  }
+  const restoration = params.snapshot.source.ledger?.suggested_restoration;
+  if (params.triggerReason === "decan_day_5_insufficient_signal") {
+    return {
+      dominantField: "truthful_record",
+      humanLabel: "honest record",
+      whyThisFieldWon:
+        "The system does not have enough record to weigh a specific pattern.",
+      userFacingEvidenceLine: "The record is thin right now.",
+      evidenceDensity: "low",
+      confidence: "low",
+      rhetoricalFrame: "inquire before correcting",
+      decanOrDayAnchor: params.window.decanTheme ?? params.window.decanName,
+      specificAction:
+        "Make one plain mark today so the next guidance has something true to stand on.",
+      bannedTerms: DEFAULT_OUTPUT_BANNED_PHRASES,
+    };
+  }
+  const humanLabel = restoration?.human_label ??
+    stripAxisJargon(params.axisLabel);
+  const evidenceLine = params.mode === "strength"
+    ? `The ${humanLabel} is holding.`
+    : ledgerEvidenceLine(params.snapshot) ||
+      `The ${humanLabel} needs one clear mark.`;
+  return {
+    dominantField: restoration?.field ?? null,
+    humanLabel,
+    whyThisFieldWon: restoration
+      ? `${restoration.field} carried the clearest unresolved signal.`
+      : "The current axis carried the clearest signal.",
+    userFacingEvidenceLine: evidenceLine,
+    evidenceDensity: evidenceDensityForSnapshot(params.snapshot),
+    confidence: confidenceForSnapshot(params.snapshot),
+    rhetoricalFrame: params.mode === "strength"
+      ? "witness and protect what is working"
+      : "small correction without shame",
+    decanOrDayAnchor: params.window.decanTheme ?? params.window.decanName,
+    specificAction: restoration?.action ?? params.primaryAction,
+    bannedTerms: DEFAULT_OUTPUT_BANNED_PHRASES,
+  };
+}
+
+function stripAxisJargon(label: string) {
+  const text = normalizeText(label).toLowerCase();
+  if (!text) return "the pattern";
+  if (text.includes("truth")) return "honest record";
+  if (text.includes("measure")) return "measure";
+  if (text.includes("life")) return "body support";
+  if (text.includes("vulnerable")) return "care";
+  if (text.includes("justice")) return "fair measure";
+  if (text.includes("provision")) return "body support";
+  if (text.includes("ecological") || text.includes("seasonal")) {
+    return "daily rhythm";
+  }
+  if (text.includes("restraint")) return "restraint";
+  if (text.includes("cohesion")) return "cohesion";
+  return text;
+}
+
+function openingPrimaryAction(
+  dayCard: DayCardGuidanceInput | null | undefined,
+  fallback: string,
+) {
+  return normalizeText(dayCard?.decanDayAction) || fallback;
+}
+
+function openingEvidenceAnchors(params: {
+  decanContext?: { detailDescription?: string | null } | null;
+  dayLine?: string | null;
+}) {
+  const anchors = [];
+  const context = sentence(params.decanContext?.detailDescription)
+    .split(/(?<=[.!?])\s+/)
+    .filter(Boolean)[0] ?? "";
+  if (context) {
+    anchors.push({
+      id: "decan_context_1",
+      sourceType: "decan_context" as const,
+      claim: context,
+      confidence: 0.9,
+      allowedInferenceLevel: "paraphrase" as const,
+      required: true,
+    });
+  }
+  const dayLine = sentence(params.dayLine);
+  if (dayLine) {
+    anchors.push({
+      id: "day_card_1",
+      sourceType: "day_card" as const,
+      claim: dayLine,
+      confidence: 0.9,
+      allowedInferenceLevel: "paraphrase" as const,
+      required: true,
+    });
+  }
+  return anchors;
+}
+
+function outputControlPayloadFields(
+  output: ReturnType<typeof buildControlledOutput>,
+) {
+  return {
+    output_control_policy_version: OUTPUT_CONTROL_POLICY_VERSION,
+    output_control: outputControlPayload(output),
+    surface_variants: outputSurfaceVariantsPayload(output.surfaceVariants),
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function destinationFromPayload(
+  payload: Record<string, unknown>,
+): CompiledOutputDestination | null {
+  const destination = isRecord(payload.destination)
+    ? payload.destination
+    : null;
+  const type = typeof destination?.type === "string"
+    ? destination.type.trim()
+    : "";
+  const ref = typeof destination?.ref === "string"
+    ? destination.ref.trim()
+    : "";
+  if (!type || !ref || type === "none") return null;
+  return {
+    type,
+    ref,
+    label: typeof destination?.label === "string" ? destination.label : null,
+    reason: typeof destination?.reason === "string" ? destination.reason : null,
+    source: typeof destination?.source === "string" ? destination.source : null,
+    confidence: typeof destination?.confidence === "number"
+      ? destination.confidence
+      : null,
+    fallback: isRecord(destination?.fallback) ? destination.fallback : null,
+  };
+}
+
+function controlledOutputCompilerArtifacts(params: {
+  output: ReturnType<typeof buildControlledOutput>;
+  surface: "opening";
+  renderer: string;
+  modelVersion: string;
+  ctaType: GuidanceCtaType;
+  ctaRef: string | null;
+  destination?: CompiledOutputDestination | null;
+  ctaLabel?: string | null;
+  ctaReason?: string | null;
+  ctaSource?: string | null;
+}) {
+  const outputControl = outputControlPayload(params.output);
+  const grade = outputControl.grade && typeof outputControl.grade === "object"
+    ? outputControl.grade as Record<string, unknown>
+    : null;
+  const compiler = buildOutputCompilerTrace({
+    surface: params.surface,
+    renderer: params.renderer,
+    modelVersion: params.modelVersion,
+    status: "compiled",
+    deliveryRecommendation: "in_app_card",
+    caseKey: params.output.plan.meaning?.caseKey ?? null,
+    offering: params.output.plan.meaning?.selectedOffering ?? null,
+    exampleId: params.output.plan.meaning?.exampleReference?.id ?? null,
+    exampleAvailable: Boolean(params.output.plan.meaning?.exampleReference),
+    diagnosis: params.output.plan.meaning?.offeringRender?.diagnosis ??
+      params.output.plan.meaning?.userFacingDiagnosis ?? null,
+    concreteAction: params.output.plan.meaning?.offeringRender
+      ?.concreteAction ??
+      params.output.plan.meaning?.specificAction ??
+      params.output.plan.primaryAction,
+    evidenceAnchorCount: params.output.plan.evidenceAnchors.length,
+    finalText: params.output.surfaceVariants.bodyText,
+    teaserText: params.output.surfaceVariants.teaserText,
+    pushText: params.output.surfaceVariants.pushExcerptText,
+    validation: params.output.validation as unknown as Record<string, unknown>,
+    grade,
+  });
+  return {
+    outputControl,
+    compiler,
+    package: buildCompiledOutputPackage({
+      surface: params.surface,
+      finalText: params.output.surfaceVariants.bodyText,
+      teaserText: params.output.surfaceVariants.teaserText,
+      pushText: params.output.surfaceVariants.pushExcerptText,
+      archivePreviewText: params.output.surfaceVariants.archivePreviewText,
+      ctaType: params.ctaType,
+      ctaRef: params.ctaRef,
+      ctaLabel: params.ctaLabel,
+      ctaReason: params.ctaReason,
+      ctaSource: params.ctaSource,
+      destination: params.destination,
+      compiler,
+    }),
+  };
+}
+
+function clampText(value: string, maxChars: number) {
+  const clean = normalizeText(value);
+  if (!Number.isFinite(maxChars) || clean.length <= maxChars) return clean;
+  const sliced = clean.slice(0, Math.max(0, maxChars - 1)).trimEnd();
+  return `${sliced}…`;
+}
+
+function compactBody(value: string) {
+  return value
+    .split(/\n+/)
+    .map((line) => normalizeText(line))
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function firstSentence(value: string) {
+  const clean = normalizeText(value);
+  const match = clean.match(/^(.+?[.!?])(?:\s|$)/);
+  return match?.[1]?.trim() || clean;
+}
+
+function payloadOutputControlPlan(
+  draft: GuidanceDraft,
+): ControlledOutputPlan | null {
+  const outputControl = draft.payload.output_control as
+    | { plan?: unknown }
+    | undefined;
+  const plan = outputControl?.plan;
+  if (!plan || typeof plan !== "object") return null;
+  return plan as ControlledOutputPlan;
+}
+
+function nudgeRendererPayload(params: {
+  attempted: boolean;
+  renderer: "deterministic" | "anthropic";
+  modelVersion: string;
+  fallbackReason?: string | null;
+  error?: string | null;
+  validation?: Record<string, unknown> | null;
+  grade?: Record<string, unknown> | null;
+}) {
+  return {
+    nudge_renderer_version: "maat_nudge_llm_renderer_v1",
+    attempted: params.attempted,
+    renderer: params.renderer,
+    model_version: params.modelVersion,
+    fallback_reason: params.fallbackReason ?? null,
+    error: params.error ?? null,
+    validation: params.validation ?? null,
+    grade: params.grade ?? null,
+  };
+}
+
+type NudgeRendererPayload = ReturnType<typeof nudgeRendererPayload>;
+
+function nudgeCompilerArtifacts(params: {
+  draft: GuidanceDraft;
+  renderer: NudgeRendererPayload;
+  status?: "compiled" | "fallback";
+  finalText?: string | null;
+  surfaceVariants?: ControlledSurfaceVariants | null;
+  validation?: Record<string, unknown> | null;
+  grade?: Record<string, unknown> | null;
+  prompt?: { systemPrompt: string; userPrompt: string } | null;
+}): { compiler: OutputCompilerTrace; package: CompiledOutputPackage } {
+  const plan = payloadOutputControlPlan(params.draft);
+  const contract = plan?.meaning?.offeringRender;
+  const compiler = buildOutputCompilerTrace({
+    surface: "nudge",
+    renderer: params.renderer.renderer,
+    modelVersion: params.renderer.model_version,
+    status: params.status,
+    fallbackReason: params.renderer.fallback_reason,
+    deliveryRecommendation: "in_app_card",
+    caseKey: plan?.meaning?.caseKey ?? null,
+    offering: plan?.meaning?.selectedOffering ?? null,
+    exampleId: contract?.exampleId ?? plan?.meaning?.exampleReference?.id ??
+      null,
+    exampleAvailable: Boolean(contract?.exampleNudge),
+    diagnosis: contract?.diagnosis ?? plan?.meaning?.userFacingDiagnosis ??
+      null,
+    concreteAction: contract?.concreteAction ??
+      plan?.meaning?.specificAction ?? null,
+    evidenceAnchorCount: plan?.evidenceAnchors.length ?? 0,
+    finalText: params.finalText ?? params.draft.bodyText,
+    teaserText: params.surfaceVariants?.teaserText ?? params.draft.teaserText,
+    pushText: params.surfaceVariants?.pushExcerptText ??
+      params.draft.teaserText,
+    systemPrompt: params.prompt?.systemPrompt,
+    userPrompt: params.prompt?.userPrompt,
+    validation: params.validation ?? params.renderer.validation ?? null,
+    grade: params.grade ?? params.renderer.grade ?? null,
+  });
+  return {
+    compiler,
+    package: buildCompiledOutputPackage({
+      surface: "nudge",
+      finalText: compiler.final_text,
+      teaserText: compiler.teaser_text,
+      pushText: compiler.push_text,
+      archivePreviewText: params.surfaceVariants?.archivePreviewText ?? null,
+      ctaType: params.draft.ctaType,
+      ctaRef: params.draft.ctaRef,
+      ctaLabel: typeof params.draft.payload.cta_label === "string"
+        ? params.draft.payload.cta_label
+        : null,
+      ctaReason: typeof params.draft.payload.cta_reason === "string"
+        ? params.draft.payload.cta_reason
+        : null,
+      ctaSource: typeof params.draft.payload.destination_source === "string"
+        ? params.draft.payload.destination_source
+        : null,
+      destination: destinationFromPayload(params.draft.payload),
+      compiler,
+    }),
+  };
+}
+
+const DEFAULT_ANTHROPIC_NUDGE_MODEL = "claude-sonnet-4-20250514";
+
+function annotateNudgeRenderer(
+  draft: GuidanceDraft,
+  renderer: NudgeRendererPayload,
+): GuidanceDraft {
+  const compiled = nudgeCompilerArtifacts({ draft, renderer });
+  const fallback = compiled.compiler.fallback_used;
+  return {
+    ...draft,
+    ctaType: fallback ? "none" : draft.ctaType,
+    ctaRef: fallback ? null : draft.ctaRef,
+    payload: {
+      ...draft.payload,
+      ...(fallback
+        ? {
+          delivery_channel: "archive_only",
+          cta_type: "none",
+          cta_ref: null,
+          cta_label: null,
+          destination: {
+            type: "none",
+            ref: null,
+            label: null,
+            reason: "fallback_not_quality_proof",
+            source: "fallback",
+            confidence: 0,
+            fallback: null,
+          },
+          destination_type: "none",
+          destination_ref: null,
+          destination_label: null,
+          destination_reason: "fallback_not_quality_proof",
+          destination_source: "fallback",
+          destination_confidence: 0,
+        }
+        : {}),
+      nudge_renderer: renderer,
+      output_compiler: compiled.compiler,
+      compiled_output_package: compiled.package,
+    },
+  };
+}
+
+async function defaultAnthropicNudgeRenderer(params: {
+  systemPrompt: string;
+  userPrompt: string;
+  apiKey: string;
+  model: string;
+}) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": params.apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: params.model,
+      max_tokens: 260,
+      temperature: 0.35,
+      system: params.systemPrompt,
+      messages: [{ role: "user", content: params.userPrompt }],
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Anthropic HTTP ${res.status}: ${detail}`);
+  }
+  const data = await res.json();
+  return {
+    text: String(data?.content?.[0]?.text ?? "").trim(),
+    modelUsed: String(data?.model ?? params.model),
+  };
+}
+
+function nudgePromptForPlan(plan: ControlledOutputPlan) {
+  const contract = plan.meaning?.offeringRender;
+  if (!contract) return null;
+  const evidenceLines = plan.evidenceAnchors
+    .map((anchor) => `- ${anchor.claim}`)
+    .join("\n") || "- No literal anchor available; stay with the diagnosis.";
+  const banned = [
+    ...plan.surfaceConstraints.bannedPhrases,
+    ...(contract.bannedPhrases ?? []),
+  ].filter(Boolean);
+  const example = contract.exampleNudge ||
+    plan.meaning?.exampleReference?.nudge;
+  const systemPrompt =
+    "You write one concise Ma'at guidance nudge. Return only the nudge body. No bullets, metadata, labels, or title.";
+  const userPrompt =
+    `Use this contract exactly, but write natural elevated prose.
+
+SURFACE: ${plan.kind}
+CASE: ${plan.meaning?.caseKey ?? contract.exampleId ?? "unknown"}
+OFFERING: ${plan.meaning?.selectedOffering ?? "unknown"}
+DIAGNOSIS: ${contract.diagnosis}
+CONCRETE ACTION: ${contract.concreteAction}
+VOICE: ${contract.voiceDirection?.register ?? "practical"}; lead with ${
+      contract.voiceDirection?.leadWith ?? "situation"
+    }; close with ${contract.voiceDirection?.closeWith ?? "principle"}
+SENTENCE BUDGET: 2-4 sentences
+
+EVIDENCE ANCHORS:
+${evidenceLines}
+
+BANNED PHRASES:
+${banned.join(", ")}
+
+TARGET QUALITY EXAMPLE:
+${
+      example ??
+        "Name the specific situation, explain the mechanism, give one concrete action, and close with a case-specific principle."
+    }
+
+Rules:
+- Do not copy the example.
+- Use the example only for rhythm, specificity, and register.
+- Lead with the specific situation using the evidence anchors when they are useful.
+- Do not recite all evidence. Interpret it.
+- End with a principle specific to this case, not a generic Ma'at phrase.
+- Do not imply laziness, weakness, failure, or judgment.
+- Do not embed CTA routing language such as "open the suggested flow."
+- Keep the nudge compact enough for an in-app card.`;
+  return { systemPrompt, userPrompt };
+}
+
+function validateLlmNudgeText(plan: ControlledOutputPlan, text: string) {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const clean = compactBody(text);
+  if (!clean) errors.push("missing_llm_nudge_text");
+  const lower = clean.toLowerCase();
+  const contract = plan.meaning?.offeringRender;
+  const banned = [
+    ...plan.surfaceConstraints.bannedPhrases,
+    ...(contract?.bannedPhrases ?? []),
+  ];
+  for (const phrase of banned) {
+    const normalized = normalizeText(phrase).toLowerCase();
+    if (normalized && lower.includes(normalized)) {
+      errors.push(`banned_phrase:${normalized}`);
+    }
+  }
+  const sentenceCount = (clean.match(/[.!?](?:\s|$)/g) ?? []).length ||
+    (clean ? 1 : 0);
+  if (sentenceCount > 4) warnings.push("sentence_count_above_llm_target");
+  if (
+    /\b(not a judgment|not a verdict|not a scolding|failure|lazy|laziness)\b/i
+      .test(clean)
+  ) {
+    errors.push("dignity_language_violation");
+  }
+  if (/\bopen the suggested flow\b/i.test(clean)) {
+    errors.push("cta_embedded_in_body");
+  }
+  if (clean.length > 900) warnings.push("body_length_high");
+  return { ok: errors.length === 0, errors, warnings };
+}
+
+export async function renderGuidanceDraftWithLlm(
+  draft: GuidanceDraft,
+  options: NudgeLlmRenderOptions = {},
+): Promise<GuidanceDraft> {
+  if (draft.kind !== "drift_nudge" && draft.kind !== "strength_nudge") {
+    return draft;
+  }
+  if (options.enabled === false) {
+    return annotateNudgeRenderer(
+      draft,
+      nudgeRendererPayload({
+        attempted: false,
+        renderer: "deterministic",
+        modelVersion: "deterministic",
+        fallbackReason: "disabled",
+      }),
+    );
+  }
+
+  const plan = payloadOutputControlPlan(draft);
+  if (!plan?.meaning?.offeringRender) {
+    return annotateNudgeRenderer(
+      draft,
+      nudgeRendererPayload({
+        attempted: false,
+        renderer: "deterministic",
+        modelVersion: "deterministic",
+        fallbackReason: "missing_render_contract",
+      }),
+    );
+  }
+
+  const prompt = nudgePromptForPlan(plan);
+  if (!prompt) {
+    return annotateNudgeRenderer(
+      draft,
+      nudgeRendererPayload({
+        attempted: false,
+        renderer: "deterministic",
+        modelVersion: "deterministic",
+        fallbackReason: "missing_prompt_contract",
+      }),
+    );
+  }
+
+  const apiKey = options.apiKey ?? Deno.env.get("ANTHROPIC_API_KEY");
+  const model = options.model ?? Deno.env.get("ANTHROPIC_NUDGE_MODEL") ??
+    Deno.env.get("ANTHROPIC_MODEL") ?? DEFAULT_ANTHROPIC_NUDGE_MODEL;
+  if (!options.renderer && !apiKey) {
+    return annotateNudgeRenderer(
+      draft,
+      nudgeRendererPayload({
+        attempted: false,
+        renderer: "deterministic",
+        modelVersion: "deterministic",
+        fallbackReason: "missing_anthropic_key",
+      }),
+    );
+  }
+
+  try {
+    const result = options.renderer
+      ? await options.renderer(prompt)
+      : await defaultAnthropicNudgeRenderer({
+        ...prompt,
+        apiKey: apiKey!,
+        model,
+      });
+    const bodyText = compactBody(result.text);
+    const llmValidation = validateLlmNudgeText(plan, bodyText);
+    if (!llmValidation.ok) {
+      return annotateNudgeRenderer(
+        draft,
+        nudgeRendererPayload({
+          attempted: true,
+          renderer: "anthropic",
+          modelVersion: result.modelUsed ?? model,
+          fallbackReason: "llm_validation_failed",
+          validation: llmValidation,
+        }),
+      );
+    }
+
+    const surfaceVariants: ControlledSurfaceVariants = {
+      teaserText: clampText(
+        firstSentence(bodyText),
+        plan.surfaceConstraints.teaserCharsMax,
+      ),
+      bodyText,
+      pushExcerptText: clampText(
+        firstSentence(bodyText),
+        plan.surfaceConstraints.pushExcerptCharsMax,
+      ),
+      archivePreviewText: clampText(
+        bodyText,
+        plan.surfaceConstraints.archivePreviewCharsMax,
+      ),
+    };
+    const surfaceValidation = validateSurfaceVariants(plan, surfaceVariants);
+    const grade = gradeOutputTextAgainstPolicy({
+      surface: plan.kind,
+      speechAct: plan.speechAct,
+      text: bodyText,
+      teaserText: surfaceVariants.teaserText,
+      evidenceAnchors: plan.evidenceAnchors,
+      primaryAction: plan.meaning?.specificAction ?? plan.primaryAction,
+      validation: llmValidation,
+    });
+    const renderer = nudgeRendererPayload({
+      attempted: true,
+      renderer: "anthropic",
+      modelVersion: result.modelUsed ?? model,
+      validation: {
+        ...llmValidation,
+        surface_validation: surfaceValidation,
+      },
+      grade,
+    });
+    const compiled = nudgeCompilerArtifacts({
+      draft,
+      renderer,
+      status: "compiled",
+      finalText: bodyText,
+      surfaceVariants,
+      validation: {
+        ...llmValidation,
+        surface_validation: surfaceValidation,
+      },
+      grade,
+      prompt,
+    });
+    return {
+      ...draft,
+      teaserText: surfaceVariants.teaserText,
+      bodyText: surfaceVariants.bodyText,
+      payload: {
+        ...draft.payload,
+        surface_variants: outputSurfaceVariantsPayload(surfaceVariants),
+        nudge_renderer: renderer,
+        output_compiler: compiled.compiler,
+        compiled_output_package: compiled.package,
+        output_control: {
+          ...(draft.payload.output_control as Record<string, unknown>),
+          llm_render: {
+            validation: llmValidation,
+            surface_validation: surfaceValidation,
+            grade,
+          },
+        },
+      },
+    };
+  } catch (error) {
+    return annotateNudgeRenderer(
+      draft,
+      nudgeRendererPayload({
+        attempted: true,
+        renderer: "anthropic",
+        modelVersion: model,
+        fallbackReason: "anthropic_error",
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  }
 }
 
 export function buildDecanOpeningDraft(params: {
   window: GuidanceWindow;
-  decanContext?: { detailDescription?: string | null } | null;
+  decanContext?: {
+    detailDescription?: string | null;
+    monthKey?: string | null;
+    monthShort?: string | null;
+    decan?: number | null;
+    shortName?: string | null;
+    displayName?: string | null;
+    defaultLabel?: string | null;
+  } | null;
   dayCard?: DayCardGuidanceInput | null;
   matrix?: ReflectionDecisionMatrixV1 | null;
   snapshot: MaatDimensionSnapshot;
   memoryBrief?: UserMemoryBrief | null;
 }): GuidanceDraft {
-  const leadAxis = params.matrix?.leadAxis ?? params.snapshot.leadAxis;
+  const leadAxis = params.snapshot.decanPrimaryAxes[0] ??
+    params.snapshot.leadAxis;
   const axisLabel = AXIS_LABELS[leadAxis];
-  const nextStep = AXIS_NEXT_STEP[leadAxis];
-  const nodeRef = firstNodeForAxis(leadAxis);
+  const dayLine = dayCardLine(params.dayCard);
+  const nextStep = openingPrimaryAction(
+    params.dayCard,
+    AXIS_NEXT_STEP[leadAxis],
+  );
+  const destination = resolveMaatOpeningDestination({
+    leadAxis,
+    decanName: params.window.decanName,
+    decanTheme: params.window.decanTheme ?? null,
+    decanContext: params.decanContext?.detailDescription ?? null,
+    dayCard: params.dayCard ?? null,
+  });
+  const nodeRef = destination.fallback?.ctaRef ??
+    destinationFirstNodeForAxis(leadAxis);
   const contextSentence = sentence(params.decanContext?.detailDescription)
     .split(/(?<=[.!?])\s+/)
     .filter(Boolean)[0] ?? "";
-  const dayLine = dayCardLine(params.dayCard);
-  const memoryLine = memoryEvidenceLine(params.memoryBrief, "opening");
-
-  const teaserText = [
-    `This decan asks for ${axisLabel} to become practical.`,
-    `Begin with one measured act: ${nextStep}.`,
-    dayLine || "Let the rhythm of this cycle turn attention into structure.",
-  ].filter(Boolean).join(" ");
-
-  const bodyText = [
-    `This decan opens through ${params.window.decanName}.`,
-    contextSentence ||
-    "Its work is to make order visible through one concrete practice.",
-    dayLine,
-    memoryLine,
-    `The useful move now is simple: ${nextStep}. Keep it small enough to repeat, clear enough to record, and quiet enough to preserve the rest of the pattern.`,
-  ].filter(Boolean).join("\n\n");
+  const output = buildControlledOutput({
+    policyVersion: OUTPUT_CONTROL_POLICY_VERSION,
+    constitutionVersion: MAAT_CONSTITUTION_VERSION,
+    northStar: MAAT_OUTPUT_NORTH_STAR,
+    forcePrinciple: MAAT_OUTPUT_FORCE_PRINCIPLE,
+    kind: "decan_opening",
+    speechAct: "orient",
+    intent: "start_decan_with_one_visible_measure",
+    moralFrame: "maat_order_made_practical",
+    emotionalTemperature: "low",
+    userState: "new_decan_boundary",
+    leadAxis,
+    leadAxisLabel: axisLabel,
+    primaryAction: nextStep,
+    evidenceAnchors: openingEvidenceAnchors({
+      decanContext: params.decanContext,
+      dayLine,
+    }),
+    rhetoricalMoves: [
+      "name_the_frame",
+      "ground_in_evidence",
+      "offer_one_act",
+      "close_with_dignity",
+    ],
+    detailBudget: "medium",
+    surfaceConstraints: guidanceSurfaceConstraints("decan_opening"),
+    cta: {
+      type: destination.ctaType,
+      ref: destination.ctaRef,
+      reason: destination.reason,
+    },
+    context: {
+      decanName: params.window.decanName,
+      decanTheme: params.window.decanTheme ?? null,
+      contextSentence: contextSentence || null,
+      dayLine: dayLine || null,
+      personalSeasoning: null,
+      nodeRef,
+      triggerReason: "decan_boundary",
+    },
+  });
+  const compiled = controlledOutputCompilerArtifacts({
+    output,
+    surface: "opening",
+    renderer: "controlled_output",
+    modelVersion: "controlled-output-v1",
+    ctaType: destination.ctaType,
+    ctaRef: destination.ctaRef,
+    ctaLabel: destination.ctaLabel,
+    ctaReason: destination.destinationReason,
+    ctaSource: destination.source,
+    destination: compiledDestinationForPackage(destination),
+  });
 
   return {
     kind: "decan_opening",
     priority: guidancePriority("decan_opening"),
-    teaserText,
-    bodyText,
+    teaserText: compiled.package.teaser_text ??
+      output.surfaceVariants.teaserText,
+    bodyText: compiled.package.final_text,
     payload: {
       lead_axis: leadAxis,
       band: params.snapshot.band,
       reflection_move: params.snapshot.reflectionMove,
       hard_gates: params.snapshot.hardGates,
-      decision_matrix_fingerprint: params.matrix?.fingerprint ?? null,
+      decision_matrix_fingerprint: null,
+      delivery_track: DECAN_CONTEXT_OPENING_TRACK,
+      notification_track: DECAN_CONTEXT_OPENING_TRACK,
+      content_source: DECAN_CONTEXT_OPENING_SOURCE,
+      profile_personalization_used: false,
+      source_scope: "calendar_context_only",
       decan_context_key: params.window.decanContextKey ?? null,
+      month_key: params.decanContext?.monthKey ?? null,
+      month_short: params.decanContext?.monthShort ?? null,
+      decan_number: params.decanContext?.decan ?? null,
+      decan_short_name: params.decanContext?.shortName ?? null,
+      decan_display_name: params.decanContext?.displayName ?? null,
+      decan_label: params.decanContext?.defaultLabel ?? null,
       day_card_date: params.dayCard?.date ?? null,
       node_ref: nodeRef,
-      memory_context_quality: params.memoryBrief?.contextQuality ?? null,
-      memory_anchor_labels: params.memoryBrief?.anchorLabels ?? [],
-      memory_evidence_phrases: params.memoryBrief?.evidencePhrases ?? [],
+      ...destinationPayload(destination),
+      memory_context_quality: null,
+      memory_anchor_labels: [],
+      memory_evidence_phrases: [],
+      output_control_policy_version: OUTPUT_CONTROL_POLICY_VERSION,
+      output_control: compiled.outputControl,
+      surface_variants: outputSurfaceVariantsPayload(output.surfaceVariants),
+      output_compiler: compiled.compiler,
+      compiled_output_package: compiled.package,
     },
-    ctaType: "node",
-    ctaRef: nodeRef,
+    ctaType: destination.ctaType,
+    ctaRef: destination.ctaRef,
     triggerReason: "decan_boundary",
   };
-}
-
-function firstNodeForAxis(axis: MaatAxisCode) {
-  return AXIS_NODE_CANDIDATES[axis][0] ?? "maat";
 }
 
 type GuidanceCtaResolution = {
@@ -742,187 +1708,29 @@ type GuidanceCtaResolution = {
   brief?: MaatFlowBrief | null;
 };
 
-type GuidanceCtaCandidate = GuidanceCtaResolution & {
-  baseWeight: number;
+type GuidanceDestinationResolution = MaatDestinationResolution & {
+  brief?: MaatFlowBrief | null;
 };
-
-const FLOW_TEMPLATES = {
-  dawnHouseRite: "dawn-house-rite",
-  eveningThresholdRite: "evening-threshold-rite",
-  trackTheSky: "track-the-sky",
-} as const;
-
-function flowTemplate(ref: string, reason: string): GuidanceCtaResolution {
-  return { ctaType: "flow_template", ctaRef: ref, reason };
-}
-
-function nodeForAxis(
-  axis: MaatAxisCode,
-  reason: string,
-): GuidanceCtaResolution {
-  return { ctaType: "node", ctaRef: firstNodeForAxis(axis), reason };
-}
-
-function ctaCandidate(
-  resolution: GuidanceCtaResolution,
-  baseWeight: number,
-): GuidanceCtaCandidate {
-  return { ...resolution, baseWeight };
-}
-
-function outcomeSignalForCandidate(
-  candidate: GuidanceCtaCandidate,
-  outcomeSignals: GuidanceCtaOutcomeSignal[] | undefined,
-) {
-  return (outcomeSignals ?? []).find((signal) =>
-    signal.ctaType === candidate.ctaType &&
-    (signal.ctaRef ?? null) === (candidate.ctaRef ?? null)
-  ) ?? null;
-}
-
-function chooseOutcomeWeightedCta(
-  candidates: GuidanceCtaCandidate[],
-  outcomeSignals?: GuidanceCtaOutcomeSignal[],
-): GuidanceCtaResolution {
-  let best = candidates[0];
-  let bestScore = Number.NEGATIVE_INFINITY;
-  let bestSignal: GuidanceCtaOutcomeSignal | null = null;
-
-  for (const candidate of candidates) {
-    const signal = outcomeSignalForCandidate(candidate, outcomeSignals);
-    const delta = signal?.weightedDeltaDoneRate ?? 0;
-    const outcomeBoost = signal?.outcomeFlag === "winning"
-      ? 35 + Math.round(delta * 100)
-      : signal?.outcomeFlag === "negative"
-      ? -35 + Math.round(delta * 100)
-      : 0;
-    const score = candidate.baseWeight + outcomeBoost;
-    if (score > bestScore) {
-      best = candidate;
-      bestScore = score;
-      bestSignal = signal;
-    }
-  }
-
-  return {
-    ctaType: best.ctaType,
-    ctaRef: best.ctaRef,
-    reason: bestSignal && bestSignal.outcomeFlag !== "neutral"
-      ? `${best.reason}:outcome_${bestSignal.outcomeFlag}`
-      : best.reason,
-  };
-}
 
 export function resolveGuidanceCta(params: {
   snapshot: MaatDimensionSnapshot;
   mode: "drift" | "strength";
   outcomeSignals?: GuidanceCtaOutcomeSignal[];
 }): GuidanceCtaResolution {
-  const correctionAxis = params.snapshot.correctionAxes[0] ??
-    params.snapshot.leadAxis;
-  const axis = params.mode === "drift"
-    ? correctionAxis
-    : params.snapshot.leadAxis;
-  const hardGates = new Set(params.snapshot.hardGates);
-
-  if (params.mode === "drift") {
-    if (hardGates.has("vulnerable_deprivation")) {
-      return {
-        ctaType: "node",
-        ctaRef: "instruction_amenemope",
-        reason: "gate:vulnerable_deprivation",
-      };
-    }
-    if (hardGates.has("corrupt_judgment")) {
-      return {
-        ctaType: "node",
-        ctaRef: "maat",
-        reason: "gate:corrupt_judgment",
-      };
-    }
-    if (hardGates.has("malicious_social_disruption")) {
-      return {
-        ctaType: "node",
-        ctaRef: "maat",
-        reason: "gate:malicious_social_disruption",
-      };
-    }
-    if (hardGates.has("life_supporting_flow_disrupted")) {
-      return flowTemplate(
-        FLOW_TEMPLATES.dawnHouseRite,
-        "gate:life_supporting_flow_disrupted",
-      );
-    }
-    if (hardGates.has("excessive_force_or_harm")) {
-      return flowTemplate(
-        FLOW_TEMPLATES.eveningThresholdRite,
-        "gate:excessive_force_or_harm",
-      );
-    }
-    if (hardGates.has("knowingly_false_record")) {
-      return flowTemplate(
-        FLOW_TEMPLATES.dawnHouseRite,
-        "gate:knowingly_false_record",
-      );
-    }
-    if (axis === "E") {
-      return chooseOutcomeWeightedCta([
-        ctaCandidate(flowTemplate(FLOW_TEMPLATES.trackTheSky, "axis:E"), 100),
-        ctaCandidate(nodeForAxis(axis, "axis:E:node_fallback"), 70),
-      ], params.outcomeSignals);
-    }
-    if (axis === "H" || axis === "R") {
-      return chooseOutcomeWeightedCta([
-        ctaCandidate(
-          flowTemplate(FLOW_TEMPLATES.eveningThresholdRite, `axis:${axis}`),
-          100,
-        ),
-        ctaCandidate(nodeForAxis(axis, `axis:${axis}:node_fallback`), 70),
-      ], params.outcomeSignals);
-    }
-    if (axis === "M" || axis === "S" || axis === "C") {
-      return chooseOutcomeWeightedCta([
-        ctaCandidate(
-          flowTemplate(FLOW_TEMPLATES.dawnHouseRite, `axis:${axis}`),
-          100,
-        ),
-        ctaCandidate(nodeForAxis(axis, `axis:${axis}:node_fallback`), 70),
-      ], params.outcomeSignals);
-    }
-  }
-
-  if (params.mode === "strength") {
-    if (axis === "E") {
-      return chooseOutcomeWeightedCta([
-        ctaCandidate(flowTemplate(FLOW_TEMPLATES.trackTheSky, "axis:E"), 100),
-        ctaCandidate(nodeForAxis(axis, "axis:E:node_fallback"), 70),
-      ], params.outcomeSignals);
-    }
-    if (axis === "H" || axis === "R") {
-      return chooseOutcomeWeightedCta([
-        ctaCandidate(
-          flowTemplate(FLOW_TEMPLATES.eveningThresholdRite, `axis:${axis}`),
-          100,
-        ),
-        ctaCandidate(nodeForAxis(axis, `axis:${axis}:node_fallback`), 70),
-      ], params.outcomeSignals);
-    }
-    if (axis === "M" || axis === "T" || axis === "C") {
-      return chooseOutcomeWeightedCta([
-        ctaCandidate(
-          flowTemplate(FLOW_TEMPLATES.dawnHouseRite, `axis:${axis}`),
-          100,
-        ),
-        ctaCandidate(nodeForAxis(axis, `axis:${axis}:node_fallback`), 70),
-      ], params.outcomeSignals);
-    }
-  }
-
-  return nodeForAxis(axis, `axis:${axis}:node_fallback`);
+  const resolved = resolveMaatGuidanceDestination({
+    snapshot: params.snapshot,
+    mode: params.mode,
+    outcomeSignals: params.outcomeSignals,
+  });
+  return {
+    ctaType: resolved.ctaType,
+    ctaRef: resolved.ctaRef,
+    reason: resolved.reason,
+  };
 }
 
 function maybePersonalizeFlowCta(params: {
-  cta: GuidanceCtaResolution;
+  cta: MaatDestinationResolution;
   snapshot: MaatDimensionSnapshot;
   mode: "drift" | "strength";
   window: GuidanceWindow;
@@ -931,14 +1739,14 @@ function maybePersonalizeFlowCta(params: {
   goalProfile?: GuidanceGoalProfile | null;
   personalBaseline?: GuidancePersonalBaseline | null;
   enablePersonalizedFlow?: boolean;
-}): GuidanceCtaResolution {
+}): GuidanceDestinationResolution {
   if (!params.enablePersonalizedFlow) return params.cta;
   const correctionAxis = params.snapshot.correctionAxes[0] ??
     params.snapshot.leadAxis;
   const careAxisFallback = params.mode === "drift" &&
       correctionAxis === "V" &&
       params.snapshot.hardGates.length === 0
-    ? FLOW_TEMPLATES.dawnHouseRite
+    ? MAAT_FLOW_TEMPLATES.theTending
     : null;
   const fallbackTemplateKey = params.cta.ctaType === "flow_template"
     ? params.cta.ctaRef
@@ -958,9 +1766,20 @@ function maybePersonalizeFlowCta(params: {
   });
   if (!brief) return params.cta;
   return {
+    ...params.cta,
     ctaType: "flow_personalized",
     ctaRef: brief.briefId,
+    ctaLabel: "Create this flow",
+    destinationType: "flow_personalized",
+    destinationRef: brief.briefId,
+    destinationLabel: "Create this flow",
+    destinationReason: `${params.cta.reason}:personalized_flow`,
     reason: `${params.cta.reason}:personalized_flow`,
+    fallback: {
+      ctaType: "flow_template",
+      ctaRef: fallbackTemplateKey,
+      ctaLabel: "Open suggested flow",
+    },
     brief,
   };
 }
@@ -992,12 +1811,35 @@ export function buildDriftNudgeDraft(params: {
   const correctionAxis = params.snapshot.correctionAxes[0] ??
     params.snapshot.leadAxis;
   const axisLabel = AXIS_LABELS[correctionAxis];
-  const nextStep = AXIS_NEXT_STEP[correctionAxis];
+  const nextStep = ledgerShapedAction(
+    params.snapshot,
+    AXIS_NEXT_STEP[correctionAxis],
+    "drift",
+    params.memoryBrief,
+  );
+  const isDayFiveIsfetCadence = params.triggerReason === "decan_day_5_isfet";
+  const situation = interpretMaatSituation({
+    snapshot: params.snapshot,
+    mode: "drift",
+    triggerReason: params.triggerReason,
+    evidencePhrases: params.memoryBrief?.evidencePhrases ?? [],
+    personalBaseline: params.personalBaseline,
+  });
+  const concreteNextStep = situation.concreteAction || nextStep;
+  const meaning = guidanceMeaning({
+    snapshot: params.snapshot,
+    axisLabel,
+    primaryAction: concreteNextStep,
+    triggerReason: params.triggerReason,
+    mode: "drift",
+    window: params.window,
+    situation,
+  });
   const cta = maybePersonalizeFlowCta({
-    cta: resolveGuidanceCta({
+    cta: resolveMaatGuidanceDestination({
       snapshot: params.snapshot,
       mode: "drift",
-      outcomeSignals: params.outcomeSignals,
+      outcomeSignals: isDayFiveIsfetCadence ? undefined : params.outcomeSignals,
     }),
     snapshot: params.snapshot,
     mode: "drift",
@@ -1006,22 +1848,53 @@ export function buildDriftNudgeDraft(params: {
     maturity: params.maturity,
     goalProfile: params.goalProfile,
     personalBaseline: params.personalBaseline,
-    enablePersonalizedFlow: params.enablePersonalizedFlow,
+    enablePersonalizedFlow: isDayFiveIsfetCadence
+      ? false
+      : params.enablePersonalizedFlow,
   });
-  const teaserText =
-    `A path back to balance is available. Begin with one measured act of ${axisLabel}: ${nextStep}.`;
-  const bodyText = [
-    "The pattern does not need a verdict; it needs a next step.",
-    memoryEvidenceLine(params.memoryBrief, "drift"),
-    `Start with ${axisLabel}. ${sentence(nextStep)}`,
-    "Keep the action small, visible, and restorable. One honest correction is enough for today.",
-  ].filter(Boolean).join("\n\n");
+  const output = buildControlledOutput({
+    policyVersion: OUTPUT_CONTROL_POLICY_VERSION,
+    constitutionVersion: MAAT_CONSTITUTION_VERSION,
+    northStar: MAAT_OUTPUT_NORTH_STAR,
+    forcePrinciple: MAAT_OUTPUT_FORCE_PRINCIPLE,
+    kind: "drift_nudge",
+    speechAct: "correct",
+    intent: "restore_order_without_shame",
+    moralFrame: "maat_order_over_scatter",
+    emotionalTemperature: "low",
+    userState: "good_faith_drift",
+    leadAxis: correctionAxis,
+    leadAxisLabel: axisLabel,
+    primaryAction: concreteNextStep,
+    evidenceAnchors: memoryAnchorsForOutput(params.memoryBrief, "drift"),
+    rhetoricalMoves: [
+      "name_the_pattern",
+      "ground_in_evidence",
+      "interpret_gently",
+      "offer_one_act",
+      "close_with_dignity",
+    ],
+    detailBudget: "brief",
+    surfaceConstraints: guidanceSurfaceConstraints("drift_nudge"),
+    cta: {
+      type: cta.ctaType,
+      ref: cta.ctaRef,
+      reason: cta.reason,
+    },
+    meaning,
+    context: {
+      decanName: params.window.decanName,
+      decanTheme: params.window.decanTheme ?? null,
+      personalSeasoning: personalSeasoning(params.memoryBrief, "drift"),
+      triggerReason: params.triggerReason,
+    },
+  });
 
   return {
     kind: "drift_nudge",
     priority: guidancePriority("drift_nudge"),
-    teaserText,
-    bodyText,
+    teaserText: output.surfaceVariants.teaserText,
+    bodyText: output.surfaceVariants.bodyText,
     payload: {
       lead_axis: params.snapshot.leadAxis,
       correction_axis: correctionAxis,
@@ -1031,10 +1904,18 @@ export function buildDriftNudgeDraft(params: {
       decision_matrix_fingerprint: params.decisionMatrixFingerprint ?? null,
       decan_context_key: params.window.decanContextKey ?? null,
       cta_reason: cta.reason,
+      ...destinationPayload(cta),
       memory_context_quality: params.memoryBrief?.contextQuality ?? null,
       memory_anchor_labels: params.memoryBrief?.anchorLabels ?? [],
       memory_evidence_phrases: params.memoryBrief?.evidencePhrases ?? [],
-      ...flowBriefPayload(cta.brief),
+      ...maatLedgerPayload(params.snapshot.source.ledger),
+      ...maatSituationPayload(situation),
+      ...outputControlPayloadFields(output),
+      ...flowBriefPayload(
+        (cta as MaatDestinationResolution & {
+          brief?: MaatFlowBrief | null;
+        }).brief,
+      ),
     },
     ctaType: cta.ctaType,
     ctaRef: cta.ctaRef,
@@ -1052,41 +1933,94 @@ export function buildStrengthNudgeDraft(params: {
   personalBaseline?: GuidancePersonalBaseline | null;
   enablePersonalizedFlow?: boolean;
   memoryBrief?: UserMemoryBrief | null;
+  triggerReason?: string;
+  celebrationOnly?: boolean;
 }): GuidanceDraft {
   const leadAxis = params.snapshot.leadAxis;
   const axisLabel = AXIS_LABELS[leadAxis];
-  const nextStep = AXIS_NEXT_STEP[leadAxis];
-  const cta = maybePersonalizeFlowCta({
-    cta: resolveGuidanceCta({
-      snapshot: params.snapshot,
-      mode: "strength",
-      outcomeSignals: params.outcomeSignals,
-    }),
+  const triggerReason = params.triggerReason ?? "sustained_maat_signal";
+  const nextStep = evidenceShapedAction(
+    AXIS_NEXT_STEP[leadAxis],
+    "strength",
+    params.memoryBrief,
+  );
+  const situation = interpretMaatSituation({
     snapshot: params.snapshot,
     mode: "strength",
-    window: params.window,
-    triggerReason: "sustained_maat_signal",
-    maturity: params.maturity,
-    goalProfile: params.goalProfile,
+    triggerReason,
+    evidencePhrases: params.memoryBrief?.evidencePhrases ?? [],
     personalBaseline: params.personalBaseline,
-    enablePersonalizedFlow: params.enablePersonalizedFlow,
   });
-  const teaserText =
-    `Your rhythm is holding. Deepen the pattern through ${axisLabel}: ${nextStep}.`;
-  const bodyText = [
-    "The useful work now is preservation, not expansion.",
-    memoryEvidenceLine(params.memoryBrief, "strength"),
-    `Stay with the strength already visible in ${axisLabel}. ${
-      sentence(nextStep)
-    }`,
-    "Let repetition make the pattern dependable before adding another demand.",
-  ].filter(Boolean).join("\n\n");
+  const concreteNextStep = situation.concreteAction || nextStep;
+  const meaning = guidanceMeaning({
+    snapshot: params.snapshot,
+    axisLabel,
+    primaryAction: concreteNextStep,
+    triggerReason,
+    mode: "strength",
+    window: params.window,
+    situation,
+  });
+  const cta = params.celebrationOnly
+    ? noMaatDestination(triggerReason)
+    : maybePersonalizeFlowCta({
+      cta: resolveMaatGuidanceDestination({
+        snapshot: params.snapshot,
+        mode: "strength",
+        outcomeSignals: params.outcomeSignals,
+      }),
+      snapshot: params.snapshot,
+      mode: "strength",
+      window: params.window,
+      triggerReason,
+      maturity: params.maturity,
+      goalProfile: params.goalProfile,
+      personalBaseline: params.personalBaseline,
+      enablePersonalizedFlow: params.enablePersonalizedFlow,
+    });
+  const output = buildControlledOutput({
+    policyVersion: OUTPUT_CONTROL_POLICY_VERSION,
+    constitutionVersion: MAAT_CONSTITUTION_VERSION,
+    northStar: MAAT_OUTPUT_NORTH_STAR,
+    forcePrinciple: MAAT_OUTPUT_FORCE_PRINCIPLE,
+    kind: "strength_nudge",
+    speechAct: "fortify",
+    intent: "protect_the_pattern_that_is_working",
+    moralFrame: "maat_order_preserved_before_expansion",
+    emotionalTemperature: "low",
+    userState: "stable_pattern",
+    leadAxis,
+    leadAxisLabel: axisLabel,
+    primaryAction: concreteNextStep,
+    evidenceAnchors: memoryAnchorsForOutput(params.memoryBrief, "strength"),
+    rhetoricalMoves: [
+      "name_the_pattern",
+      "ground_in_evidence",
+      "protect_strength",
+      "offer_one_act",
+      "close_with_dignity",
+    ],
+    detailBudget: "brief",
+    surfaceConstraints: guidanceSurfaceConstraints("strength_nudge"),
+    cta: {
+      type: cta.ctaType,
+      ref: cta.ctaRef,
+      reason: cta.reason,
+    },
+    meaning,
+    context: {
+      decanName: params.window.decanName,
+      decanTheme: params.window.decanTheme ?? null,
+      personalSeasoning: personalSeasoning(params.memoryBrief, "strength"),
+      triggerReason,
+    },
+  });
 
   return {
     kind: "strength_nudge",
     priority: guidancePriority("strength_nudge"),
-    teaserText,
-    bodyText,
+    teaserText: output.surfaceVariants.teaserText,
+    bodyText: output.surfaceVariants.bodyText,
     payload: {
       lead_axis: leadAxis,
       band: params.snapshot.band,
@@ -1095,14 +2029,23 @@ export function buildStrengthNudgeDraft(params: {
       decision_matrix_fingerprint: params.decisionMatrixFingerprint ?? null,
       decan_context_key: params.window.decanContextKey ?? null,
       cta_reason: cta.reason,
+      ...destinationPayload(cta),
       memory_context_quality: params.memoryBrief?.contextQuality ?? null,
       memory_anchor_labels: params.memoryBrief?.anchorLabels ?? [],
       memory_evidence_phrases: params.memoryBrief?.evidencePhrases ?? [],
-      ...flowBriefPayload(cta.brief),
+      cadence_type: params.celebrationOnly ? "decan_day_5" : null,
+      ...maatLedgerPayload(params.snapshot.source.ledger),
+      ...maatSituationPayload(situation),
+      ...outputControlPayloadFields(output),
+      ...flowBriefPayload(
+        (cta as MaatDestinationResolution & {
+          brief?: MaatFlowBrief | null;
+        }).brief,
+      ),
     },
     ctaType: cta.ctaType,
     ctaRef: cta.ctaRef,
-    triggerReason: "sustained_maat_signal",
+    triggerReason,
   };
 }
 
@@ -1207,7 +2150,7 @@ export function shouldCreateStrengthNudge(params: {
   if (params.strengthCount >= 1) return false;
   if (params.driftCount >= 2) return false;
   if (params.openCorrectionExists) return false;
-  if (!params.openingHandled || params.decanDayIndex < 4) return false;
+  if (!params.openingHandled || params.decanDayIndex < 5) return false;
 
   const recent = params.snapshots.slice(0, 5);
   const strongCount =
@@ -1219,6 +2162,82 @@ export function shouldCreateStrengthNudge(params: {
   );
 
   return strongCount >= 3 && !hardGateInLast3;
+}
+
+export function shouldCreateDayFiveCadenceNudge(params: {
+  current: MaatDimensionSnapshot;
+  decanDayIndex: number;
+  driftCount: number;
+  strengthCount: number;
+  dayFiveDeliveryExists?: boolean;
+  openCorrectionExists?: boolean;
+}): DayFiveCadenceDecision {
+  if (params.decanDayIndex !== 5) {
+    return {
+      create: false,
+      mode: null,
+      kind: null,
+      reason: "not_day_5",
+    };
+  }
+  if (params.dayFiveDeliveryExists) {
+    return {
+      create: false,
+      mode: null,
+      kind: null,
+      reason: "already_created",
+    };
+  }
+
+  const isIsfet = params.openCorrectionExists === true ||
+    params.current.hardGates.length > 0 ||
+    params.current.reflectionMove === "correct" ||
+    BAND_RANK[params.current.band] <= BAND_RANK.leaning_isfet;
+
+  if (isIsfet) {
+    if (params.driftCount >= 2) {
+      return {
+        create: false,
+        mode: "isfet",
+        kind: "drift_nudge",
+        reason: "drift_cap_reached",
+      };
+    }
+    return {
+      create: true,
+      mode: "isfet",
+      kind: "drift_nudge",
+      reason: "decan_day_5_isfet",
+    };
+  }
+
+  if (
+    params.current.reflectionMove === "inquire" ||
+    params.current.band === "mixed"
+  ) {
+    return {
+      create: true,
+      mode: "inquire",
+      kind: "drift_nudge",
+      reason: "decan_day_5_insufficient_signal",
+    };
+  }
+
+  if (params.strengthCount >= 1) {
+    return {
+      create: false,
+      mode: "maat",
+      kind: "strength_nudge",
+      reason: "strength_exists",
+    };
+  }
+
+  return {
+    create: true,
+    mode: "maat",
+    kind: "strength_nudge",
+    reason: "decan_day_5_maat",
+  };
 }
 
 export function shouldCompleteOpenCorrection(params: {
