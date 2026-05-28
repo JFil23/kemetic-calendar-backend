@@ -4,22 +4,27 @@ import {
   computeCurrentAndNextDecanWindows,
   normalizeTimeZone,
 } from "../_shared/decan_schedule.ts";
-import { getDecanContext } from "../_shared/decan_context.ts";
+import {
+  type DecanContext,
+  getDecanContext,
+} from "../_shared/decan_context.ts";
 import {
   buildDecanOpeningDraft,
-  buildGuidanceShapingFingerprint,
   buildGuidanceSnapshot,
-  buildOpeningDecisionMatrix,
   type DayCardGuidanceInput,
+  DECAN_CONTEXT_OPENING_SOURCE,
+  DECAN_CONTEXT_OPENING_TRACK,
   decanPeriodKey,
   type GuidanceWindow,
-  MAAT_GUIDANCE_POLICY_VERSION,
-  resolveGatePolicyForMaturity,
-  resolveGraphAxisPriors,
-  resolveGuidanceMaturity,
 } from "../_shared/maat_guidance.ts";
-import { buildUserMemoryBrief } from "../_shared/user_memory_brief.ts";
-import type { ReflectionProfileRow } from "../ai_generate_reflection/maat_decision.ts";
+import {
+  deliveryChannelFromPayload,
+  mergeMaatOutputTelemetry,
+} from "../_shared/maat_output_telemetry.ts";
+import {
+  recordMaatDeliveryTimingEvent,
+} from "../_shared/maat_delivery_timing.ts";
+import { resolveCompiledPackagePushText } from "../_shared/output_compiler.ts";
 
 type SupabaseClientLike = {
   auth: {
@@ -56,6 +61,7 @@ type Payload = {
   limit?: number | string;
   batch_size?: number | string;
   max_runtime_ms?: number | string;
+  scheduled_at?: string | null;
 };
 
 type OpeningCronResult = {
@@ -89,6 +95,31 @@ function hasDayCardSignal(dayCard?: DayCardGuidanceInput | null) {
   );
 }
 
+function dayOneCardFromContext(
+  decanContext: DecanContext | null,
+  date: string,
+): DayCardGuidanceInput | null {
+  const firstCard = decanContext?.dayCards?.[0] ?? null;
+  if (!firstCard) return null;
+  return {
+    date,
+    maatPrinciple: firstCard.theme,
+    decanDayTheme: firstCard.theme,
+    decanDayAction: firstCard.action,
+    decanDayReflection: firstCard.reflection,
+  };
+}
+
+function resolveOpeningDayCard(params: {
+  requested?: DayCardGuidanceInput | null;
+  decanContext: DecanContext | null;
+  decanStart: string;
+}): DayCardGuidanceInput | null {
+  return hasDayCardSignal(params.requested)
+    ? params.requested!
+    : dayOneCardFromContext(params.decanContext, params.decanStart);
+}
+
 function existingOpeningCanBeUpdated(existing: Record<string, unknown>) {
   const status = typeof existing.status === "string" ? existing.status : "";
   return status === "pending" || status === "shown" || status === "opened";
@@ -112,14 +143,43 @@ function existingOpeningNeedsRefresh(existing: Record<string, unknown>) {
     : "";
   const ctaRef = typeof existing.cta_ref === "string" ? existing.cta_ref : "";
   const nodeRef = typeof payload.node_ref === "string" ? payload.node_ref : "";
+  const outputControl = payload.output_control &&
+      typeof payload.output_control === "object"
+    ? payload.output_control as Record<string, unknown>
+    : null;
+  const compiledPackage = payload.compiled_output_package &&
+      typeof payload.compiled_output_package === "object"
+    ? payload.compiled_output_package as Record<string, unknown>
+    : null;
+  const deliveryTrack = typeof payload.delivery_track === "string"
+    ? payload.delivery_track
+    : typeof payload.notification_track === "string"
+    ? payload.notification_track
+    : "";
+  const contentSource = typeof payload.content_source === "string"
+    ? payload.content_source
+    : "";
   const teaser = typeof existing.teaser_text === "string"
     ? existing.teaser_text
     : "";
   const body = typeof existing.body_text === "string" ? existing.body_text : "";
 
-  return ctaType !== "node" ||
+  const destination = compiledPackage?.destination &&
+      typeof compiledPackage.destination === "object" &&
+      !Array.isArray(compiledPackage.destination)
+    ? compiledPackage.destination as Record<string, unknown>
+    : null;
+
+  return ctaType !== "flow_template" ||
     !ctaRef.trim() ||
     !nodeRef.trim() ||
+    typeof destination?.ref !== "string" ||
+    !destination.ref.trim() ||
+    deliveryTrack !== DECAN_CONTEXT_OPENING_TRACK ||
+    contentSource !== DECAN_CONTEXT_OPENING_SOURCE ||
+    payload.profile_personalization_used !== false ||
+    !outputControl ||
+    compiledPackage?.package_version !== "compiled_output_package_v1" ||
     teaser.includes("Today's card names") ||
     body.includes("Today's card names");
 }
@@ -128,6 +188,77 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function recordOpeningDeliveryOutcome(params: {
+  client: SupabaseClientLike;
+  userId: string;
+  result: OpeningCronResult;
+  scheduledFor: string;
+  functionStartedAt: string;
+  deliveredAt: string;
+}) {
+  if (!isRecord(params.result.delivery)) return;
+  const delivery = params.result.delivery;
+  const deliveryId = typeof delivery.id === "string" ? delivery.id : "";
+  if (!deliveryId) return;
+  const status = delivery.status === "archive_only" ? "skipped" : "sent";
+  const deliveryPayload = isRecord(delivery.payload) ? delivery.payload : {};
+  const pushResolution = resolveCompiledPackagePushText({
+    payload: deliveryPayload,
+  });
+  const notificationTrack =
+    typeof deliveryPayload.notification_track === "string"
+      ? deliveryPayload.notification_track
+      : typeof deliveryPayload.delivery_track === "string"
+      ? deliveryPayload.delivery_track
+      : DECAN_CONTEXT_OPENING_TRACK;
+  const baseEvent = {
+    deliveryKey: `maat_guidance:${deliveryId}`,
+    deliveryKind: "decan_opening",
+    targetTable: "maat_guidance_deliveries",
+    targetId: deliveryId,
+    userId: params.userId,
+    scheduledFor: params.scheduledFor,
+    functionStartedAt: params.functionStartedAt,
+    cronJobName: "maat_guidance_decan_opening_hourly",
+    deliveryAttempt: 1,
+    metadata: {
+      created: params.result.created === true,
+      enriched: params.result.enriched === true,
+      refreshed: params.result.refreshed === true,
+      notification_track: notificationTrack,
+      delivery_track: notificationTrack,
+      content_source: typeof deliveryPayload.content_source === "string"
+        ? deliveryPayload.content_source
+        : DECAN_CONTEXT_OPENING_SOURCE,
+      profile_personalization_used:
+        deliveryPayload.profile_personalization_used === true ? true : false,
+      decan_period_key: typeof delivery.decan_period_key === "string"
+        ? delivery.decan_period_key
+        : null,
+      push_source: pushResolution.source,
+      push_blocked: pushResolution.blocked,
+      push_block_reason: pushResolution.reason,
+      package_version: pushResolution.packageVersion,
+      compiler_status: pushResolution.compilerStatus,
+    },
+  };
+  await recordMaatDeliveryTimingEvent(params.client, {
+    ...baseEvent,
+    cronPickedAt: params.functionStartedAt,
+    deliveryStatus: "picked",
+  });
+  await recordMaatDeliveryTimingEvent(params.client, {
+    ...baseEvent,
+    deliveredAt: params.deliveredAt,
+    deliveryStatus: status,
+    skipReason: status === "skipped" ? "archive_only" : null,
   });
 }
 
@@ -159,24 +290,6 @@ function payloadWindow(
   };
 }
 
-async function fetchReflectionProfile(
-  client: SupabaseClientLike,
-  userId: string,
-) {
-  const { data, error } = await client
-    .from("reflection_profiles")
-    .select(
-      "top_nodes,top_edges,dominant_patterns,tension_pairs,maat_score,isfet_risk_score,last_computed_at",
-    )
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) {
-    console.error("reflection profile fetch error", error);
-    return null;
-  }
-  return data as ReflectionProfileRow | null;
-}
-
 async function expireStaleDeliveries(
   client: SupabaseClientLike,
   userId: string,
@@ -204,46 +317,21 @@ async function buildAndPersistOpeningDraft(params: {
 }) {
   const { client, userId, body, window, periodKey } = params;
   const decanContext = getDecanContext(window.decanContextKey);
-  const profile = await fetchReflectionProfile(client, userId);
-  const maturity = resolveGuidanceMaturity({
-    badgeCount: 0,
-    snapshotCount: 0,
-    profile,
-  });
-  const gatePolicy = resolveGatePolicyForMaturity(maturity);
-  const axisPriors = resolveGraphAxisPriors({ profile, maturity });
   const emptySnapshot = buildGuidanceSnapshot({
     window,
     decanContext,
     badges: [],
-    gatePolicy,
-    axisPriors,
   });
-  const matrix = buildOpeningDecisionMatrix({
-    profile,
-    snapshot: emptySnapshot,
-  });
-  const memoryBrief = buildUserMemoryBrief({
-    profile,
-    snapshot: emptySnapshot,
+  const dayCard = resolveOpeningDayCard({
+    requested: body.day_card ?? null,
     decanContext,
-    decanName: window.decanName,
-    decanTheme: window.decanTheme,
-  });
-  const shapingFingerprint = buildGuidanceShapingFingerprint({
-    maturity,
-    profile,
-    gatePolicy,
-    axisPriors,
-    decisionMatrixFingerprint: matrix?.fingerprint ?? null,
+    decanStart: window.start,
   });
   const draft = buildDecanOpeningDraft({
     window,
     decanContext,
-    dayCard: body.day_card ?? null,
-    matrix,
+    dayCard,
     snapshot: emptySnapshot,
-    memoryBrief,
   });
 
   const { data: generation, error: generationError } = await client
@@ -252,39 +340,45 @@ async function buildAndPersistOpeningDraft(params: {
       user_id: userId,
       period_type: "decan_opening",
       period_key: periodKey,
-      anchor_nodes: matrix?.anchorNodes ?? [],
+      anchor_nodes: [],
       source_snapshot: {
+        notification_track: DECAN_CONTEXT_OPENING_TRACK,
+        delivery_track: DECAN_CONTEXT_OPENING_TRACK,
+        content_source: DECAN_CONTEXT_OPENING_SOURCE,
+        source_scope: "calendar_context_only",
+        profile_personalization_used: false,
         decan_name: window.decanName,
         decan_theme: window.decanTheme ?? null,
         decan_context_key: window.decanContextKey ?? null,
+        month_key: decanContext?.monthKey ?? null,
+        month_short: decanContext?.monthShort ?? null,
+        decan_number: decanContext?.decan ?? null,
+        decan_short_name: decanContext?.shortName ?? null,
+        decan_display_name: decanContext?.displayName ?? null,
+        decan_label: decanContext?.defaultLabel ?? null,
         decan_start: window.start,
         decan_end: window.end,
-        day_card: body.day_card ?? null,
-        maturity_level: maturity.level,
-        maturity_confidence: maturity.confidence,
-        gate_policy: shapingFingerprint.gate_policy,
-        shaping_fingerprint: shapingFingerprint,
-        memory_brief: {
-          context_quality: memoryBrief.contextQuality,
-          anchor_labels: memoryBrief.anchorLabels,
-          tension_labels: memoryBrief.tensionLabels,
-        },
+        day_card: dayCard,
       },
       generated_text: draft.bodyText,
       model_version: "local-maat-guidance-v1",
       metadata: {
-        policy_version: MAAT_GUIDANCE_POLICY_VERSION,
+        notification_track: DECAN_CONTEXT_OPENING_TRACK,
+        delivery_track: DECAN_CONTEXT_OPENING_TRACK,
+        content_source: DECAN_CONTEXT_OPENING_SOURCE,
+        source_scope: "calendar_context_only",
+        profile_personalization_used: false,
         kind: draft.kind,
         lead_axis: draft.payload.lead_axis,
         reflection_move: draft.payload.reflection_move,
         hard_gates: draft.payload.hard_gates,
-        maturity_level: maturity.level,
-        maturity_label: maturity.label,
-        maturity_confidence: maturity.confidence,
-        gate_policy: shapingFingerprint.gate_policy,
-        shaping_fingerprint: shapingFingerprint,
-        decision_matrix: matrix?.fingerprint ?? null,
-        memory_context_quality: memoryBrief.contextQuality,
+        day_card_source: hasDayCardSignal(body.day_card)
+          ? "request"
+          : dayCard
+          ? "decan_context_day1"
+          : "none",
+        output_control: draft.payload.output_control ?? null,
+        surface_variants: draft.payload.surface_variants ?? null,
       },
     })
     .select("id")
@@ -327,7 +421,13 @@ async function ensureOpeningForUser(params: {
 
   if (existing) {
     const existingRecord = existing as Record<string, unknown>;
-    const hasDayCard = hasDayCardSignal(body.day_card);
+    const decanContext = getDecanContext(window.decanContextKey);
+    const resolvedDayCard = resolveOpeningDayCard({
+      requested: body.day_card ?? null,
+      decanContext,
+      decanStart: window.start,
+    });
+    const hasDayCard = hasDayCardSignal(resolvedDayCard);
     const needsRefresh = existingOpeningNeedsRefresh(existingRecord);
     const shouldEnrich = hasDayCard &&
       existingOpeningCanBeUpdated(existingRecord) &&
@@ -345,13 +445,50 @@ async function ensureOpeningForUser(params: {
         window,
         periodKey,
       });
+      const refreshedPayload = mergeMaatOutputTelemetry({
+        payload: draft.payload,
+        action: "generated",
+        nowIso: now.toISOString(),
+        delivery: {
+          id: String(existing.id ?? ""),
+          kind: draft.kind,
+          decanPeriodKey: periodKey,
+          status: String(existingRecord.status ?? "pending"),
+          createdAt: typeof existingRecord.created_at === "string"
+            ? existingRecord.created_at
+            : null,
+          shownAt: typeof existingRecord.shown_at === "string"
+            ? existingRecord.shown_at
+            : null,
+          openedAt: typeof existingRecord.opened_at === "string"
+            ? existingRecord.opened_at
+            : null,
+          dismissedAt: typeof existingRecord.dismissed_at === "string"
+            ? existingRecord.dismissed_at
+            : null,
+          actedAt: typeof existingRecord.acted_at === "string"
+            ? existingRecord.acted_at
+            : null,
+          expiredAt: typeof existingRecord.expired_at === "string"
+            ? existingRecord.expired_at
+            : null,
+        },
+      });
+      const currentStatus = typeof existingRecord.status === "string"
+        ? existingRecord.status
+        : "pending";
+      const refreshedStatus = currentStatus === "pending" &&
+          deliveryChannelFromPayload(refreshedPayload) === "archive_only"
+        ? "archive_only"
+        : currentStatus;
       const { data: delivery, error: updateError } = await client
         .from("maat_guidance_deliveries")
         .update({
+          status: refreshedStatus,
           priority: draft.priority,
           teaser_text: draft.teaserText,
           body_text: draft.bodyText,
-          payload: draft.payload,
+          payload: refreshedPayload,
           cta_type: draft.ctaType,
           cta_ref: draft.ctaRef,
           generation_id: generationId,
@@ -387,6 +524,21 @@ async function ensureOpeningForUser(params: {
     window,
     periodKey,
   });
+  const payload = mergeMaatOutputTelemetry({
+    payload: draft.payload,
+    action: "generated",
+    nowIso: now.toISOString(),
+    delivery: {
+      id: "",
+      kind: draft.kind,
+      decanPeriodKey: periodKey,
+      status: "pending",
+      createdAt: null,
+    },
+  });
+  const deliveryStatus = deliveryChannelFromPayload(payload) === "archive_only"
+    ? "archive_only"
+    : "pending";
 
   const { data: delivery, error: insertError } = await client
     .from("maat_guidance_deliveries")
@@ -394,11 +546,11 @@ async function ensureOpeningForUser(params: {
       user_id: userId,
       kind: draft.kind,
       decan_period_key: periodKey,
-      status: "pending",
+      status: deliveryStatus,
       priority: draft.priority,
       teaser_text: draft.teaserText,
       body_text: draft.bodyText,
-      payload: draft.payload,
+      payload,
       cta_type: draft.ctaType,
       cta_ref: draft.ctaRef,
       generation_id: generationId,
@@ -487,6 +639,11 @@ export function createCronMaatDecanOpeningHandler(options?: {
 
       const results: OpeningCronResult[] = [];
       const startedAt = Date.now();
+      const functionStartedAt = new Date(startedAt).toISOString();
+      const scheduledFor = typeof body.scheduled_at === "string" &&
+          body.scheduled_at.trim()
+        ? body.scheduled_at.trim()
+        : now.toISOString();
       let offset = 0;
       let batches = 0;
       let drained = false;
@@ -527,8 +684,42 @@ export function createCronMaatDecanOpeningHandler(options?: {
               timezone,
               now,
             });
+            if (
+              result.created === true || result.enriched === true ||
+              result.refreshed === true
+            ) {
+              await recordOpeningDeliveryOutcome({
+                client,
+                userId: profile.id,
+                result: { user_id: profile.id, ...result },
+                scheduledFor,
+                functionStartedAt,
+                deliveredAt: new Date().toISOString(),
+              });
+            }
             results.push({ user_id: profile.id, ...result });
           } catch (err) {
+            await recordMaatDeliveryTimingEvent(client, {
+              deliveryKey: `decan_opening:${profile.id}:${scheduledFor}`,
+              deliveryKind: "decan_opening",
+              targetTable: "profiles",
+              targetId: profile.id,
+              userId: profile.id,
+              scheduledFor,
+              functionStartedAt,
+              deliveredAt: new Date().toISOString(),
+              cronJobName: "maat_guidance_decan_opening_hourly",
+              deliveryAttempt: 1,
+              deliveryStatus: "failed",
+              errorCode: "opening_exception",
+              metadata: {
+                notification_track: DECAN_CONTEXT_OPENING_TRACK,
+                delivery_track: DECAN_CONTEXT_OPENING_TRACK,
+                content_source: DECAN_CONTEXT_OPENING_SOURCE,
+                timezone,
+                error: err instanceof Error ? err.message : String(err),
+              },
+            });
             results.push({
               user_id: profile.id,
               error: err instanceof Error ? err.message : String(err),

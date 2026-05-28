@@ -207,8 +207,33 @@ Deno.test("cron_maat_decan_opening creates one opening and expires stale rows", 
   assertEquals(body.delivery.kind, "decan_opening");
   assertEquals(body.delivery.decan_period_key, periodKey);
   assertEquals(body.delivery.status, "pending");
-  assertEquals(body.delivery.cta_type, "node");
-  assertEquals(body.delivery.cta_ref, "maat");
+  assertEquals(body.delivery.cta_type, "flow_template");
+  assertEquals(body.delivery.cta_ref, "the-decan-watch");
+  assertEquals(
+    body.delivery.payload.compiled_output_package.package_version,
+    "compiled_output_package_v1",
+  );
+  assertEquals(
+    body.delivery.payload.compiled_output_package.final_text,
+    body.delivery.body_text,
+  );
+  assertEquals(
+    body.delivery.payload.compiled_output_package.destination.ref,
+    "the-decan-watch",
+  );
+  assertEquals(body.delivery.payload.output_compiler.surface, "opening");
+  assertEquals(body.delivery.payload.output_compiler.status, "compiled");
+  assertEquals(
+    body.delivery.payload.notification_track,
+    "decan_context_opening",
+  );
+  assertEquals(
+    body.delivery.payload.content_source,
+    "calendar_month_decan_day1_context",
+  );
+  assertEquals(body.delivery.payload.profile_personalization_used, false);
+  assertEquals(body.delivery.payload.month_short, "Thoth");
+  assertEquals(body.delivery.payload.decan_short_name, "tpy-ꜣ sbꜣw");
 
   const stale = tables.maat_guidance_deliveries.find((row) =>
     row.id === "stale-opening"
@@ -218,10 +243,22 @@ Deno.test("cron_maat_decan_opening creates one opening and expires stale rows", 
 
   assertEquals(tables.reflection_generations.length, 1);
   assertEquals(
-    tables.reflection_generations[0].metadata.policy_version,
-    "maat_policy_v3",
+    tables.reflection_generations[0].metadata.notification_track,
+    "decan_context_opening",
   );
-  assert(tables.reflection_generations[0].metadata.shaping_fingerprint);
+  assertEquals(
+    tables.reflection_generations[0].source_snapshot
+      .profile_personalization_used,
+    false,
+  );
+  assertEquals(
+    tables.reflection_generations[0].source_snapshot.source_scope,
+    "calendar_context_only",
+  );
+  assertEquals(
+    tables.reflection_generations[0].source_snapshot.month_short,
+    "Thoth",
+  );
 });
 
 Deno.test("cron_maat_decan_opening enriches generic pending opening with day card", async () => {
@@ -293,8 +330,28 @@ Deno.test("cron_maat_decan_opening enriches generic pending opening with day car
   const opening = tables.maat_guidance_deliveries[0];
   assertEquals(opening.payload.day_card_date, "2026-05-16");
   assertEquals(opening.generation_id, "reflection_generations-1");
-  assert(opening.teaser_text.includes("Record honestly"));
   assert(opening.body_text.includes("Write one true mark"));
+  assert(opening.payload.output_control);
+  assertEquals(opening.payload.notification_track, "decan_context_opening");
+  assertEquals(
+    opening.payload.content_source,
+    "calendar_month_decan_day1_context",
+  );
+  assertEquals(opening.payload.profile_personalization_used, false);
+  assertEquals(
+    opening.payload.compiled_output_package.package_version,
+    "compiled_output_package_v1",
+  );
+  assertEquals(
+    opening.payload.compiled_output_package.final_text,
+    opening.body_text,
+  );
+  assertEquals(opening.payload.output_compiler.status, "compiled");
+  assertEquals(
+    opening.payload.output_control_policy_version,
+    "output_control_v1",
+  );
+  assert(opening.payload.surface_variants?.context_card?.rows?.length > 0);
 });
 
 Deno.test("cron_maat_decan_opening refreshes stale generic pending opening shape", async () => {
@@ -319,9 +376,11 @@ Deno.test("cron_maat_decan_opening refreshes stale generic pending opening shape
       payload: {
         lead_axis: "M",
         day_card_date: null,
+        node_ref: "maat",
+        output_control: {},
       },
-      cta_type: "none",
-      cta_ref: null,
+      cta_type: "node",
+      cta_ref: "maat",
       generation_id: "generic-generation",
       trigger_reason: "decan_boundary",
       created_at: "2026-05-16T12:00:00.000Z",
@@ -354,17 +413,32 @@ Deno.test("cron_maat_decan_opening refreshes stale generic pending opening shape
 
   assertEquals(response.status, 200);
   assertEquals(body.created, false);
-  assertEquals(body.enriched, false);
-  assertEquals(body.refreshed, true);
+  assertEquals(body.enriched, true);
+  assertEquals(body.refreshed, false);
   assertEquals(body.delivery.id, "opening");
   assertEquals(tables.maat_guidance_deliveries.length, 1);
   assertEquals(tables.reflection_generations.length, 1);
 
   const opening = tables.maat_guidance_deliveries[0];
-  assertEquals(opening.cta_type, "node");
-  assertEquals(opening.cta_ref, "maat");
+  assertEquals(opening.cta_type, "flow_template");
+  assertEquals(opening.cta_ref, "the-decan-watch");
   assertEquals(opening.payload.node_ref, "maat");
-  assertEquals(opening.payload.day_card_date, null);
+  assertEquals(opening.payload.day_card_date, "2026-05-16");
+  assertEquals(opening.payload.notification_track, "decan_context_opening");
+  assertEquals(
+    opening.payload.compiled_output_package.package_version,
+    "compiled_output_package_v1",
+  );
+  assertEquals(
+    opening.payload.compiled_output_package.final_text,
+    opening.body_text,
+  );
+  assertEquals(
+    opening.payload.compiled_output_package.destination.ref,
+    "the-decan-watch",
+  );
+  assertEquals(opening.payload.output_compiler.surface, "opening");
+  assert(opening.body_text.includes("At sunrise"));
 });
 
 Deno.test("cron_maat_decan_opening can re-enrich opened stale opening when day card returns", async () => {
@@ -436,9 +510,19 @@ Deno.test("cron_maat_decan_opening can re-enrich opened stale opening when day c
 
   const opening = tables.maat_guidance_deliveries[0];
   assertEquals(opening.status, "opened");
-  assertEquals(opening.cta_type, "node");
-  assertEquals(opening.cta_ref, "maat");
-  assert(opening.teaser_text.includes("Today centers Record honestly"));
+  assertEquals(opening.cta_type, "flow_template");
+  assertEquals(opening.cta_ref, "the-decan-watch");
+  assert(opening.body_text.includes("Today centers Record honestly"));
+  assert(opening.payload.surface_variants?.context_card?.rows?.length > 0);
+  assertEquals(opening.payload.notification_track, "decan_context_opening");
+  assertEquals(
+    opening.payload.compiled_output_package.package_version,
+    "compiled_output_package_v1",
+  );
+  assertEquals(
+    opening.payload.compiled_output_package.final_text,
+    opening.body_text,
+  );
   assert(!opening.teaser_text.includes("Today's card names"));
 });
 
@@ -453,6 +537,7 @@ Deno.test("cron_maat_decan_opening pages through cron profile batches", async ()
     reflection_profiles: [],
     reflection_generations: [],
     maat_guidance_deliveries: [],
+    maat_delivery_timing_events: [],
   };
 
   const previousSecret = Deno.env.get("MAAT_CRON_SECRET");
@@ -492,6 +577,20 @@ Deno.test("cron_maat_decan_opening pages through cron profile batches", async ()
     assertEquals(body.drained, false);
     assertEquals(body.exhausted_limit, true);
     assertEquals(tables.maat_guidance_deliveries.length, 3);
+    const sent = tables.maat_delivery_timing_events.find((row) =>
+      row.delivery_status === "sent"
+    );
+    assertEquals(sent?.metadata.notification_track, "decan_context_opening");
+    assertEquals(sent?.metadata.profile_personalization_used, false);
+    assertEquals(sent?.metadata.push_source, "compiled_package.push_text");
+    assertEquals(sent?.metadata.push_blocked, false);
+    for (const delivery of tables.maat_guidance_deliveries) {
+      assertEquals(
+        delivery.payload.notification_track,
+        "decan_context_opening",
+      );
+      assertEquals(delivery.payload.profile_personalization_used, false);
+    }
   } finally {
     if (previousSecret == null) {
       Deno.env.delete("MAAT_CRON_SECRET");

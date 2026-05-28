@@ -368,15 +368,11 @@ Deno.test("LLM nudge fallback is compiler-marked archive-only and not quality pr
   assertEquals(compiler.fallback_quality, true);
   assertEquals(compiler.not_quality_proof, true);
   assertEquals(compiler.delivery_recommendation, "archive_only");
-  assertEquals(rendered.ctaType, "none");
-  assertEquals(rendered.ctaRef, null);
+  assertEquals(rendered.ctaType, draft.ctaType);
+  assertEquals(rendered.ctaRef, draft.ctaRef);
   assertEquals(rendered.payload.delivery_channel, "archive_only");
-  assertEquals(rendered.payload.cta_type, "none");
-  assertEquals(rendered.payload.cta_ref, null);
-  assertEquals(
-    (rendered.payload.destination as { type?: string }).type,
-    "none",
-  );
+  assertEquals(rendered.payload.cta_type, draft.ctaType);
+  assertEquals(rendered.payload.cta_ref, draft.ctaRef);
   assertEquals(
     (rendered.payload.compiled_output_package as {
       delivery_recommendation?: string;

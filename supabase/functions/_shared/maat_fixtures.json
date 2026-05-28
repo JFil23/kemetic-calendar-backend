@@ -15,7 +15,7 @@
         "delivery": {
           "kind": "drift_nudge",
           "ctaType": "flow_template",
-          "ctaRef": "dawn-house-rite"
+          "ctaRef": "the-weighing"
         }
       }
     },
@@ -53,7 +53,7 @@
         "delivery": {
           "kind": "drift_nudge",
           "ctaType": "flow_template",
-          "ctaRef": "dawn-house-rite"
+          "ctaRef": "the-offering-table"
         }
       }
     },
@@ -363,7 +363,7 @@
         "delivery": {
           "kind": "drift_nudge",
           "ctaType": "flow_template",
-          "ctaRef": "dawn-house-rite"
+          "ctaRef": "the-offering-table"
         }
       }
     },
@@ -541,7 +541,7 @@
         "outcomeSignals": [
           {
             "ctaType": "flow_template",
-            "ctaRef": "dawn-house-rite",
+            "ctaRef": "the-offering-table",
             "outcomeFlag": "negative",
             "completedWindowCount": 8,
             "weightedDeltaDoneRate": -0.09
@@ -577,7 +577,7 @@
         "outcomeSignals": [
           {
             "ctaType": "flow_template",
-            "ctaRef": "dawn-house-rite",
+            "ctaRef": "the-offering-table",
             "outcomeFlag": "negative",
             "completedWindowCount": 8,
             "weightedDeltaDoneRate": -0.09
@@ -587,8 +587,97 @@
       "expect": {
         "cta": {
           "ctaType": "flow_template",
-          "ctaRef": "dawn-house-rite",
+          "ctaRef": "the-offering-table",
           "reasonIncludes": "gate:life_supporting_flow_disrupted"
+        }
+      }
+    },
+    {
+      "id": "CTA-V-01",
+      "description": "care axis routes to The Tending without conflating peer cohesion",
+      "scenario": "cta_resolution",
+      "input": {
+        "mode": "drift",
+        "current": {
+          "leadAxis": "V",
+          "correctionAxes": ["V"],
+          "hardGates": []
+        }
+      },
+      "expect": {
+        "cta": {
+          "ctaType": "flow_template",
+          "ctaRef": "the-tending",
+          "reasonIncludes": "axis:V"
+        }
+      }
+    },
+    {
+      "id": "CTA-C-01",
+      "description": "peer cohesion axis routes to The Kept Word, not The Tending",
+      "scenario": "cta_resolution",
+      "input": {
+        "mode": "drift",
+        "current": {
+          "leadAxis": "C",
+          "correctionAxes": ["C"],
+          "hardGates": []
+        }
+      },
+      "expect": {
+        "cta": {
+          "ctaType": "flow_template",
+          "ctaRef": "the-kept-word",
+          "reasonIncludes": "axis:C"
+        }
+      }
+    },
+    {
+      "id": "CTA-E-01",
+      "description": "generic temporal rhythm axis routes to The Course by default",
+      "scenario": "cta_resolution",
+      "input": {
+        "mode": "drift",
+        "current": {
+          "leadAxis": "E",
+          "correctionAxes": ["E"],
+          "hardGates": []
+        }
+      },
+      "expect": {
+        "cta": {
+          "ctaType": "flow_template",
+          "ctaRef": "the-course",
+          "reasonIncludes": "axis:E:temporal"
+        }
+      }
+    },
+    {
+      "id": "CTA-E-SKY-01",
+      "description": "sky-specific outcome history can keep Track the Sky for rhythm",
+      "scenario": "cta_resolution",
+      "input": {
+        "mode": "drift",
+        "current": {
+          "leadAxis": "E",
+          "correctionAxes": ["E"],
+          "hardGates": []
+        },
+        "outcomeSignals": [
+          {
+            "ctaType": "flow_template",
+            "ctaRef": "track-the-sky",
+            "outcomeFlag": "winning",
+            "completedWindowCount": 8,
+            "weightedDeltaDoneRate": 0.04
+          }
+        ]
+      },
+      "expect": {
+        "cta": {
+          "ctaType": "flow_template",
+          "ctaRef": "track-the-sky",
+          "reasonIncludes": "axis:E:sky"
         }
       }
     },

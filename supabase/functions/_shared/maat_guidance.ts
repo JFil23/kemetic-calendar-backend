@@ -1254,31 +1254,15 @@ function annotateNudgeRenderer(
   const fallback = compiled.compiler.fallback_used;
   return {
     ...draft,
-    ctaType: fallback ? "none" : draft.ctaType,
-    ctaRef: fallback ? null : draft.ctaRef,
+    ctaType: draft.ctaType,
+    ctaRef: draft.ctaRef,
     payload: {
       ...draft.payload,
       ...(fallback
         ? {
           delivery_channel: "archive_only",
-          cta_type: "none",
-          cta_ref: null,
-          cta_label: null,
-          destination: {
-            type: "none",
-            ref: null,
-            label: null,
-            reason: "fallback_not_quality_proof",
-            source: "fallback",
-            confidence: 0,
-            fallback: null,
-          },
-          destination_type: "none",
-          destination_ref: null,
-          destination_label: null,
-          destination_reason: "fallback_not_quality_proof",
-          destination_source: "fallback",
-          destination_confidence: 0,
+          cta_type: draft.ctaType,
+          cta_ref: draft.ctaRef,
         }
         : {}),
       nudge_renderer: renderer,

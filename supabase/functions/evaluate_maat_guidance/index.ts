@@ -1,3 +1,5 @@
+// deno-lint-ignore-file no-import-prefix
+
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
 import {
@@ -21,15 +23,25 @@ import {
   type GuidanceWindow,
   MAAT_GUIDANCE_POLICY_VERSION,
   MAAT_REVIEW_ONLY_HARD_GATES,
+  renderGuidanceDraftWithLlm,
   resolveGatePolicyForMaturity,
   resolveGraphAxisPriors,
   resolveGuidanceMaturity,
   shouldCompleteOpenCorrection,
+  shouldCreateDayFiveCadenceNudge,
   shouldCreateDriftNudge,
   shouldCreateStrengthNudge,
   snapshotFromRow,
   type SnapshotRowLike,
 } from "../_shared/maat_guidance.ts";
+import {
+  deliveryChannelFromPayload,
+  mergeMaatOutputTelemetry,
+} from "../_shared/maat_output_telemetry.ts";
+import {
+  applyMaatLedgerHealthGuardrails,
+  recordMaatRestorationSuggested,
+} from "../_shared/maat_ledger.ts";
 import { buildUserMemoryBrief } from "../_shared/user_memory_brief.ts";
 import type { ReflectionProfileRow } from "../ai_generate_reflection/maat_decision.ts";
 
@@ -112,6 +124,7 @@ type GuidanceDeliveryRow = {
   status: string;
   shown_at?: string | null;
   created_at?: string | null;
+  trigger_reason?: string | null;
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -835,17 +848,32 @@ async function createDelivery(params: {
   draft: GuidanceDraft;
   generationId?: string | null;
 }) {
+  const payload = mergeMaatOutputTelemetry({
+    payload: params.draft.payload,
+    action: "generated",
+    nowIso: new Date().toISOString(),
+    delivery: {
+      id: "",
+      kind: params.draft.kind,
+      decanPeriodKey: params.periodKey,
+      status: "pending",
+      createdAt: null,
+    },
+  });
+  const deliveryStatus = deliveryChannelFromPayload(payload) === "archive_only"
+    ? "archive_only"
+    : "pending";
   const { data, error } = await params.client
     .from("maat_guidance_deliveries")
     .insert({
       user_id: params.userId,
       kind: params.draft.kind,
       decan_period_key: params.periodKey,
-      status: "pending",
+      status: deliveryStatus,
       priority: params.draft.priority,
       teaser_text: params.draft.teaserText,
       body_text: params.draft.bodyText,
-      payload: params.draft.payload,
+      payload,
       cta_type: params.draft.ctaType,
       cta_ref: params.draft.ctaRef,
       generation_id: params.generationId ?? null,
@@ -863,7 +891,6 @@ async function createDelivery(params: {
     }
     throw error;
   }
-  const payload = params.draft.payload as Record<string, unknown>;
   const flowBrief = payload.flow_brief;
   const briefId = typeof payload.brief_id === "string"
     ? payload.brief_id
@@ -889,6 +916,19 @@ async function createDelivery(params: {
     if (briefError) {
       console.error("maat flow brief upsert error", briefError);
     }
+  }
+  if (data && (data as { id?: string }).id) {
+    await recordMaatRestorationSuggested({
+      client: params.client,
+      userId: params.userId,
+      decanPeriodKey: params.periodKey,
+      deliveryId: String((data as { id?: string }).id),
+      deliveryKind: params.draft.kind,
+      ctaType: params.draft.ctaType,
+      ctaRef: params.draft.ctaRef,
+      triggerReason: params.draft.triggerReason,
+      payload,
+    });
   }
   return data;
 }
@@ -938,10 +978,10 @@ async function fetchCtaOutcomeSignals(
   cohort: CtaOutcomeCohortCandidate | null;
   signals: GuidanceCtaOutcomeSignal[];
 }> {
-  const mapRows = (rows: any[] | null | undefined) =>
+  const mapRows = (rows: Array<Record<string, unknown>> | null | undefined) =>
     (rows ?? []).map((row) => ({
       ctaType: row.cta_type as GuidanceCtaOutcomeSignal["ctaType"],
-      ctaRef: row.cta_ref ?? null,
+      ctaRef: typeof row.cta_ref === "string" ? row.cta_ref : null,
       outcomeFlag: row
         .outcome_flag as GuidanceCtaOutcomeSignal["outcomeFlag"],
       completedWindowCount: Number(row.completed_window_count ?? 0),
@@ -1006,6 +1046,29 @@ async function fetchCtaOutcomeSignals(
     cohort: null,
     signals: globalSignals,
   };
+}
+
+async function fetchMaatLedgerHealthGuardrails(
+  client: SupabaseClientLike,
+  userId: string,
+  periodKey: string,
+) {
+  const { data, error } = await client
+    .from("maat_ledger_restoration_health")
+    .select(
+      "obligation_id,field,obligation_status,obligation_acted_at,acted_count,resolved_count,acted_to_resolved_rate,repeat_leak_count,needs_scope_reduction",
+    )
+    .eq("user_id", userId)
+    .eq("decan_period_key", periodKey)
+    .eq("needs_scope_reduction", true)
+    .order("obligation_acted_at", { ascending: true })
+    .limit(5);
+
+  if (error) {
+    console.error("maat ledger health guardrail fetch error", error);
+    return [];
+  }
+  return Array.isArray(data) ? data as Record<string, unknown>[] : [];
 }
 
 export function createEvaluateMaatGuidanceHandler(options?: {
@@ -1108,6 +1171,18 @@ export function createEvaluateMaatGuidanceHandler(options?: {
         gatePolicy,
         axisPriors,
       });
+      const ledgerHealthGuardrails = await fetchMaatLedgerHealthGuardrails(
+        client,
+        user.id,
+        periodKey,
+      );
+      if (snapshot.source.ledger) {
+        snapshot.source.ledger = applyMaatLedgerHealthGuardrails(
+          snapshot.source.ledger,
+          ledgerHealthGuardrails,
+          now,
+        );
+      }
       const memoryBrief = buildUserMemoryBrief({
         profile,
         badges,
@@ -1245,7 +1320,7 @@ export function createEvaluateMaatGuidanceHandler(options?: {
 
       const { data: deliveryRows } = await client
         .from("maat_guidance_deliveries")
-        .select("kind,status,shown_at,created_at")
+        .select("kind,status,shown_at,created_at,trigger_reason")
         .eq("user_id", user.id)
         .eq("decan_period_key", periodKey)
         .order("created_at", { ascending: false });
@@ -1259,6 +1334,10 @@ export function createEvaluateMaatGuidanceHandler(options?: {
       const activeDriftExists = deliveries.some((row) =>
         row.kind === "drift_nudge" &&
         (row.status === "pending" || row.status === "shown")
+      );
+      const dayFiveDeliveryExists = deliveries.some((row) =>
+        (row.kind === "drift_nudge" || row.kind === "strength_nudge") &&
+        row.trigger_reason?.startsWith("decan_day_5_")
       );
       const opening = deliveries.find((row) => row.kind === "decan_opening");
       const openingHandled = !!opening &&
@@ -1331,85 +1410,188 @@ export function createEvaluateMaatGuidanceHandler(options?: {
         }
       }
 
-      const driftDecision = shouldCreateDriftNudge({
+      let driftDecision = {
+        create: false,
+        reason: "not_evaluated",
+      };
+      let strengthReady = false;
+      let strengthDecision = {
+        create: false,
+        reason: "not_ready",
+      };
+      const dayFiveCadenceDecision = shouldCreateDayFiveCadenceNudge({
         current: snapshot,
-        previous: snapshots.slice(1),
-        driftCount,
-        activeDriftExists,
-        confidence: maturity.confidence,
-        lastDriftAt,
-        openingHandled,
         decanDayIndex: dayIndex,
-        now,
-        personalBaselineBandRank: maturity.level === "L5"
-          ? personalBaseline?.medianBandRank ?? null
-          : null,
-        reviewOnlyHardGates: [...MAAT_REVIEW_ONLY_HARD_GATES],
-      });
-
-      if (driftDecision.create) {
-        const draft = buildDriftNudgeDraft({
-          snapshot,
-          triggerReason: driftDecision.reason,
-          decisionMatrixFingerprint: matrix?.fingerprint ?? null,
-          window,
-          outcomeSignals: ctaOutcomeSignals,
-          maturity,
-          goalProfile,
-          personalBaseline,
-          enablePersonalizedFlow: personalizedFlowEnabled,
-          memoryBrief,
-        });
-        const delivery = await createDelivery({
-          client,
-          userId: user.id,
-          periodKey,
-          draft,
-        });
-        if (delivery) created.push(delivery);
-      } else {
-        suppressed.push(`drift:${driftDecision.reason}`);
-      }
-
-      const strengthReady = shouldCreateStrengthNudge({
-        snapshots,
+        driftCount,
         strengthCount,
-        driftCount,
+        dayFiveDeliveryExists,
         openCorrectionExists,
-        decanDayIndex: dayIndex,
-        openingHandled,
       });
 
-      if (strengthReady) {
-        const draft = buildStrengthNudgeDraft({
-          snapshot,
-          window,
-          decisionMatrixFingerprint: matrix?.fingerprint ?? null,
-          outcomeSignals: ctaOutcomeSignals,
-          maturity,
-          goalProfile,
-          personalBaseline,
-          enablePersonalizedFlow: personalizedFlowEnabled,
-          memoryBrief,
-        });
-        const delivery = await createDelivery({
-          client,
-          userId: user.id,
-          periodKey,
-          draft,
-        });
-        if (delivery) created.push(delivery);
+      if (dayIndex === 5) {
+        if (
+          dayFiveCadenceDecision.create &&
+          dayFiveCadenceDecision.kind === "drift_nudge"
+        ) {
+          driftDecision = {
+            create: true,
+            reason: dayFiveCadenceDecision.reason,
+          };
+          const draft = buildDriftNudgeDraft({
+            snapshot,
+            triggerReason: dayFiveCadenceDecision.reason,
+            decisionMatrixFingerprint: matrix?.fingerprint ?? null,
+            window,
+            outcomeSignals: ctaOutcomeSignals,
+            maturity,
+            goalProfile,
+            personalBaseline,
+            enablePersonalizedFlow: personalizedFlowEnabled,
+            memoryBrief,
+          });
+          draft.payload = {
+            ...draft.payload,
+            cadence_type: "decan_day_5",
+            cadence_mode: dayFiveCadenceDecision.mode ?? "isfet",
+          };
+          const renderedDraft = await renderGuidanceDraftWithLlm(draft);
+          const delivery = await createDelivery({
+            client,
+            userId: user.id,
+            periodKey,
+            draft: renderedDraft,
+          });
+          if (delivery) created.push(delivery);
+        } else if (
+          dayFiveCadenceDecision.create &&
+          dayFiveCadenceDecision.kind === "strength_nudge"
+        ) {
+          strengthReady = true;
+          strengthDecision = {
+            create: true,
+            reason: dayFiveCadenceDecision.reason,
+          };
+          const draft = buildStrengthNudgeDraft({
+            snapshot,
+            window,
+            decisionMatrixFingerprint: matrix?.fingerprint ?? null,
+            outcomeSignals: ctaOutcomeSignals,
+            maturity,
+            goalProfile,
+            personalBaseline,
+            enablePersonalizedFlow: personalizedFlowEnabled,
+            memoryBrief,
+            triggerReason: dayFiveCadenceDecision.reason,
+            celebrationOnly: true,
+          });
+          draft.payload = {
+            ...draft.payload,
+            cadence_type: "decan_day_5",
+            cadence_mode: "maat",
+          };
+          const renderedDraft = await renderGuidanceDraftWithLlm(draft);
+          const delivery = await createDelivery({
+            client,
+            userId: user.id,
+            periodKey,
+            draft: renderedDraft,
+          });
+          if (delivery) created.push(delivery);
+        } else {
+          suppressed.push(`day5:${dayFiveCadenceDecision.reason}`);
+          driftDecision = {
+            create: false,
+            reason: `day5_${dayFiveCadenceDecision.reason}`,
+          };
+          strengthDecision = {
+            create: false,
+            reason: `day5_${dayFiveCadenceDecision.reason}`,
+          };
+        }
       } else {
-        suppressed.push("strength:not_ready");
+        driftDecision = shouldCreateDriftNudge({
+          current: snapshot,
+          previous: snapshots.slice(1),
+          driftCount,
+          activeDriftExists,
+          confidence: maturity.confidence,
+          lastDriftAt,
+          openingHandled,
+          decanDayIndex: dayIndex,
+          now,
+          personalBaselineBandRank: maturity.level === "L5"
+            ? personalBaseline?.medianBandRank ?? null
+            : null,
+          reviewOnlyHardGates: [...MAAT_REVIEW_ONLY_HARD_GATES],
+        });
+
+        if (driftDecision.create) {
+          const draft = buildDriftNudgeDraft({
+            snapshot,
+            triggerReason: driftDecision.reason,
+            decisionMatrixFingerprint: matrix?.fingerprint ?? null,
+            window,
+            outcomeSignals: ctaOutcomeSignals,
+            maturity,
+            goalProfile,
+            personalBaseline,
+            enablePersonalizedFlow: personalizedFlowEnabled,
+            memoryBrief,
+          });
+          const renderedDraft = await renderGuidanceDraftWithLlm(draft);
+          const delivery = await createDelivery({
+            client,
+            userId: user.id,
+            periodKey,
+            draft: renderedDraft,
+          });
+          if (delivery) created.push(delivery);
+        } else {
+          suppressed.push(`drift:${driftDecision.reason}`);
+        }
+
+        strengthReady = shouldCreateStrengthNudge({
+          snapshots,
+          strengthCount,
+          driftCount,
+          openCorrectionExists,
+          decanDayIndex: dayIndex,
+          openingHandled,
+        });
+
+        if (strengthReady) {
+          const draft = buildStrengthNudgeDraft({
+            snapshot,
+            window,
+            decisionMatrixFingerprint: matrix?.fingerprint ?? null,
+            outcomeSignals: ctaOutcomeSignals,
+            maturity,
+            goalProfile,
+            personalBaseline,
+            enablePersonalizedFlow: personalizedFlowEnabled,
+            memoryBrief,
+          });
+          const renderedDraft = await renderGuidanceDraftWithLlm(draft);
+          const delivery = await createDelivery({
+            client,
+            userId: user.id,
+            periodKey,
+            draft: renderedDraft,
+          });
+          if (delivery) created.push(delivery);
+        } else {
+          suppressed.push("strength:not_ready");
+        }
+
+        strengthDecision = {
+          create: strengthReady,
+          reason: strengthReady ? "sustained_maat_signal" : "not_ready",
+        };
       }
 
       const createdDeliveryIds = created
         .map((row) => (row as { id?: string | null })?.id ?? null)
         .filter((id): id is string => !!id);
-      const strengthDecision = {
-        create: strengthReady,
-        reason: strengthReady ? "sustained_maat_signal" : "not_ready",
-      };
       const decision = {
         hard_gates: snapshot.hardGates,
         band: snapshot.band,
@@ -1418,6 +1600,7 @@ export function createEvaluateMaatGuidanceHandler(options?: {
         lead_axis: snapshot.leadAxis,
         correction_axes: snapshot.correctionAxes,
         drift: driftDecision,
+        day_5_cadence: dayFiveCadenceDecision,
         maturity: {
           level: maturity.level,
           label: maturity.label,

@@ -384,6 +384,93 @@ Deno.test("evaluate_maat_guidance persists evaluation, expires stale deliveries,
   assertEquals(currentDrifts.length, 2);
 });
 
+Deno.test("evaluate_maat_guidance ignores uncompleted Moon Return backlog user_events", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_profiles: [{
+      user_id: userId,
+      top_nodes: [{ slug: "maat", score: 1 }],
+      tension_pairs: [],
+      maat_score: 1,
+      isfet_risk_score: 0,
+      last_computed_at: "2026-05-18T00:00:00.000Z",
+    }],
+    user_events: [{
+      user_id: userId,
+      client_event_id: "moon-return:43:full:2026-05-17",
+      title: "Moon Return: Whole Eye",
+      starts_at: "2026-05-17T01:00:00.000Z",
+      behavior_payload: {
+        flow_key: "the-moon-return",
+        missed_event_rule: "expire_quietly",
+      },
+    }, {
+      user_id: userId,
+      client_event_id: "moon-return:43:new:2026-05-31",
+      title: "Moon Return: Empty Eye",
+      starts_at: "2026-05-31T01:00:00.000Z",
+      behavior_payload: {
+        flow_key: "the-moon-return",
+        missed_event_rule: "expire_quietly",
+      },
+    }],
+    journal_badges: [],
+    todos: [],
+    nutrition_items: [],
+    journal_entries: [],
+    maat_snapshots: [snapshotRow()],
+    maat_corrections: [],
+    maat_guidance_deliveries: [{
+      id: "opening-current",
+      user_id: userId,
+      kind: "decan_opening",
+      decan_period_key: periodKey,
+      status: "shown",
+      priority: 10,
+      created_at: "2026-05-16T12:00:00.000Z",
+    }],
+    maat_guidance_drift_outcome_flags: [],
+    maat_guidance_evaluations: [],
+    maat_band_transitions: [],
+    user_choice_events: [],
+  };
+
+  const handler = createEvaluateMaatGuidanceHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-18T19:00:00.000Z"),
+  });
+  const response = await handler(
+    new Request("http://localhost/evaluate_maat_guidance", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        timezone: "America/Los_Angeles",
+        local_date: "2026-05-18",
+        decan_start: "2026-05-16",
+        decan_end: "2026-05-25",
+        decan_name: "Thoth - measure",
+        decan_theme: "measure",
+        decan_context_key: "1-1",
+      }),
+    }),
+  );
+  await response.json();
+
+  assertEquals(response.status, 200);
+
+  const savedSnapshot = tables.maat_snapshots.find((row) =>
+    row.window_date === "2026-05-18"
+  );
+  assertEquals(savedSnapshot?.source.planner_total, 0);
+  assertEquals(savedSnapshot?.source.skipped_planner, 0);
+  assertEquals(savedSnapshot?.source.pending_planner, 0);
+  assertEquals(savedSnapshot?.source.open_obligations, 0);
+  assertEquals(savedSnapshot?.hard_gates, []);
+});
+
 Deno.test("evaluate_maat_guidance creates drift delivery when cap allows", async () => {
   const tables: Tables = {
     profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
@@ -464,7 +551,7 @@ Deno.test("evaluate_maat_guidance creates drift delivery when cap allows", async
   assertEquals(body.created.length, 1);
   assertEquals(body.created[0].kind, "drift_nudge");
   assertEquals(body.created[0].cta_type, "flow_template");
-  assertEquals(body.created[0].cta_ref, "dawn-house-rite");
+  assertEquals(body.created[0].cta_ref, "the-offering-table");
   assertEquals(body.evaluation.decision.personalized_flow_enabled, false);
   assertEquals(body.created[0].trigger_reason, "hard_gate");
 
@@ -473,10 +560,27 @@ Deno.test("evaluate_maat_guidance creates drift delivery when cap allows", async
     row.kind === "drift_nudge"
   );
   assert(drift);
-  assertEquals(drift.status, "pending");
+  assertEquals(drift.status, "archive_only");
+  assertEquals(drift.payload.delivery_channel, "archive_only");
+  assertEquals(drift.payload.output_compiler.status, "fallback");
+  assertEquals(drift.payload.output_compiler.not_quality_proof, true);
   assertEquals(drift.cta_type, "flow_template");
-  assertEquals(drift.cta_ref, "dawn-house-rite");
+  assertEquals(drift.cta_ref, "the-offering-table");
   assertEquals((tables.maat_flow_briefs ?? []).length, 0);
+  assertEquals(tables.maat_obligations.length, 1);
+  assertEquals(tables.maat_obligations[0].field, "provision");
+  assertEquals(tables.maat_obligations[0].status, "open");
+  assertEquals(tables.maat_restoration_attempts.length, 1);
+  assertEquals(tables.maat_restoration_attempts[0].delivery_id, drift.id);
+  assertEquals(tables.maat_restoration_attempts[0].status, "suggested");
+  assertEquals(
+    tables.maat_restoration_attempts[0].action_text,
+    "Choose the nutrition source that covers the most ground today and complete only that check.",
+  );
+  assertEquals(
+    tables.maat_restoration_attempts[0].metadata.situation.case_key,
+    "provision.repeated_open_checks",
+  );
 
   assertEquals(
     tables.maat_guidance_evaluations[0].created_delivery_ids,
@@ -763,7 +867,7 @@ Deno.test("evaluate_maat_guidance falls back to cohort outcome signals before gl
       tension_pairs: [],
       maat_score: 1,
       isfet_risk_score: 0,
-      last_computed_at: "2026-05-19T00:00:00.000Z",
+      last_computed_at: "2026-05-21T00:00:00.000Z",
     }],
     journal_badges: [
       {
@@ -771,32 +875,32 @@ Deno.test("evaluate_maat_guidance falls back to cohort outcome signals before gl
         title: "Completed to-do: review",
         details: "Measured 30 minutes and recorded 4 notes.",
         tags: ["planner", "kind:todo", "state:done"],
-        occurred_on: "2026-05-19",
+        occurred_on: "2026-05-21",
       },
       {
         user_id: userId,
         title: "Completed nutrition: water",
         details: "Food and water protected.",
         tags: ["planner", "kind:nutrition", "state:done"],
-        occurred_on: "2026-05-19",
+        occurred_on: "2026-05-21",
       },
       {
         user_id: userId,
         title: "Completed to-do: care",
         details: "Helped family and reduced one burden.",
         tags: ["planner", "kind:todo", "state:done"],
-        occurred_on: "2026-05-19",
+        occurred_on: "2026-05-21",
       },
     ],
     maat_snapshots: [
       snapshotRow({
         id: "snapshot-cohort-1",
-        window_date: "2026-05-18",
+        window_date: "2026-05-20",
         ...strongSnapshot,
       }),
       snapshotRow({
         id: "snapshot-cohort-2",
-        window_date: "2026-05-17",
+        window_date: "2026-05-19",
         ...strongSnapshot,
       }),
     ],
@@ -835,7 +939,7 @@ Deno.test("evaluate_maat_guidance falls back to cohort outcome signals before gl
 
   const handler = createEvaluateMaatGuidanceHandler({
     client: createMockClient(tables),
-    now: () => new Date("2026-05-19T19:00:00.000Z"),
+    now: () => new Date("2026-05-21T19:00:00.000Z"),
     personalizedFlowEnabled: true,
   });
   const response = await handler(
@@ -847,7 +951,7 @@ Deno.test("evaluate_maat_guidance falls back to cohort outcome signals before gl
       },
       body: JSON.stringify({
         timezone: "America/Los_Angeles",
-        local_date: "2026-05-19",
+        local_date: "2026-05-21",
         decan_start: "2026-05-16",
         decan_end: "2026-05-25",
         decan_name: "Thoth - measure",
@@ -865,7 +969,7 @@ Deno.test("evaluate_maat_guidance falls back to cohort outcome signals before gl
   assertEquals(body.created[0].cta_type, "flow_personalized");
   assertEquals(
     body.created[0].payload.fallback_template_key,
-    "dawn-house-rite",
+    "the-weighing",
   );
 });
 
@@ -886,7 +990,7 @@ Deno.test("evaluate_maat_guidance prefers goal-profile cohort before maturity co
       tension_pairs: [],
       maat_score: 1,
       isfet_risk_score: 0,
-      last_computed_at: "2026-05-19T00:00:00.000Z",
+      last_computed_at: "2026-05-21T00:00:00.000Z",
     }],
     nutrition_items: [{
       id: "nutrition-goal-1",
@@ -902,32 +1006,32 @@ Deno.test("evaluate_maat_guidance prefers goal-profile cohort before maturity co
         title: "Completed to-do: review",
         details: "Measured 30 minutes and recorded 4 notes.",
         tags: ["planner", "kind:todo", "state:done"],
-        occurred_on: "2026-05-19",
+        occurred_on: "2026-05-21",
       },
       {
         user_id: userId,
         title: "Completed nutrition: water",
         details: "Food and water protected.",
         tags: ["planner", "kind:nutrition", "state:done"],
-        occurred_on: "2026-05-19",
+        occurred_on: "2026-05-21",
       },
       {
         user_id: userId,
         title: "Completed to-do: care",
         details: "Helped family and reduced one burden.",
         tags: ["planner", "kind:todo", "state:done"],
-        occurred_on: "2026-05-19",
+        occurred_on: "2026-05-21",
       },
     ],
     maat_snapshots: [
       snapshotRow({
         id: "snapshot-goal-cohort-1",
-        window_date: "2026-05-18",
+        window_date: "2026-05-20",
         ...strongSnapshot,
       }),
       snapshotRow({
         id: "snapshot-goal-cohort-2",
-        window_date: "2026-05-17",
+        window_date: "2026-05-19",
         ...strongSnapshot,
       }),
     ],
@@ -968,7 +1072,7 @@ Deno.test("evaluate_maat_guidance prefers goal-profile cohort before maturity co
 
   const handler = createEvaluateMaatGuidanceHandler({
     client: createMockClient(tables),
-    now: () => new Date("2026-05-19T19:00:00.000Z"),
+    now: () => new Date("2026-05-21T19:00:00.000Z"),
     personalizedFlowEnabled: true,
   });
   const response = await handler(
@@ -980,7 +1084,7 @@ Deno.test("evaluate_maat_guidance prefers goal-profile cohort before maturity co
       },
       body: JSON.stringify({
         timezone: "America/Los_Angeles",
-        local_date: "2026-05-19",
+        local_date: "2026-05-21",
         decan_start: "2026-05-16",
         decan_end: "2026-05-25",
         decan_name: "Renenutet - provision",
@@ -1002,7 +1106,7 @@ Deno.test("evaluate_maat_guidance prefers goal-profile cohort before maturity co
   assertEquals(body.created[0].cta_type, "flow_personalized");
   assertEquals(
     body.created[0].payload.fallback_template_key,
-    "dawn-house-rite",
+    "the-weighing",
   );
 });
 
@@ -1023,7 +1127,7 @@ Deno.test("evaluate_maat_guidance creates strength delivery after sustained stro
       tension_pairs: [],
       maat_score: 1,
       isfet_risk_score: 0,
-      last_computed_at: "2026-05-19T00:00:00.000Z",
+      last_computed_at: "2026-05-21T00:00:00.000Z",
     }],
     journal_badges: [
       {
@@ -1031,32 +1135,32 @@ Deno.test("evaluate_maat_guidance creates strength delivery after sustained stro
         title: "Completed to-do: review",
         details: "Measured 30 minutes and recorded 4 notes.",
         tags: ["planner", "kind:todo", "state:done"],
-        occurred_on: "2026-05-19",
+        occurred_on: "2026-05-21",
       },
       {
         user_id: userId,
         title: "Completed nutrition: water",
         details: "Food and water protected.",
         tags: ["planner", "kind:nutrition", "state:done"],
-        occurred_on: "2026-05-19",
+        occurred_on: "2026-05-21",
       },
       {
         user_id: userId,
         title: "Completed to-do: care",
         details: "Helped family and reduced one burden.",
         tags: ["planner", "kind:todo", "state:done"],
-        occurred_on: "2026-05-19",
+        occurred_on: "2026-05-21",
       },
     ],
     maat_snapshots: [
       snapshotRow({
         id: "snapshot-strong-1",
-        window_date: "2026-05-18",
+        window_date: "2026-05-20",
         ...strongSnapshot,
       }),
       snapshotRow({
         id: "snapshot-strong-2",
-        window_date: "2026-05-17",
+        window_date: "2026-05-19",
         ...strongSnapshot,
       }),
     ],
@@ -1094,7 +1198,7 @@ Deno.test("evaluate_maat_guidance creates strength delivery after sustained stro
 
   const handler = createEvaluateMaatGuidanceHandler({
     client: createMockClient(tables),
-    now: () => new Date("2026-05-19T19:00:00.000Z"),
+    now: () => new Date("2026-05-21T19:00:00.000Z"),
     personalizedFlowEnabled: true,
   });
   const response = await handler(
@@ -1106,7 +1210,7 @@ Deno.test("evaluate_maat_guidance creates strength delivery after sustained stro
       },
       body: JSON.stringify({
         timezone: "America/Los_Angeles",
-        local_date: "2026-05-19",
+        local_date: "2026-05-21",
         decan_start: "2026-05-16",
         decan_end: "2026-05-25",
         decan_name: "Thoth - measure",
@@ -1124,7 +1228,7 @@ Deno.test("evaluate_maat_guidance creates strength delivery after sustained stro
   assertEquals(body.created[0].cta_type, "flow_personalized");
   assertEquals(
     body.created[0].payload.fallback_template_key,
-    "dawn-house-rite",
+    "the-weighing",
   );
   assertEquals(
     tables.maat_guidance_evaluations[0].decision.cta_outcome_signals[0].ctaRef,
@@ -1134,6 +1238,212 @@ Deno.test("evaluate_maat_guidance creates strength delivery after sustained stro
     tables.maat_guidance_evaluations[0].decision.cta_outcome_source,
     "user",
   );
+});
+
+Deno.test("evaluate_maat_guidance creates day-five Ma'at affirmation without an action CTA", async () => {
+  const strongSnapshot = {
+    band: "maat",
+    score: 65,
+    reflection_move: "affirm",
+    lead_axis: "M",
+    correction_axes: [],
+    hard_gates: [],
+  };
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_profiles: [{
+      user_id: userId,
+      top_nodes: [{ slug: "djehuty", score: 1 }],
+      tension_pairs: [],
+      maat_score: 1,
+      isfet_risk_score: 0,
+      last_computed_at: "2026-05-20T00:00:00.000Z",
+    }],
+    journal_badges: [
+      {
+        user_id: userId,
+        title: "Completed to-do: review",
+        details: "Measured 30 minutes and recorded 4 notes.",
+        tags: ["planner", "kind:todo", "state:done"],
+        occurred_on: "2026-05-20",
+      },
+      {
+        user_id: userId,
+        title: "Completed nutrition: water",
+        details: "Food and water protected.",
+        tags: ["planner", "kind:nutrition", "state:done"],
+        occurred_on: "2026-05-20",
+      },
+      {
+        user_id: userId,
+        title: "Completed to-do: care",
+        details: "Helped family and reduced one burden.",
+        tags: ["planner", "kind:todo", "state:done"],
+        occurred_on: "2026-05-20",
+      },
+    ],
+    maat_snapshots: [
+      snapshotRow({
+        id: "snapshot-day-five-maat-1",
+        window_date: "2026-05-19",
+        ...strongSnapshot,
+      }),
+      snapshotRow({
+        id: "snapshot-day-five-maat-2",
+        window_date: "2026-05-18",
+        ...strongSnapshot,
+      }),
+    ],
+    maat_corrections: [],
+    maat_guidance_deliveries: [{
+      id: "opening-current",
+      user_id: userId,
+      kind: "decan_opening",
+      decan_period_key: periodKey,
+      status: "shown",
+      priority: 10,
+      created_at: "2026-05-16T12:00:00.000Z",
+    }],
+    maat_guidance_drift_outcome_flags: [],
+    maat_guidance_evaluations: [],
+    maat_band_transitions: [],
+    user_choice_events: [],
+  };
+
+  const handler = createEvaluateMaatGuidanceHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-20T19:00:00.000Z"),
+    personalizedFlowEnabled: true,
+  });
+  const response = await handler(
+    new Request("http://localhost/evaluate_maat_guidance", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        timezone: "America/Los_Angeles",
+        local_date: "2026-05-20",
+        decan_start: "2026-05-16",
+        decan_end: "2026-05-25",
+        decan_name: "Thoth - measure",
+        decan_theme: "measure",
+        decan_context_key: "1-1",
+      }),
+    }),
+  );
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertEquals(body.decan_day_index, 5);
+  assertEquals(body.evaluation.decision.day_5_cadence, {
+    create: true,
+    mode: "maat",
+    kind: "strength_nudge",
+    reason: "decan_day_5_maat",
+  });
+  assertEquals(body.created.length, 1);
+  assertEquals(body.created[0].kind, "strength_nudge");
+  assertEquals(body.created[0].trigger_reason, "decan_day_5_maat");
+  assertEquals(body.created[0].cta_type, "none");
+  assertEquals(body.created[0].payload.cadence_type, "decan_day_5");
+  assertEquals(body.created[0].payload.cadence_mode, "maat");
+});
+
+Deno.test("evaluate_maat_guidance creates day-five Isfet correction with a flow CTA", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_profiles: [{
+      user_id: userId,
+      top_nodes: [{ slug: "renenutet", score: 1 }],
+      tension_pairs: [],
+      maat_score: 0.4,
+      isfet_risk_score: 0.1,
+      last_computed_at: "2026-05-20T00:00:00.000Z",
+    }],
+    nutrition_items: [{
+      id: "nutrition-goal-1",
+      user_id: userId,
+      nutrient: "water",
+      purpose: "hydration",
+      enabled: true,
+    }],
+    flows: [],
+    journal_badges: [{
+      user_id: userId,
+      title: "Skipped nutrition: water",
+      details: "No water protected today.",
+      tags: ["planner", "kind:nutrition", "state:skipped"],
+      occurred_on: "2026-05-20",
+    }],
+    maat_snapshots: [
+      snapshotRow({
+        id: "snapshot-day-five-isfet-1",
+        window_date: "2026-05-19",
+      }),
+      snapshotRow({
+        id: "snapshot-day-five-isfet-2",
+        window_date: "2026-05-18",
+      }),
+    ],
+    maat_corrections: [],
+    maat_guidance_deliveries: [{
+      id: "opening-current",
+      user_id: userId,
+      kind: "decan_opening",
+      decan_period_key: periodKey,
+      status: "shown",
+      priority: 10,
+      created_at: "2026-05-16T12:00:00.000Z",
+    }],
+    maat_guidance_drift_outcome_flags: [],
+    maat_guidance_evaluations: [],
+    maat_band_transitions: [],
+    user_choice_events: [],
+  };
+
+  const handler = createEvaluateMaatGuidanceHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-20T19:00:00.000Z"),
+    personalizedFlowEnabled: true,
+  });
+  const response = await handler(
+    new Request("http://localhost/evaluate_maat_guidance", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer test-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        timezone: "America/Los_Angeles",
+        local_date: "2026-05-20",
+        decan_start: "2026-05-16",
+        decan_end: "2026-05-25",
+        decan_name: "Renenutet - provision",
+        decan_theme: "provision",
+        decan_context_key: "1-1",
+      }),
+    }),
+  );
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertEquals(body.decan_day_index, 5);
+  assertEquals(body.evaluation.decision.day_5_cadence, {
+    create: true,
+    mode: "isfet",
+    kind: "drift_nudge",
+    reason: "decan_day_5_isfet",
+  });
+  assertEquals(body.created.length, 1);
+  assertEquals(body.created[0].kind, "drift_nudge");
+  assertEquals(body.created[0].trigger_reason, "decan_day_5_isfet");
+  assertEquals(body.created[0].cta_type, "flow_template");
+  assertEquals(body.created[0].cta_ref, "the-offering-table");
+  assertEquals(body.created[0].payload.fallback_template_key ?? null, null);
+  assertEquals(body.created[0].payload.cadence_type, "decan_day_5");
+  assertEquals(body.created[0].payload.cadence_mode, "isfet");
 });
 
 Deno.test("evaluate_maat_guidance promotes nutrition goals to L4 tuned G6 policy", async () => {
@@ -1217,7 +1527,7 @@ Deno.test("evaluate_maat_guidance promotes nutrition goals to L4 tuned G6 policy
   assertEquals(body.created[0].cta_type, "flow_personalized");
   assertEquals(
     body.created[0].payload.fallback_template_key,
-    "dawn-house-rite",
+    "the-offering-table",
   );
 });
 
