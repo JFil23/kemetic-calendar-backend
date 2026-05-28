@@ -1,0 +1,27 @@
+{
+  "annotations": [
+    {
+      "outputId": "replace-with-output-id",
+      "disposition": "eval_case",
+      "failureTags": [
+        "cadence_failure",
+        "should_become_eval_case"
+      ],
+      "reviewSource": "real_usage",
+      "dominantFailure": "cadence",
+      "notes": "Explain why this output failed dogfood review and what a gold output should do instead."
+    },
+    {
+      "outputId": "replace-with-converted-output-id",
+      "disposition": "eval_case",
+      "failureTags": [
+        "high_worthiness_fast_dismiss",
+        "should_become_eval_case"
+      ],
+      "reviewSource": "real_usage",
+      "dominantFailure": "worthiness",
+      "convertedEvalCaseId": "real_dogfood_fast_dismiss_yyyymmdd",
+      "notes": "Use convertedEvalCaseId only after the failure has been committed into the permanent eval suite."
+    }
+  ]
+}
