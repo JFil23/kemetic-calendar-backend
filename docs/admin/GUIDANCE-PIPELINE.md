@@ -88,7 +88,9 @@ User-specific grounding is handled by shared helpers:
   evidence, reflection profile anchors, active tensions, decan context, and the
   current Ma'at snapshot.
 
-Reflections receive the memory brief in the user prompt. Opening, drift, and
-strength drafts receive the same memory object and may include one or two recent
-evidence phrases when available. Sparse users should still get usable copy
-without invented specificity.
+Reflections receive the memory brief in the user prompt. Openings, drift
+nudges, and strength nudges receive the same memory object, but visible guidance
+must not recite raw activities back to the user. Decan openings are anchored in
+the month/decan/day-card frame; user memory is only seasoning. Drift nudges
+focus on grounding/enforcement, and strength nudges focus on protecting the
+working pattern. Raw evidence belongs in metadata and admin evidence panels.
