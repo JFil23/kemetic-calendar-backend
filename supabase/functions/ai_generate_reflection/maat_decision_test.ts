@@ -107,6 +107,43 @@ Deno.test("buildMaatDimensionSnapshot hard-gates life-support disruption", () =>
   assertEquals(snapshot.reflectionMove, "correct");
 });
 
+Deno.test("buildMaatDimensionSnapshot accounts for pending nutrition without overcorrecting", () => {
+  const snapshot = buildMaatDimensionSnapshot({
+    decanName: "Nile provision",
+    decanTheme: "food and water",
+    decanContext: {
+      detailDescription: "Provision and life-supporting flow.",
+    },
+    evidenceTexts: [
+      "Nutrition: water. State: pending.",
+      "Nutrition: bee bread. State: pending.",
+      "Nutrition: CoQ10. State: pending.",
+    ],
+    badgeCount: 3,
+    badgesWithDetails: 3,
+    activeDays: 1,
+    windowStart: "2026-05-01",
+    windowEnd: "2026-05-10",
+    plannerSummary: {
+      total: 3,
+      todoDone: 0,
+      todoPartial: 0,
+      todoSkipped: 0,
+      todoPending: 0,
+      nutritionDone: 0,
+      nutritionPartial: 0,
+      nutritionSkipped: 0,
+      nutritionPending: 3,
+    },
+  });
+
+  assertEquals(snapshot.source.pending_planner, 3);
+  assertEquals(snapshot.source.open_obligations, 3);
+  assertEquals(snapshot.source.ledger?.dominant_leak?.field, "provision");
+  assertEquals(snapshot.dimensions.S < 0, true);
+  assertEquals(snapshot.reflectionMove, "inquire");
+});
+
 Deno.test("resolveDecanPrimaryAxes maps decan language to primary dimensions", () => {
   assertEquals(
     resolveDecanPrimaryAxes({
