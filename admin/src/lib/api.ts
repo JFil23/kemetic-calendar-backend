@@ -477,6 +477,7 @@ export class AdminApiError extends Error {
     message: string,
     readonly status: number,
     readonly code?: string,
+    readonly detail?: unknown,
   ) {
     super(message);
   }
@@ -936,10 +937,14 @@ async function adminFunctionFetch<T>(
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    const detail = typeof payload.detail === "string" && payload.detail.trim()
+      ? payload.detail
+      : undefined;
     throw new AdminApiError(
-      payload.error ?? `${functionName} request failed.`,
+      detail ?? payload.error ?? `${functionName} request failed.`,
       response.status,
       payload.error,
+      payload.detail,
     );
   }
 
@@ -1354,6 +1359,7 @@ export async function generateContentPreview(
     decan_theme?: string;
     decan_context_key?: string;
     day_card?: Record<string, unknown>;
+    require_llm?: boolean;
   },
 ): Promise<ContentPreviewPayload> {
   return adminFunctionFetch<ContentPreviewPayload>(
