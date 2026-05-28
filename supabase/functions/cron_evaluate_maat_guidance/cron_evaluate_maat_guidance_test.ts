@@ -8,10 +8,12 @@ type Row = Record<string, any>;
 type Tables = Record<string, Row[]>;
 
 class MockSupabaseQuery {
+  private op: "select" | "insert" = "select";
   private rangeFrom: number | null = null;
   private rangeTo: number | null = null;
   private orderColumn: string | null = null;
   private orderAscending = true;
+  private payload: Row | Row[] | null = null;
 
   constructor(
     private readonly tables: Tables,
@@ -19,6 +21,12 @@ class MockSupabaseQuery {
   ) {}
 
   select(_columns = "*") {
+    return this;
+  }
+
+  insert(payload: Row | Row[]) {
+    this.op = "insert";
+    this.payload = payload;
     return this;
   }
 
@@ -42,6 +50,18 @@ class MockSupabaseQuery {
   }
 
   private execute() {
+    if (this.op === "insert") {
+      this.tables[this.table] ??= [];
+      const rows = Array.isArray(this.payload) ? this.payload : [this.payload];
+      const inserted = rows.filter(Boolean).map((row) => ({
+        id: row.id ?? `${this.table}-${this.tables[this.table].length + 1}`,
+        created_at: row.created_at ?? "2026-05-18T12:00:00.000Z",
+        ...row,
+      }));
+      this.tables[this.table].push(...inserted);
+      return { data: inserted, error: null };
+    }
+
     let rows = [...(this.tables[this.table] ?? [])];
     if (this.orderColumn) {
       rows = rows.sort((a, b) => {
@@ -106,6 +126,73 @@ Deno.test("cron_evaluate_maat_guidance evaluates matching local-hour users", asy
       userId: "user-a",
       timezone: "America/Los_Angeles",
     }]);
+  } finally {
+    if (previousSecret === undefined) {
+      Deno.env.delete("MAAT_CRON_SECRET");
+    } else {
+      Deno.env.set("MAAT_CRON_SECRET", previousSecret);
+    }
+  }
+});
+
+Deno.test("cron_evaluate_maat_guidance records day-five cadence timing metadata", async () => {
+  const previousSecret = Deno.env.get("MAAT_CRON_SECRET");
+  Deno.env.set("MAAT_CRON_SECRET", "test-secret");
+  const tables: Tables = {
+    profiles: [{ id: "user-a", timezone: "America/Los_Angeles" }],
+    maat_delivery_timing_events: [],
+  };
+  try {
+    const handler = createCronEvaluateMaatGuidanceHandler({
+      client: createMockClient(tables),
+      now: () => new Date("2026-05-20T07:05:00.000Z"),
+      evaluateUser: async () => ({
+        status: 200,
+        data: {
+          created: [{
+            id: "delivery-day-five",
+            user_id: "user-a",
+            kind: "strength_nudge",
+            status: "pending",
+            decan_period_key: "2026-05-16:2026-05-25:1-1",
+            trigger_reason: "decan_day_5_maat",
+            payload: {
+              cadence_type: "decan_day_5",
+              cadence_mode: "maat",
+              compiled_output_package: {
+                package_version: "compiled_output_package_v1",
+                final_text: "Compiled day-five strength nudge.",
+                teaser_text: "Compiled day-five strength nudge.",
+                push_text: "Compiled day-five push.",
+                fallback_used: false,
+                not_quality_proof: false,
+                delivery_recommendation: "push",
+              },
+            },
+          }],
+        },
+      }),
+    });
+
+    const res = await handler(request({
+      local_hour: 0,
+      scheduled_at: "2026-05-20T07:05:00.000Z",
+    }));
+    const body = await res.json();
+
+    assertEquals(res.status, 200);
+    assertEquals(body.evaluated, 1);
+    assertEquals(tables.maat_delivery_timing_events.length, 2);
+    const sent = tables.maat_delivery_timing_events.find((row) =>
+      row.delivery_status === "sent"
+    );
+    assertEquals(sent?.delivery_key, "maat_guidance:delivery-day-five");
+    assertEquals(sent?.delivery_kind, "strength_nudge");
+    assertEquals(sent?.metadata.trigger_reason, "decan_day_5_maat");
+    assertEquals(sent?.metadata.cadence_type, "decan_day_5");
+    assertEquals(sent?.metadata.cadence_mode, "maat");
+    assertEquals(sent?.metadata.push_source, "compiled_package.push_text");
+    assertEquals(sent?.metadata.push_blocked, false);
   } finally {
     if (previousSecret === undefined) {
       Deno.env.delete("MAAT_CRON_SECRET");

@@ -1,5 +1,9 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
+import {
+  recordMaatDeliveryTimingEvent,
+} from "../_shared/maat_delivery_timing.ts";
+import { resolveCompiledPackagePushText } from "../_shared/output_compiler.ts";
 
 type ReminderRow = {
   id: string;
@@ -31,6 +35,10 @@ type SendPushResponse = {
   delivered: boolean;
   reason?: string;
   failedReasons?: string[];
+  pushSource?: string;
+  pushBlocked?: boolean;
+  pushPackageVersion?: string | null;
+  pushCompilerStatus?: string | null;
 };
 
 type ScheduledEventRow = {
@@ -59,6 +67,9 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 const functionAuthHeader = {
   "x-internal-key": Deno.env.get("INTERNAL_FUNCTION_KEY") ?? "",
 };
+const CRON_SECRET = Deno.env.get("REMINDER_CRON_SECRET") ??
+  Deno.env.get("MAAT_CRON_SECRET") ??
+  Deno.env.get("CRON_SECRET") ?? "";
 const SCHEDULED_CLAIM_LIMIT = Math.max(
   1,
   Math.min(parseInt(Deno.env.get("SCHEDULED_CLAIM_LIMIT") ?? "500", 10), 500),
@@ -104,19 +115,86 @@ async function invokeSendPush(
 }
 
 async function fetchDueReminders(nowIso: string): Promise<ReminderRow[]> {
-  const { data, error } = await supabase
-    .from("reminders")
-    .select("id, user_id, title, detail, alert_at, channel, status")
-    .eq("channel", "push_and_in_app")
-    .eq("status", "pending")
-    .lte("alert_at", nowIso)
-    .order("alert_at", { ascending: true })
-    .limit(500); // keep each run bounded
-
-  if (error) {
-    throw error;
-  }
+  const { data, error } = await supabase.rpc("claim_due_reminders", {
+    p_now: nowIso,
+    p_limit: 500,
+  });
+  if (error) throw error;
   return (data ?? []) as ReminderRow[];
+}
+
+function reminderDeliveryKey(reminder: ReminderRow) {
+  return `reminder:${reminder.id}:${reminder.alert_at}`;
+}
+
+function scheduledDeliveryKey(row: ScheduledNotification) {
+  return `scheduled_notification:${row.id}:${
+    row.notification_type ?? "event_start"
+  }:${row.scheduled_at}`;
+}
+
+async function recordReminderDeliveryEvent(
+  reminder: ReminderRow,
+  params: {
+    status: "picked" | "sent" | "failed" | "skipped";
+    functionStartedAt: string;
+    deliveredAt?: string | null;
+    errorCode?: string | null;
+    skipReason?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+) {
+  await recordMaatDeliveryTimingEvent(supabase, {
+    deliveryKey: reminderDeliveryKey(reminder),
+    deliveryKind: "reminder",
+    targetTable: "reminders",
+    targetId: reminder.id,
+    userId: reminder.user_id,
+    scheduledFor: reminder.alert_at,
+    cronPickedAt: params.status === "picked" ? params.functionStartedAt : null,
+    functionStartedAt: params.functionStartedAt,
+    deliveredAt: params.deliveredAt ?? null,
+    cronJobName: "cron_reminder_push_1m",
+    deliveryAttempt: 1,
+    deliveryStatus: params.status,
+    skipReason: params.skipReason ?? null,
+    errorCode: params.errorCode ?? null,
+    metadata: params.metadata ?? {},
+  });
+}
+
+async function recordScheduledDeliveryEvent(
+  row: ScheduledNotification,
+  params: {
+    status: "picked" | "sent" | "failed" | "skipped";
+    functionStartedAt: string;
+    deliveredAt?: string | null;
+    errorCode?: string | null;
+    skipReason?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+) {
+  await recordMaatDeliveryTimingEvent(supabase, {
+    deliveryKey: scheduledDeliveryKey(row),
+    deliveryKind: "scheduled_notification",
+    targetTable: "scheduled_notifications",
+    targetId: String(row.id),
+    userId: row.user_id,
+    scheduledFor: row.scheduled_at,
+    cronPickedAt: params.status === "picked" ? params.functionStartedAt : null,
+    functionStartedAt: params.functionStartedAt,
+    deliveredAt: params.deliveredAt ?? null,
+    cronJobName: "cron_reminder_push_1m",
+    deliveryAttempt: 1,
+    deliveryStatus: params.status,
+    skipReason: params.skipReason ?? null,
+    errorCode: params.errorCode ?? null,
+    metadata: {
+      notification_type: row.notification_type ?? "event_start",
+      client_event_id: row.client_event_id,
+      ...(params.metadata ?? {}),
+    },
+  });
 }
 
 async function claimDueScheduledNotifications(
@@ -266,6 +344,23 @@ function buildNotificationFromScheduled(row: ScheduledNotification) {
   return { title, body };
 }
 
+function buildScheduledPushPackage(row: ScheduledNotification) {
+  const payload = safeParseJson(row.payload) ?? {};
+  const pushResolution = resolveCompiledPackagePushText({
+    payload,
+    legacyPushText: row.body,
+  });
+  const title = sanitizeNotificationText(row.title) ?? "Reminder";
+  const body = pushResolution.text ??
+    sanitizeNotificationText(row.body) ??
+    "Tap to open in Kemetic.";
+  return {
+    notification: { title, body },
+    payload,
+    pushResolution,
+  };
+}
+
 function stripMetadataPrefixes(raw: string) {
   let text = raw.trim();
   const colorOrAlertPrefix = /^(?:color=[0-9a-fA-FxX]+;|alert=[-+]?\d+;)/;
@@ -330,8 +425,24 @@ async function sendPush(reminder: ReminderRow): Promise<SendPushResponse> {
 async function sendPushForScheduled(
   row: ScheduledNotification,
 ): Promise<SendPushResponse> {
-  const notification = buildNotificationFromScheduled(row);
-  const payload = safeParseJson(row.payload);
+  const { notification, payload, pushResolution } = buildScheduledPushPackage(
+    row,
+  );
+  if (pushResolution.blocked) {
+    return {
+      sent: 0,
+      failed: 0,
+      stale: 0,
+      matchedTokens: 0,
+      delivered: false,
+      reason: pushResolution.reason ?? pushResolution.source,
+      failedReasons: [],
+      pushSource: pushResolution.source,
+      pushBlocked: true,
+      pushPackageVersion: pushResolution.packageVersion,
+      pushCompilerStatus: pushResolution.compilerStatus,
+    };
+  }
   const notificationType = row.notification_type ?? "event_start";
   console.log(
     JSON.stringify({
@@ -357,8 +468,8 @@ async function sendPushForScheduled(
         notification_type: notificationType,
         client_event_id: row.client_event_id,
         scheduled_at: row.scheduled_at,
-        payload: payload ??
-          (row.payload ? safeParseJson(row.payload) : undefined) ?? {},
+        payload,
+        push_source: pushResolution.source,
       },
     });
     console.log(
@@ -393,9 +504,24 @@ async function markSent(reminderIds: string[]) {
       status: "sent_push",
       updated_at: new Date().toISOString(),
     })
+    .eq("status", "claimed")
     .in("id", reminderIds);
   if (error) {
     console.error("Failed to mark reminders sent:", error);
+  }
+}
+
+async function markReminderFailed(id: string, nowIso: string) {
+  const { error } = await supabase
+    .from("reminders")
+    .update({
+      status: "pending",
+      updated_at: nowIso,
+    })
+    .eq("id", id)
+    .eq("status", "claimed");
+  if (error) {
+    console.error("Failed to release failed reminder claim:", error);
   }
 }
 
@@ -539,13 +665,49 @@ function safeParseJson(raw?: string | null): Record<string, unknown> | null {
   }
 }
 
-serve(async () => {
+serve(async (req) => {
   const start = Date.now();
   try {
+    if (req.method !== "POST") {
+      return new Response(
+        JSON.stringify({ error: "Method not allowed" }),
+        { status: 405, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (!CRON_SECRET) {
+      return new Response(
+        JSON.stringify({ error: "CRON_SECRET not configured" }),
+        { status: 500, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (req.headers.get("x-cron-secret") !== CRON_SECRET) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
     const nowIso = new Date().toISOString();
+    const functionStartedAt = new Date(start).toISOString();
     const due = await fetchDueReminders(nowIso);
     const dueScheduled = await claimDueScheduledNotifications(nowIso);
     const scheduledClaimToken = dueScheduled[0]?.claim_token?.trim() ?? "";
+    await Promise.all([
+      ...due.map((reminder) =>
+        recordReminderDeliveryEvent(reminder, {
+          status: "picked",
+          functionStartedAt,
+          metadata: { source: "claim_due_reminders" },
+        })
+      ),
+      ...dueScheduled.map((row) =>
+        recordScheduledDeliveryEvent(row, {
+          status: "picked",
+          functionStartedAt,
+          metadata: { source: "claim_due_scheduled_notifications" },
+        })
+      ),
+    ]);
     if (dueScheduled.length && scheduledClaimToken.length) {
       console.log(
         JSON.stringify({
@@ -572,6 +734,24 @@ serve(async () => {
         Array.from(staleScheduledIdSet),
         scheduledClaimToken,
         nowIso,
+      );
+      const staleSet = new Set(staleScheduledIds);
+      const rearmedSet = new Set(rearmedProcessedScheduledIds);
+      await Promise.all(
+        dueScheduled
+          .filter((row) => staleScheduledIdSet.has(row.id))
+          .map((row) =>
+            recordScheduledDeliveryEvent(row, {
+              status: "skipped",
+              functionStartedAt,
+              deliveredAt: new Date().toISOString(),
+              skipReason: staleSet.has(row.id)
+                ? "stale_event_or_flow"
+                : rearmedSet.has(row.id)
+                ? "rearmed_processed_row"
+                : "ineligible",
+            })
+          ),
       );
     }
 
@@ -625,6 +805,18 @@ serve(async () => {
         if (result.sent > 0) {
           sentIds.push(reminder.id);
         } else {
+          const failedAt = new Date().toISOString();
+          await markReminderFailed(reminder.id, failedAt);
+          await recordReminderDeliveryEvent(reminder, {
+            status: "failed",
+            functionStartedAt,
+            deliveredAt: failedAt,
+            errorCode: result.reason ?? "push_not_delivered",
+            metadata: {
+              matched_tokens: result.matchedTokens,
+              failed_reasons: result.failedReasons ?? [],
+            },
+          });
           failed += 1;
           failedDetails.push({
             kind: "reminder",
@@ -646,6 +838,15 @@ serve(async () => {
           );
         }
       } catch (e) {
+        const failedAt = new Date().toISOString();
+        await markReminderFailed(reminder.id, failedAt);
+        await recordReminderDeliveryEvent(reminder, {
+          status: "failed",
+          functionStartedAt,
+          deliveredAt: failedAt,
+          errorCode: "send_push_exception",
+          metadata: { error: String(e) },
+        });
         failed += 1;
         failedDetails.push({
           kind: "reminder",
@@ -666,6 +867,10 @@ serve(async () => {
     }
 
     const sentScheduledIds: number[] = [];
+    const sentScheduledPushMetadata = new Map<
+      number,
+      Record<string, unknown>
+    >();
     for (const row of eligibleDueScheduled) {
       try {
         console.log(
@@ -681,6 +886,12 @@ serve(async () => {
         const result = await sendPushForScheduled(row);
         if (result.sent > 0) {
           sentScheduledIds.push(row.id);
+          sentScheduledPushMetadata.set(row.id, {
+            push_source: result.pushSource ?? null,
+            push_blocked: result.pushBlocked === true,
+            package_version: result.pushPackageVersion ?? null,
+            compiler_status: result.pushCompilerStatus ?? null,
+          });
           continue;
         }
 
@@ -689,6 +900,40 @@ serve(async () => {
         const reason = result.reason ?? "push_not_delivered";
         if (reason === "no_tokens_for_recipients") {
           await markScheduledUndeliverable(row, reason, nowIso);
+          await recordScheduledDeliveryEvent(row, {
+            status: "skipped",
+            functionStartedAt,
+            deliveredAt: nowIso,
+            skipReason: reason,
+            metadata: {
+              matched_tokens: result.matchedTokens,
+              push_source: result.pushSource ?? null,
+              push_blocked: result.pushBlocked === true,
+              package_version: result.pushPackageVersion ?? null,
+              compiler_status: result.pushCompilerStatus ?? null,
+            },
+          });
+        } else if (
+          reason === "compiled_package_not_quality_proof" ||
+          reason === "compiled_package_missing_push_text"
+        ) {
+          await markScheduledInactive(
+            [row.id],
+            row.claim_token ?? scheduledClaimToken,
+            nowIso,
+          );
+          await recordScheduledDeliveryEvent(row, {
+            status: "skipped",
+            functionStartedAt,
+            deliveredAt: nowIso,
+            skipReason: reason,
+            metadata: {
+              push_source: result.pushSource ?? null,
+              push_blocked: true,
+              package_version: result.pushPackageVersion ?? null,
+              compiler_status: result.pushCompilerStatus ?? null,
+            },
+          });
         } else {
           await markScheduledFailure(
             row.id,
@@ -700,6 +945,16 @@ serve(async () => {
             nowIso,
             row.claim_token ?? scheduledClaimToken,
           );
+          await recordScheduledDeliveryEvent(row, {
+            status: "failed",
+            functionStartedAt,
+            deliveredAt: nowIso,
+            errorCode: reason,
+            metadata: {
+              matched_tokens: result.matchedTokens,
+              failed_reasons: result.failedReasons ?? [],
+            },
+          });
         }
         failedDetails.push({
           kind: "scheduled",
@@ -729,6 +984,13 @@ serve(async () => {
           nowIso,
           row.claim_token ?? scheduledClaimToken,
         );
+        await recordScheduledDeliveryEvent(row, {
+          status: "failed",
+          functionStartedAt,
+          deliveredAt: nowIso,
+          errorCode: "send_push_exception",
+          metadata: { error: String(e) },
+        });
         failedDetails.push({
           kind: "scheduled",
           scheduled_id: row.id,
@@ -754,6 +1016,35 @@ serve(async () => {
       scheduledClaimToken,
       new Date().toISOString(),
     );
+    const deliveredAt = new Date().toISOString();
+    const remindersById = new Map(due.map((row) => [row.id, row]));
+    const scheduledById = new Map(eligibleDueScheduled.map((row) => [
+      row.id,
+      row,
+    ]));
+    await Promise.all([
+      ...sentIds
+        .map((id) => remindersById.get(id))
+        .filter((row): row is ReminderRow => !!row)
+        .map((row) =>
+          recordReminderDeliveryEvent(row, {
+            status: "sent",
+            functionStartedAt,
+            deliveredAt,
+          })
+        ),
+      ...sentScheduledIds
+        .map((id) => scheduledById.get(id))
+        .filter((row): row is ScheduledNotification => !!row)
+        .map((row) =>
+          recordScheduledDeliveryEvent(row, {
+            status: "sent",
+            functionStartedAt,
+            deliveredAt,
+            metadata: sentScheduledPushMetadata.get(row.id) ?? {},
+          })
+        ),
+    ]);
 
     return new Response(
       JSON.stringify({

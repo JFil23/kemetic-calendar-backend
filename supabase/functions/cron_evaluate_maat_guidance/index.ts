@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
 import { normalizeTimeZone } from "../_shared/decan_schedule.ts";
+import {
+  recordMaatDeliveryTimingEvent,
+} from "../_shared/maat_delivery_timing.ts";
+import { resolveCompiledPackagePushText } from "../_shared/output_compiler.ts";
 
 type SupabaseClientLike = {
   from(table: string): any;
@@ -13,6 +17,7 @@ type Payload = {
   local_hour?: number | string;
   force?: boolean;
   timezone?: string | null;
+  scheduled_at?: string | null;
 };
 
 type ProfileRow = {
@@ -30,6 +35,17 @@ type EvaluateUser = (params: EvaluateUserParams) => Promise<{
   status: number;
   data: unknown;
 }>;
+
+type CreatedGuidanceDelivery = {
+  id?: string;
+  user_id?: string;
+  kind?: string;
+  status?: string;
+  decan_period_key?: string;
+  created_at?: string;
+  trigger_reason?: string | null;
+  payload?: unknown;
+};
 
 function createDefaultClient(): SupabaseClientLike {
   const supabaseUrl = Deno.env.get("PROJECT_URL") ??
@@ -110,6 +126,105 @@ function localHourForTimezone(now: Date, timezone: string) {
   return Number(hour ?? "0");
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function createdDeliveriesFrom(data: unknown): CreatedGuidanceDelivery[] {
+  if (!isRecord(data) || !Array.isArray(data.created)) return [];
+  return data.created.filter(isRecord) as CreatedGuidanceDelivery[];
+}
+
+async function recordEvaluationDeliveryOutcome(params: {
+  client: SupabaseClientLike;
+  profile: ProfileRow;
+  result: { status: number; data: unknown };
+  timezone: string;
+  localHour: number;
+  scheduledFor: string;
+  functionStartedAt: string;
+  deliveredAt: string;
+}) {
+  const created = createdDeliveriesFrom(params.result.data);
+  if (created.length) {
+    await Promise.all(
+      created.map((delivery) => {
+        const deliveryId = String(delivery.id ?? "");
+        if (!deliveryId) return Promise.resolve(false);
+        const status = delivery.status === "archive_only" ? "skipped" : "sent";
+        const deliveryPayload = isRecord(delivery.payload)
+          ? delivery.payload
+          : {};
+        const pushResolution = resolveCompiledPackagePushText({
+          payload: deliveryPayload,
+        });
+        const baseEvent = {
+          deliveryKey: `maat_guidance:${deliveryId}`,
+          deliveryKind: delivery.kind ?? "maat_guidance",
+          targetTable: "maat_guidance_deliveries",
+          targetId: deliveryId,
+          userId: delivery.user_id ?? params.profile.id,
+          scheduledFor: params.scheduledFor,
+          functionStartedAt: params.functionStartedAt,
+          cronJobName: "maat_guidance_evaluate_hourly",
+          deliveryAttempt: 1,
+          metadata: {
+            timezone: params.timezone,
+            local_hour: params.localHour,
+            http_status: params.result.status,
+            decan_period_key: delivery.decan_period_key ?? null,
+            trigger_reason: delivery.trigger_reason ?? null,
+            cadence_type: deliveryPayload.cadence_type ?? null,
+            cadence_mode: deliveryPayload.cadence_mode ?? null,
+            push_source: pushResolution.source,
+            push_blocked: pushResolution.blocked,
+            push_block_reason: pushResolution.reason,
+            package_version: pushResolution.packageVersion,
+            compiler_status: pushResolution.compilerStatus,
+          },
+        };
+        return Promise.all([
+          recordMaatDeliveryTimingEvent(params.client, {
+            ...baseEvent,
+            cronPickedAt: params.functionStartedAt,
+            deliveryStatus: "picked",
+          }),
+          recordMaatDeliveryTimingEvent(params.client, {
+            ...baseEvent,
+            deliveredAt: params.deliveredAt,
+            deliveryStatus: status,
+            skipReason: status === "skipped" ? "archive_only" : null,
+          }),
+        ]);
+      }),
+    );
+    return;
+  }
+
+  const data = isRecord(params.result.data) ? params.result.data : {};
+  await recordMaatDeliveryTimingEvent(params.client, {
+    deliveryKey: `maat_evaluation:${params.profile.id}:${params.scheduledFor}`,
+    deliveryKind: "maat_evaluation",
+    targetTable: "profiles",
+    targetId: params.profile.id,
+    userId: params.profile.id,
+    scheduledFor: params.scheduledFor,
+    functionStartedAt: params.functionStartedAt,
+    deliveredAt: params.deliveredAt,
+    cronJobName: "maat_guidance_evaluate_hourly",
+    deliveryAttempt: 1,
+    deliveryStatus: "skipped",
+    skipReason: "no_delivery_created",
+    metadata: {
+      timezone: params.timezone,
+      local_hour: params.localHour,
+      http_status: params.result.status,
+      period_key: data.period_key ?? null,
+      suppressed: data.suppressed ?? null,
+    },
+  });
+}
+
 export function createCronEvaluateMaatGuidanceHandler(options?: {
   client?: SupabaseClientLike;
   evaluateUser?: EvaluateUser;
@@ -147,6 +262,11 @@ export function createCronEvaluateMaatGuidanceHandler(options?: {
       const targetLocalHour = boundedInteger(body.local_hour, 0, 0, 23);
       const force = body.force === true;
       const now = nowFn();
+      const functionStartedAt = new Date(startedAt).toISOString();
+      const scheduledFor = typeof body.scheduled_at === "string" &&
+          body.scheduled_at.trim()
+        ? body.scheduled_at.trim()
+        : now.toISOString();
 
       const results = [];
       let offset = 0;
@@ -199,15 +319,67 @@ export function createCronEvaluateMaatGuidanceHandler(options?: {
               timezone,
               cronSecret,
             });
+            const ok = result.status >= 200 && result.status < 300;
+            if (ok) {
+              await recordEvaluationDeliveryOutcome({
+                client,
+                profile,
+                result,
+                timezone,
+                localHour,
+                scheduledFor,
+                functionStartedAt,
+                deliveredAt: new Date().toISOString(),
+              });
+            } else {
+              await recordMaatDeliveryTimingEvent(client, {
+                deliveryKey: `maat_evaluation:${profile.id}:${scheduledFor}`,
+                deliveryKind: "maat_evaluation",
+                targetTable: "profiles",
+                targetId: profile.id,
+                userId: profile.id,
+                scheduledFor,
+                functionStartedAt,
+                deliveredAt: new Date().toISOString(),
+                cronJobName: "maat_guidance_evaluate_hourly",
+                deliveryAttempt: 1,
+                deliveryStatus: "failed",
+                errorCode: `http_${result.status}`,
+                metadata: {
+                  timezone,
+                  local_hour: localHour,
+                  data: result.data,
+                },
+              });
+            }
             results.push({
               user_id: profile.id,
               timezone,
               local_hour: localHour,
-              ok: result.status >= 200 && result.status < 300,
+              ok,
               status: result.status,
               data: result.data,
             });
           } catch (err) {
+            await recordMaatDeliveryTimingEvent(client, {
+              deliveryKey: `maat_evaluation:${profile.id}:${scheduledFor}`,
+              deliveryKind: "maat_evaluation",
+              targetTable: "profiles",
+              targetId: profile.id,
+              userId: profile.id,
+              scheduledFor,
+              functionStartedAt,
+              deliveredAt: new Date().toISOString(),
+              cronJobName: "maat_guidance_evaluate_hourly",
+              deliveryAttempt: 1,
+              deliveryStatus: "failed",
+              errorCode: "evaluate_exception",
+              metadata: {
+                timezone,
+                local_hour: localHour,
+                error: err instanceof Error ? err.message : String(err),
+              },
+            });
             results.push({
               user_id: profile.id,
               timezone,
