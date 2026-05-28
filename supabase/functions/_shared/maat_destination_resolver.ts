@@ -38,6 +38,15 @@ export type MaatDestinationResolution = {
   destinationReason: string;
   reason: string;
   confidence: number;
+  score: number | null;
+  signals: string[];
+  motivation: {
+    reason: string;
+    confidence: number;
+    source: MaatDestinationSource;
+    score: number | null;
+    signals: string[];
+  };
   source: MaatDestinationSource;
   fallback: {
     ctaType: MaatDestinationType;
@@ -105,11 +114,42 @@ function labelForDestination(type: MaatDestinationType, ref: string | null) {
   return null;
 }
 
+function cleanSignals(signals: string[] | undefined) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of signals ?? []) {
+    const signal = clean(raw).toLowerCase();
+    if (!signal || seen.has(signal)) continue;
+    seen.add(signal);
+    result.push(signal);
+  }
+  return result;
+}
+
+function destinationMotivation(params: {
+  reason: string;
+  confidence: number;
+  source: MaatDestinationSource;
+  score: number | null;
+  signals: string[];
+}) {
+  return {
+    reason: params.reason,
+    confidence: params.confidence,
+    source: params.source,
+    score: params.score,
+    signals: params.signals,
+  };
+}
+
 export function firstNodeForAxis(axis: MaatAxisCode) {
   return AXIS_NODE_CANDIDATES[axis][0] ?? "maat";
 }
 
 export function noMaatDestination(reason: string): MaatDestinationResolution {
+  const confidence = 0;
+  const score = null;
+  const signals: string[] = [];
   return {
     ctaType: "none",
     ctaRef: null,
@@ -119,7 +159,16 @@ export function noMaatDestination(reason: string): MaatDestinationResolution {
     destinationLabel: null,
     destinationReason: reason,
     reason,
-    confidence: 0,
+    confidence,
+    score,
+    signals,
+    motivation: destinationMotivation({
+      reason,
+      confidence,
+      source: "fallback",
+      score,
+      signals,
+    }),
     source: "fallback",
     fallback: null,
   };
@@ -131,9 +180,14 @@ function destination(params: {
   reason: string;
   source: MaatDestinationSource;
   confidence?: number;
+  score?: number | null;
+  signals?: string[];
   fallback?: MaatDestinationResolution | null;
 }): MaatDestinationResolution {
   const label = labelForDestination(params.type, params.ref);
+  const confidence = params.confidence ?? 0.8;
+  const score = params.score ?? null;
+  const signals = cleanSignals(params.signals);
   const fallback = params.fallback && params.fallback.ctaType !== "none"
     ? {
       ctaType: params.fallback.ctaType,
@@ -150,7 +204,16 @@ function destination(params: {
     destinationLabel: label,
     destinationReason: params.reason,
     reason: params.reason,
-    confidence: params.confidence ?? 0.8,
+    confidence,
+    score,
+    signals,
+    motivation: destinationMotivation({
+      reason: params.reason,
+      confidence,
+      source: params.source,
+      score,
+      signals,
+    }),
     source: params.source,
     fallback,
   };
@@ -162,6 +225,7 @@ function flowTemplate(
   source: MaatDestinationSource = "axis",
   confidence = 0.86,
   fallback?: MaatDestinationResolution | null,
+  motivation?: { score?: number | null; signals?: string[] },
 ) {
   return destination({
     type: "flow_template",
@@ -170,6 +234,8 @@ function flowTemplate(
     source,
     confidence,
     fallback,
+    score: motivation?.score,
+    signals: motivation?.signals,
   });
 }
 
@@ -184,6 +250,7 @@ function nodeForAxis(
     reason,
     source: "axis",
     confidence,
+    signals: [`axis:${axis}`],
   });
 }
 
@@ -192,6 +259,7 @@ function nodeDestination(
   reason: string,
   source: MaatDestinationSource,
   confidence = 0.72,
+  motivation?: { score?: number | null; signals?: string[] },
 ) {
   return destination({
     type: "node",
@@ -199,6 +267,8 @@ function nodeDestination(
     reason,
     source,
     confidence,
+    score: motivation?.score,
+    signals: motivation?.signals,
   });
 }
 
@@ -227,7 +297,9 @@ function nodeForReflectionLens(
     repair_isfet: "ptah",
     effective_speech: "instruction_amenemope",
   };
-  return nodeDestination(lensNodes[lens] ?? "maat", reason, source);
+  return nodeDestination(lensNodes[lens] ?? "maat", reason, source, 0.72, {
+    signals: [`lens:${lens}`, "node_default"],
+  });
 }
 
 function includesAny(text: string, patterns: RegExp[]) {
@@ -337,10 +409,26 @@ function strongAgreementText(text: string) {
     /\bkept word\b/,
     /\bword and act\b/,
     /\bword\b.*\bact\b/,
-    /\bspeech\b/,
+    /\bspeech\b.*\bact\b/,
     /\bvow\b/,
     /\bcommitment\b/,
   ]);
+}
+
+function strongWeighingText(text: string) {
+  return includesAny(text, [
+    /\bweigh\w*\b.*\btruth\b/,
+    /\bweigh\w*\b.*\bheart\b/,
+    /\bweigh\w*\b.*\brecord\b/,
+    /\bjudg\w*\b.*\brecord\b/,
+    /\bfalse record\b/,
+    /\baccountability\b/,
+    /\btruthful account\b/,
+  ]);
+}
+
+function weighingHintText(text: string) {
+  return includesAny(text, [/\bweigh/, /\bjudg/]);
 }
 
 function calendarNodeDestination(params: {
@@ -359,25 +447,52 @@ function calendarNodeDestination(params: {
       "calendar_arc:wisdom_node",
       "calendar_arc",
       0.74,
+      { signals: ["calendar_wisdom", "learning_language"] },
     );
   }
   if (includesAny(text, [/\btruth\b/, /\bwitness\b/, /\bmaat\b/])) {
-    return nodeDestination("maat", "calendar_arc:truth_node", "calendar_arc");
+    return nodeDestination(
+      "maat",
+      "calendar_arc:truth_node",
+      "calendar_arc",
+      0.72,
+      { signals: ["calendar_truth", "truth_language"] },
+    );
   }
   if (includesAny(text, [/\border\b/, /\bform\b/, /\bcraft\b/])) {
-    return nodeDestination("ptah", "calendar_arc:order_node", "calendar_arc");
+    return nodeDestination(
+      "ptah",
+      "calendar_arc:order_node",
+      "calendar_arc",
+      0.72,
+      { signals: ["calendar_order", "order_language"] },
+    );
   }
   if (includesAny(text, [/\bcare\b/, /\blife\b/, /\bprovision\b/])) {
     return nodeDestination(
       "renenutet",
       "calendar_arc:provision_node",
       "calendar_arc",
+      0.72,
+      { signals: ["calendar_provision", "care_language"] },
     );
   }
   if (includesAny(text, [/\bsky\b/, /\bseason\b/, /\briver\b/, /\bcycle\b/])) {
-    return nodeDestination("nile", "calendar_arc:cycle_node", "calendar_arc");
+    return nodeDestination(
+      "nile",
+      "calendar_arc:cycle_node",
+      "calendar_arc",
+      0.72,
+      { signals: ["calendar_cycle", "season_language"] },
+    );
   }
-  return nodeDestination("maat", "calendar_arc:default_node", "calendar_arc");
+  return nodeDestination(
+    "maat",
+    "calendar_arc:default_node",
+    "calendar_arc",
+    0.72,
+    { signals: ["calendar_default"] },
+  );
 }
 
 function highAlignmentFlowForReflection(params: {
@@ -517,16 +632,11 @@ function highAlignmentFlowForReflection(params: {
     "weighing",
     evidenceScore([
       [["truth", "witness", "measure"].includes(params.lens), 2, "lens"],
+      [strongWeighingText(text), 5, "weighing_language"],
       [
-        includesAny(text, [
-          /\bweigh/,
-          /\bjudg/,
-          /\bfalse record\b/,
-          /\baccountability\b/,
-          /\btruthful account\b/,
-        ]),
-        4,
-        "weighing_language",
+        weighingHintText(text) && !strongWeighingText(text),
+        2,
+        "weighing_hint",
       ],
     ]),
   );
@@ -540,6 +650,12 @@ function highAlignmentFlowForReflection(params: {
     params.source,
     Math.min(0.95, 0.72 + best.score / 100),
     params.nodeFallback,
+    {
+      score: best.score,
+      signals: best.reasons.map((reason) =>
+        reason === "lens" ? `lens:${params.lens}` : reason
+      ),
+    },
   );
 }
 
@@ -587,17 +703,33 @@ function chooseOutcomeWeightedDestination(
   const outcomeReason = bestSignal && bestSignal.outcomeFlag !== "neutral"
     ? `${best.reason}:outcome_${bestSignal.outcomeFlag}`
     : best.reason;
+  const source = bestSignal && bestSignal.outcomeFlag !== "neutral"
+    ? "outcome"
+    : best.source;
+  const confidence = Math.min(
+    0.99,
+    Math.max(0.5, best.confidence + (bestSignal ? 0.06 : 0)),
+  );
+  const signals = cleanSignals([
+    ...best.signals,
+    ...(bestSignal && bestSignal.outcomeFlag !== "neutral"
+      ? [`outcome:${bestSignal.outcomeFlag}`]
+      : []),
+  ]);
   return {
     ...best,
     destinationReason: outcomeReason,
     reason: outcomeReason,
-    source: bestSignal && bestSignal.outcomeFlag !== "neutral"
-      ? "outcome"
-      : best.source,
-    confidence: Math.min(
-      0.99,
-      Math.max(0.5, best.confidence + (bestSignal ? 0.06 : 0)),
-    ),
+    source,
+    confidence,
+    signals,
+    motivation: destinationMotivation({
+      reason: outcomeReason,
+      confidence,
+      source,
+      score: best.score,
+      signals,
+    }),
   };
 }
 
@@ -878,15 +1010,20 @@ export function resolveMaatOpeningDestination(params: {
 }): MaatDestinationResolution {
   const fallback = nodeForAxis(params.leadAxis, "decan_boundary:node_fallback");
   const calendar = resolveCalendarDestination(params);
+  const reason = calendar.destinationReason === "calendar_arc:decan_opening"
+    ? "decan_boundary:calendar_arc"
+    : calendar.destinationReason;
   return {
     ...calendar,
-    destinationReason:
-      calendar.destinationReason === "calendar_arc:decan_opening"
-        ? "decan_boundary:calendar_arc"
-        : calendar.destinationReason,
-    reason: calendar.destinationReason === "calendar_arc:decan_opening"
-      ? "decan_boundary:calendar_arc"
-      : calendar.destinationReason,
+    destinationReason: reason,
+    reason,
+    motivation: destinationMotivation({
+      reason,
+      confidence: calendar.confidence,
+      source: calendar.source,
+      score: calendar.score,
+      signals: calendar.signals,
+    }),
     fallback: {
       ctaType: fallback.ctaType,
       ctaRef: fallback.ctaRef,
@@ -1061,6 +1198,9 @@ export function destinationPayload(
       reason: resolution.destinationReason,
       source: resolution.source,
       confidence: resolution.confidence,
+      score: resolution.score,
+      signals: resolution.signals,
+      motivation: resolution.motivation,
       fallback: resolution.fallback,
     },
     destination_type: resolution.destinationType,
@@ -1069,6 +1209,9 @@ export function destinationPayload(
     destination_reason: resolution.destinationReason,
     destination_source: resolution.source,
     destination_confidence: resolution.confidence,
+    destination_score: resolution.score,
+    destination_signals: resolution.signals,
+    destination_motivation: resolution.motivation,
     cta_type: resolution.ctaType,
     cta_ref: resolution.ctaRef,
     cta_label: resolution.ctaLabel,
@@ -1088,6 +1231,9 @@ export function compiledDestinationForPackage(
     reason: resolution.destinationReason,
     source: resolution.source,
     confidence: resolution.confidence,
+    score: resolution.score,
+    signals: resolution.signals,
+    motivation: resolution.motivation,
     fallback: resolution.fallback,
   };
 }

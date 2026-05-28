@@ -79,6 +79,9 @@ export type CompiledOutputDestination = {
   reason: string | null;
   source: string | null;
   confidence: number | null;
+  score?: number | null;
+  signals?: string[];
+  motivation?: Record<string, unknown> | null;
   fallback: Record<string, unknown> | null;
 };
 
