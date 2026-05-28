@@ -1,3 +1,5 @@
+// deno-lint-ignore-file no-import-prefix
+
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
 
@@ -13,7 +15,11 @@ type EventRow = {
   created_at: string;
 };
 
-type ContentRow = { node_id: string; updated_at: string; plain_text: string | null };
+type ContentRow = {
+  node_id: string;
+  updated_at: string;
+  plain_text: string | null;
+};
 
 type BadgeRow = {
   title: string | null;
@@ -21,6 +27,12 @@ type BadgeRow = {
   tags: string[] | null;
   occurred_on: string;
   event_id: string | null;
+};
+
+type CompletionRow = {
+  completed_at: string;
+  completed_on: string | null;
+  metadata: Record<string, unknown> | null;
 };
 
 type NodeRow = {
@@ -46,6 +58,7 @@ const EVENT_WEIGHTS: Record<string, number> = {
   reflection_opened: 0.5,
   reflection_rated: 1,
   flow_skipped: -1,
+  flow_pending: 0.4,
 };
 
 const PLANNER_BADGE_WEIGHTS: Record<string, Record<string, number>> = {
@@ -62,6 +75,11 @@ const PLANNER_BADGE_WEIGHTS: Record<string, Record<string, number>> = {
   "todo:skipped": {
     isfet: 2.0,
   },
+  "todo:pending": {
+    ptah: 0.9,
+    djehuty: 0.5,
+    isfet: 0.6,
+  },
   "nutrition:done": {
     renenutet: 2.4,
     ka: 1.8,
@@ -75,6 +93,107 @@ const PLANNER_BADGE_WEIGHTS: Record<string, Record<string, number>> = {
   "nutrition:skipped": {
     isfet: 1.6,
   },
+  "nutrition:pending": {
+    renenutet: 1.0,
+    ka: 0.7,
+    isfet: 0.6,
+  },
+};
+
+export const MAAT_FLOW_COMPLETION_SOURCE_TABLE = "user_event_completions";
+
+export const MAAT_FLOW_NODE_WEIGHTS: Record<string, Record<string, number>> = {
+  "dawn-house-rite": {
+    maat: 1.0,
+    ra: 0.7,
+  },
+  "evening-threshold-rite": {
+    maat: 1.0,
+    ra: 0.5,
+    ausar: 0.4,
+  },
+  "track-the-sky": {
+    maat: 1.0,
+    nut: 0.8,
+    ra: 0.55,
+  },
+  "the-weighing": {
+    maat: 1.0,
+    djehuty: 0.9,
+  },
+  "the-offering-table": {
+    maat: 1.0,
+    nile: 0.85,
+    ka: 0.55,
+    renenutet: 0.45,
+  },
+  "the-tending": {
+    maat: 1.0,
+    heru: 0.75,
+    aset: 0.75,
+  },
+  "the-kept-word": {
+    maat: 1.0,
+    ptah: 0.7,
+    djehuty: 0.6,
+  },
+  "the-course": {
+    maat: 1.0,
+    ra: 0.7,
+    khepri: 0.65,
+    decans: 0.55,
+  },
+  "the-moon-return": {
+    maat: 1.0,
+    heru: 0.75,
+    djehuty: 0.55,
+  },
+  "the-wag": {
+    maat: 1.0,
+    ausar: 0.8,
+    anpu: 0.55,
+    ren: 0.65,
+  },
+  "the-decan-watch": {
+    maat: 1.0,
+    nut: 0.8,
+    ra: 0.55,
+    decans: 0.7,
+  },
+  "the-days-outside-the-year": {
+    maat: 1.0,
+    epagomenal_days: 0.8,
+    ausar: 0.55,
+    heru: 0.45,
+    set: 0.45,
+    aset: 0.55,
+    nebet_het: 0.55,
+  },
+  "the-open-hand": {
+    maat: 1.0,
+    hapy: 0.75,
+    nile: 0.65,
+  },
+  "the-djed": {
+    maat: 1.0,
+    djed: 0.8,
+    ausar: 0.65,
+    ptah: 0.55,
+  },
+};
+
+export const MAAT_FLOW_COMPLETION_STATUS_WEIGHTS: Record<string, number> = {
+  observed: 2.4,
+  observed_partly: 1.2,
+  observed_from_inside: 1.5,
+  names_spoken: 1.7,
+  raised: 2.4,
+  conversation_pending: 0.45,
+};
+
+export const MAAT_FLOW_SKIPPED_COMPLETION_NODE_WEIGHTS = {
+  maat: 0.35,
+  isfet: 0.9,
 };
 
 function getClient(req: Request) {
@@ -86,7 +205,10 @@ function getClient(req: Request) {
 
 function recencyWeight(dateStr: string, now = new Date()) {
   const d = new Date(dateStr);
-  const days = Math.max(0, (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+  const days = Math.max(
+    0,
+    (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24),
+  );
   if (days <= 14) return 1.0;
   if (days <= 60) return 0.5;
   return 0.2;
@@ -111,7 +233,41 @@ function normalizeText(value: string | null | undefined) {
 }
 
 function normalizeTags(tags: string[] | null | undefined) {
-  return new Set((tags ?? []).map((tag) => String(tag).trim().toLowerCase()).filter(Boolean));
+  return new Set(
+    (tags ?? []).map((tag) => String(tag).trim().toLowerCase()).filter(Boolean),
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function stringArrayValue(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => stringValue(item).toLowerCase())
+    .filter(Boolean);
+}
+
+function normalizeCompletionStatus(value: unknown) {
+  const raw = stringValue(value).toLowerCase().replace(/\s+/g, "_");
+  if (raw === "observed") return "observed";
+  if (raw === "observed_partly" || raw === "partly_observed") {
+    return "observed_partly";
+  }
+  if (raw === "observed_from_inside" || raw === "observed_inside") {
+    return "observed_from_inside";
+  }
+  if (raw === "partly") return "observed_partly";
+  if (raw === "skipped") return "skipped";
+  if (raw === "names_spoken") return "names_spoken";
+  if (raw === "raised") return "raised";
+  if (raw === "conversation_pending") return "conversation_pending";
+  return null;
 }
 
 function plannerBadgeKind(tags: Set<string>, eventId: string | null) {
@@ -133,7 +289,60 @@ function plannerBadgeState(tags: Set<string>) {
     return "partial";
   }
   if (tags.has("state:skipped")) return "skipped";
+  if (tags.has("state:pending")) return "pending";
   return null;
+}
+
+function scoreMaatFlowCompletion(
+  completion: CompletionRow,
+  nodeScores: Map<string, number>,
+  completionDayNodes: Map<string, Set<string>>,
+) {
+  const metadata = isRecord(completion.metadata) ? completion.metadata : {};
+  const flowKey = stringValue(metadata.flow_key).toLowerCase();
+  const graph = isRecord(metadata.knowledge_graph)
+    ? metadata.knowledge_graph
+    : {};
+  const graphVersion = stringValue(graph.version);
+  const isMaatCompletion = graphVersion === "maat_flow_completion_v1" ||
+    flowKey in MAAT_FLOW_NODE_WEIGHTS;
+  if (!isMaatCompletion) return;
+
+  const status = normalizeCompletionStatus(metadata.status);
+  if (!status) return;
+
+  const recency = recencyWeight(completion.completed_at);
+  const day = (completion.completed_on || completion.completed_at).substring(
+    0,
+    10,
+  );
+  if (!completionDayNodes.has(day)) completionDayNodes.set(day, new Set());
+  const daySet = completionDayNodes.get(day)!;
+
+  if (status === "skipped") {
+    Object.entries(MAAT_FLOW_SKIPPED_COMPLETION_NODE_WEIGHTS).forEach(
+      ([slug, weight]) => {
+        addScore(nodeScores, slug, weight * recency);
+        daySet.add(slug);
+      },
+    );
+    return;
+  }
+
+  const baseWeight = MAAT_FLOW_COMPLETION_STATUS_WEIGHTS[status] ?? 0;
+  if (baseWeight <= 0) return;
+
+  const weightedNodes: Record<string, number> = {
+    ...(MAAT_FLOW_NODE_WEIGHTS[flowKey] ?? {}),
+  };
+  for (const slug of stringArrayValue(graph.node_slugs)) {
+    weightedNodes[slug] = Math.max(weightedNodes[slug] ?? 0, 0.7);
+  }
+
+  Object.entries(weightedNodes).forEach(([slug, nodeWeight]) => {
+    addScore(nodeScores, slug, baseWeight * nodeWeight * recency);
+    daySet.add(slug);
+  });
 }
 
 function buildNodeTerms(nodes: NodeRow[]) {
@@ -182,9 +391,11 @@ function scorePlannerBadge(
   const daySet = plannerDayNodes.get(day)!;
   weightedSlugs.forEach((slug) => daySet.add(slug));
 
-  const combinedText = `${normalizeText(badge.title)} ${normalizeText(
-    badge.details,
-  )}`;
+  const combinedText = `${normalizeText(badge.title)} ${
+    normalizeText(
+      badge.details,
+    )
+  }`;
   if (!combinedText.trim()) return;
 
   nodeTerms.forEach((terms, slug) => {
@@ -196,9 +407,11 @@ function scorePlannerBadge(
   });
 }
 
-serve(async (req) => {
+export async function handleRebuildPersonalGraphRequest(req: Request) {
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405 });
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+    });
   }
   try {
     const body = await req.json().catch(() => ({}));
@@ -209,7 +422,9 @@ serve(async (req) => {
       error: userErr,
     } = await client.auth.getUser();
     if (userErr || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+      });
     }
 
     const since = new Date();
@@ -217,7 +432,14 @@ serve(async (req) => {
     const sinceIso = since.toISOString();
     const sinceDay = sinceIso.substring(0, 10);
 
-    const [{ data: links }, { data: events }, { data: content }, { data: nodesMap }, { data: badges }] = await Promise.all([
+    const [
+      { data: links },
+      { data: events },
+      { data: content },
+      { data: nodesMap },
+      { data: badges },
+      { data: completions },
+    ] = await Promise.all([
       client
         .from("insight_links")
         .select("target_type,target_id,created_at")
@@ -238,6 +460,11 @@ serve(async (req) => {
         .select("title,details,tags,occurred_on,event_id")
         .eq("user_id", user.id)
         .gte("occurred_on", sinceDay),
+      client
+        .from(MAAT_FLOW_COMPLETION_SOURCE_TABLE)
+        .select("completed_at,completed_on,metadata")
+        .eq("user_id", user.id)
+        .gte("completed_at", sinceIso),
     ]);
 
     const idToSlug = new Map<string, string>();
@@ -257,7 +484,9 @@ serve(async (req) => {
     (events ?? []).forEach((ev: EventRow) => {
       const weight = EVENT_WEIGHTS[ev.event_type] ?? 0;
       const slug = ev.node_id ? idToSlug.get(ev.node_id) : null;
-      if (slug && weight !== 0) addScore(nodeScores, slug, weight * recencyWeight(ev.created_at));
+      if (slug && weight !== 0) {
+        addScore(nodeScores, slug, weight * recencyWeight(ev.created_at));
+      }
     });
 
     (content ?? []).forEach((c: ContentRow) => {
@@ -269,6 +498,11 @@ serve(async (req) => {
     const plannerDayNodes = new Map<string, Set<string>>();
     (badges ?? []).forEach((badge: BadgeRow) => {
       scorePlannerBadge(badge, nodeScores, plannerDayNodes, nodeTerms);
+    });
+
+    const completionDayNodes = new Map<string, Set<string>>();
+    (completions ?? []).forEach((completion: CompletionRow) => {
+      scoreMaatFlowCompletion(completion, nodeScores, completionDayNodes);
     });
 
     // Edge scores: based on co-occurrence of node links within same day
@@ -283,6 +517,11 @@ serve(async (req) => {
       byDay.get(day)!.add(slug);
     });
     plannerDayNodes.forEach((slugs, day) => {
+      if (!byDay.has(day)) byDay.set(day, new Set());
+      const bucket = byDay.get(day)!;
+      slugs.forEach((slug) => bucket.add(slug));
+    });
+    completionDayNodes.forEach((slugs, day) => {
       if (!byDay.has(day)) byDay.set(day, new Set());
       const bucket = byDay.get(day)!;
       slugs.forEach((slug) => bucket.add(slug));
@@ -323,18 +562,29 @@ serve(async (req) => {
       last_computed_at: new Date().toISOString(),
     };
 
-    const { error: upsertErr } = await client.from("reflection_profiles").upsert({
-      user_id: user.id,
-      ...profilePayload,
-    });
+    const { error: upsertErr } = await client.from("reflection_profiles")
+      .upsert({
+        user_id: user.id,
+        ...profilePayload,
+      });
     if (upsertErr) {
       console.error("upsert profile error", upsertErr);
-      return new Response(JSON.stringify({ error: upsertErr.message }), { status: 400 });
+      return new Response(JSON.stringify({ error: upsertErr.message }), {
+        status: 400,
+      });
     }
 
-    return new Response(JSON.stringify({ profile: profilePayload }), { status: 200 });
+    return new Response(JSON.stringify({ profile: profilePayload }), {
+      status: 200,
+    });
   } catch (e) {
     console.error("rebuild_personal_graph error", e);
-    return new Response(JSON.stringify({ error: "Server error" }), { status: 500 });
+    return new Response(JSON.stringify({ error: "Server error" }), {
+      status: 500,
+    });
   }
-});
+}
+
+if (import.meta.main) {
+  serve(handleRebuildPersonalGraphRequest);
+}
