@@ -16,5 +16,61 @@ jobs:
         with:
           deno-version: v2.x
 
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.84.2
+
+      - name: Output quality gates
+        run: |
+          deno check \
+            supabase/functions/_shared/output_control.ts \
+            supabase/functions/_shared/maat_constitution.ts \
+            supabase/functions/_shared/maat_output_eval_cases.ts \
+            supabase/functions/_shared/maat_output_eval_runner.ts \
+            supabase/functions/_shared/maat_output_telemetry.ts \
+            supabase/functions/_shared/maat_output_review.ts \
+            supabase/functions/_shared/maat_output_dogfood.ts
+          deno lint \
+            supabase/functions/_shared/output_control.ts \
+            supabase/functions/_shared/maat_constitution.ts \
+            supabase/functions/_shared/maat_output_eval_cases.ts \
+            supabase/functions/_shared/maat_output_eval_runner.ts \
+            supabase/functions/_shared/maat_output_eval_runner_test.ts \
+            supabase/functions/_shared/maat_output_telemetry.ts \
+            supabase/functions/_shared/maat_output_telemetry_test.ts \
+            supabase/functions/_shared/maat_output_review.ts \
+            supabase/functions/_shared/maat_output_dogfood.ts \
+            supabase/functions/_shared/maat_output_dogfood_test.ts
+          deno test --allow-env \
+            supabase/functions/_shared/output_control_test.ts \
+            supabase/functions/_shared/maat_constitution_test.ts \
+            supabase/functions/_shared/maat_output_eval_runner_test.ts \
+            supabase/functions/_shared/maat_output_telemetry_test.ts \
+            supabase/functions/_shared/maat_output_dogfood_test.ts
+
       - name: Test Supabase edge functions
         run: deno test --allow-env supabase/functions/
+
+      - name: Migration smoke test
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          supabase db reset
+          DB_URL="$(supabase status -o env | sed -n 's/^DB_URL="\(.*\)"$/\1/p')"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/maat_output_truth_loop_smoke.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/maat_delivery_push_release_gate_smoke.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "
+          do \$\$
+          declare
+            blocker_count integer;
+          begin
+            select count(*)::integer
+              into blocker_count
+            from public.maat_delivery_push_release_blockers;
+
+            if blocker_count <> 0 then
+              raise exception 'maat_delivery_push_release_blockers must be 0, got %', blocker_count;
+            end if;
+          end
+          \$\$;
+          "
