@@ -414,6 +414,35 @@ $$;
 ALTER FUNCTION "public"."can_view_shared_calendar_members"("p_calendar_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."can_view_shared_calendar_member_row"("p_calendar_id" "uuid", "p_member_status" "text") RETURNS boolean
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+  select exists (
+    select 1
+    from public.shared_calendars sc
+    where sc.id = p_calendar_id
+      and sc.deleted_at is null
+      and (
+        sc.owner_id = auth.uid()
+        or (
+          p_member_status = 'accepted'
+          and exists (
+            select 1
+            from public.shared_calendar_members self_scm
+            where self_scm.calendar_id = p_calendar_id
+              and self_scm.user_id = auth.uid()
+              and self_scm.status = 'accepted'
+          )
+        )
+      )
+  );
+$$;
+
+
+ALTER FUNCTION "public"."can_view_shared_calendar_member_row"("p_calendar_id" "uuid", "p_member_status" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."claim_due_decan_reflection_schedule"("p_now" timestamp with time zone DEFAULT "now"(), "p_limit" integer DEFAULT 25, "p_lease_seconds" integer DEFAULT 900) RETURNS TABLE("id" "uuid", "user_id" "uuid", "decan_start" "date", "decan_end" "date", "decan_name" "text", "decan_theme" "text", "decan_context_key" "text", "attempt_count" integer, "claim_token" "text")
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -3509,7 +3538,8 @@ begin
     where scm.calendar_id = p_calendar_id
       and scm.user_id = v_actor_id
       and scm.status = 'accepted'
-      and scm.role in ('owner', 'editor')
+      and scm.role = 'owner'
+      and sc.owner_id = v_actor_id
       and sc.deleted_at is null
       and sc.is_personal = false
   ) then
@@ -3640,6 +3670,265 @@ $$;
 
 
 ALTER FUNCTION "public"."leave_shared_calendar"("p_calendar_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."list_shared_calendar_members"("p_calendar_id" "uuid") RETURNS TABLE("user_id" "uuid", "role" "text", "status" "text", "invited_by" "uuid", "invited_at" timestamp with time zone, "responded_at" timestamp with time zone, "updated_at" timestamp with time zone, "handle" "text", "display_name" "text", "avatar_url" "text")
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+declare
+  v_actor_id uuid := auth.uid();
+  v_is_owner boolean;
+begin
+  if v_actor_id is null then
+    raise exception 'AUTH_REQUIRED';
+  end if;
+
+  select sc.owner_id = v_actor_id
+    into v_is_owner
+  from public.shared_calendars sc
+  where sc.id = p_calendar_id
+    and sc.deleted_at is null
+    and sc.is_personal = false;
+
+  if v_is_owner is null then
+    raise exception 'CALENDAR_NOT_FOUND';
+  end if;
+
+  if not v_is_owner and not exists (
+    select 1
+    from public.shared_calendar_members scm
+    where scm.calendar_id = p_calendar_id
+      and scm.user_id = v_actor_id
+      and scm.status = 'accepted'
+  ) then
+    raise exception 'CALENDAR_NOT_ACCESSIBLE';
+  end if;
+
+  return query
+  select
+    scm.user_id,
+    scm.role,
+    scm.status,
+    scm.invited_by,
+    scm.created_at as invited_at,
+    scm.responded_at,
+    scm.updated_at,
+    p.handle,
+    p.display_name,
+    p.avatar_url
+  from public.shared_calendar_members scm
+  left join public.profiles p
+    on p.id = scm.user_id
+  where scm.calendar_id = p_calendar_id
+    and (
+      scm.status = 'accepted'
+      or (v_is_owner and scm.status = 'pending')
+    )
+  order by
+    case scm.status
+      when 'accepted' then 0
+      when 'pending' then 1
+      else 2
+    end,
+    case scm.role
+      when 'owner' then 0
+      when 'editor' then 1
+      when 'viewer' then 2
+      else 3
+    end,
+    coalesce(nullif(btrim(p.display_name), ''), nullif(btrim(p.handle), ''), scm.user_id::text);
+end;
+$$;
+
+
+ALTER FUNCTION "public"."list_shared_calendar_members"("p_calendar_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."remove_shared_calendar_member"("p_calendar_id" "uuid", "p_user_id" "uuid") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+declare
+  v_actor_id uuid := auth.uid();
+begin
+  if v_actor_id is null then
+    raise exception 'AUTH_REQUIRED';
+  end if;
+
+  if p_user_id is null then
+    raise exception 'MEMBER_REQUIRED';
+  end if;
+
+  if p_user_id = v_actor_id then
+    raise exception 'CANNOT_REMOVE_SELF';
+  end if;
+
+  if not exists (
+    select 1
+    from public.shared_calendar_members scm
+    join public.shared_calendars sc
+      on sc.id = scm.calendar_id
+    where scm.calendar_id = p_calendar_id
+      and scm.user_id = v_actor_id
+      and scm.status = 'accepted'
+      and scm.role = 'owner'
+      and sc.owner_id = v_actor_id
+      and sc.deleted_at is null
+      and sc.is_personal = false
+  ) then
+    raise exception 'CALENDAR_NOT_MANAGEABLE';
+  end if;
+
+  delete from public.shared_calendar_members scm
+   where scm.calendar_id = p_calendar_id
+     and scm.user_id = p_user_id
+     and scm.status = 'accepted'
+     and scm.role <> 'owner';
+
+  if not found then
+    raise exception 'MEMBER_NOT_FOUND';
+  end if;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."remove_shared_calendar_member"("p_calendar_id" "uuid", "p_user_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."revoke_shared_calendar_invite"("p_calendar_id" "uuid", "p_user_id" "uuid") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+declare
+  v_actor_id uuid := auth.uid();
+begin
+  if v_actor_id is null then
+    raise exception 'AUTH_REQUIRED';
+  end if;
+
+  if p_user_id is null then
+    raise exception 'INVITEE_REQUIRED';
+  end if;
+
+  if p_user_id = v_actor_id then
+    raise exception 'CANNOT_REVOKE_SELF';
+  end if;
+
+  if not exists (
+    select 1
+    from public.shared_calendar_members scm
+    join public.shared_calendars sc
+      on sc.id = scm.calendar_id
+    where scm.calendar_id = p_calendar_id
+      and scm.user_id = v_actor_id
+      and scm.status = 'accepted'
+      and scm.role = 'owner'
+      and sc.owner_id = v_actor_id
+      and sc.deleted_at is null
+      and sc.is_personal = false
+  ) then
+    raise exception 'CALENDAR_NOT_MANAGEABLE';
+  end if;
+
+  delete from public.shared_calendar_members scm
+   where scm.calendar_id = p_calendar_id
+     and scm.user_id = p_user_id
+     and scm.status = 'pending'
+     and scm.role <> 'owner';
+
+  if not found then
+    raise exception 'INVITE_NOT_FOUND';
+  end if;
+
+  update public.shared_calendar_notifications scn
+     set deleted_at = now(),
+         updated_at = now()
+   where scn.calendar_id = p_calendar_id
+     and scn.recipient_id = p_user_id
+     and scn.kind = 'calendar_invite'
+     and scn.deleted_at is null;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."revoke_shared_calendar_invite"("p_calendar_id" "uuid", "p_user_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_shared_calendar_member_role"("p_calendar_id" "uuid", "p_user_id" "uuid", "p_role" "text") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+declare
+  v_actor_id uuid := auth.uid();
+  v_role text := coalesce(nullif(btrim(p_role), ''), '');
+  v_status text;
+begin
+  if v_actor_id is null then
+    raise exception 'AUTH_REQUIRED';
+  end if;
+
+  if p_user_id is null then
+    raise exception 'MEMBER_REQUIRED';
+  end if;
+
+  if p_user_id = v_actor_id then
+    raise exception 'CANNOT_CHANGE_SELF';
+  end if;
+
+  if v_role not in ('editor', 'viewer') then
+    raise exception 'INVALID_ROLE';
+  end if;
+
+  if not exists (
+    select 1
+    from public.shared_calendar_members scm
+    join public.shared_calendars sc
+      on sc.id = scm.calendar_id
+    where scm.calendar_id = p_calendar_id
+      and scm.user_id = v_actor_id
+      and scm.status = 'accepted'
+      and scm.role = 'owner'
+      and sc.owner_id = v_actor_id
+      and sc.deleted_at is null
+      and sc.is_personal = false
+  ) then
+    raise exception 'CALENDAR_NOT_MANAGEABLE';
+  end if;
+
+  update public.shared_calendar_members scm
+     set role = v_role,
+         updated_at = now()
+   where scm.calendar_id = p_calendar_id
+     and scm.user_id = p_user_id
+     and scm.status in ('accepted', 'pending')
+     and scm.role <> 'owner'
+  returning scm.status
+    into v_status;
+
+  if not found then
+    raise exception 'MEMBER_NOT_FOUND';
+  end if;
+
+  if v_status = 'pending' then
+    update public.shared_calendar_notifications scn
+       set payload_json = jsonb_set(
+             coalesce(scn.payload_json, '{}'::jsonb),
+             '{role}',
+             to_jsonb(v_role),
+             true
+           ),
+           updated_at = now()
+     where scn.calendar_id = p_calendar_id
+       and scn.recipient_id = p_user_id
+       and scn.kind = 'calendar_invite'
+       and scn.deleted_at is null;
+  end if;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."update_shared_calendar_member_role"("p_calendar_id" "uuid", "p_user_id" "uuid", "p_role" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."log_flow_inserts"() RETURNS "trigger"
@@ -5565,6 +5854,37 @@ $$;
 
 
 ALTER FUNCTION "public"."touch_updated_at"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."enforce_maat_guidance_delivery_caps"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+declare
+  existing_count integer;
+begin
+  if new.kind = 'drift_nudge' then
+    perform pg_advisory_xact_lock(hashtext(new.user_id::text || ':' || new.decan_period_key || ':drift_nudge'));
+
+    select count(*)
+      into existing_count
+      from public.maat_guidance_deliveries d
+     where d.user_id = new.user_id
+       and d.decan_period_key = new.decan_period_key
+       and d.kind = 'drift_nudge'
+       and d.id is distinct from new.id;
+
+    if existing_count >= 2 then
+      raise exception 'drift_nudge cap reached for this decan'
+        using errcode = '23514';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."enforce_maat_guidance_delivery_caps"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."try_parse_bigint"("p_value" "text") RETURNS bigint
@@ -8098,14 +8418,15 @@ COMMENT ON TABLE "public"."insight_posts" IS 'Snapshot posts created from node i
 CREATE TABLE IF NOT EXISTS "public"."journal_badges" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid" NOT NULL,
-    "entry_id" "uuid" NOT NULL,
+    "entry_id" "uuid",
+    "badge_id" "text",
     "title" "text",
     "details" "text",
     "tags" "text"[],
     "occurred_on" "date" NOT NULL,
     "occurred_at" timestamp with time zone,
     "flow_id" bigint,
-    "event_id" "uuid",
+    "event_id" "text",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
@@ -8409,7 +8730,7 @@ CREATE TABLE IF NOT EXISTS "public"."reflection_generations" (
     "model_version" "text",
     "metadata" "jsonb" DEFAULT '{}'::"jsonb",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "reflection_generations_period_type_check" CHECK (("period_type" = ANY (ARRAY['daily'::"text", 'decan'::"text", 'monthly'::"text", 'manual'::"text"])))
+    CONSTRAINT "reflection_generations_period_type_check" CHECK (("period_type" = ANY (ARRAY['daily'::"text", 'decan'::"text", 'monthly'::"text", 'manual'::"text", 'decan_opening'::"text", 'maat_nudge'::"text"])))
 );
 
 
@@ -8430,6 +8751,150 @@ CREATE TABLE IF NOT EXISTS "public"."reflection_profiles" (
 
 
 ALTER TABLE "public"."reflection_profiles" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."maat_user_baselines" (
+    "user_id" "uuid" NOT NULL,
+    "computed_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "stats" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."maat_user_baselines" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."maat_snapshots" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "window_date" "date" NOT NULL,
+    "decan_period_key" "text" NOT NULL,
+    "window_start" "date" NOT NULL,
+    "window_end" "date" NOT NULL,
+    "dimensions" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "score" integer DEFAULT 0 NOT NULL,
+    "band" "text" NOT NULL,
+    "reflection_move" "text" NOT NULL,
+    "lead_axis" "text" NOT NULL,
+    "correction_axes" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "hard_gates" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "source" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "maat_snapshots_band_check" CHECK (("band" = ANY (ARRAY['maat'::"text", 'leaning_maat'::"text", 'mixed'::"text", 'leaning_isfet'::"text", 'isfet_patterned'::"text"]))),
+    CONSTRAINT "maat_snapshots_reflection_move_check" CHECK (("reflection_move" = ANY (ARRAY['affirm'::"text", 'inquire'::"text", 'correct'::"text"])))
+);
+
+
+ALTER TABLE "public"."maat_snapshots" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."maat_guidance_deliveries" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "kind" "text" NOT NULL,
+    "decan_period_key" "text" NOT NULL,
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "priority" integer NOT NULL,
+    "teaser_text" "text" NOT NULL,
+    "body_text" "text" NOT NULL,
+    "payload" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "cta_type" "text" DEFAULT 'none'::"text" NOT NULL,
+    "cta_ref" "text",
+    "generation_id" "uuid",
+    "trigger_reason" "text",
+    "shown_at" timestamp with time zone,
+    "dismissed_at" timestamp with time zone,
+    "opened_at" timestamp with time zone,
+    "acted_at" timestamp with time zone,
+    "expired_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "maat_guidance_deliveries_cta_type_check" CHECK (("cta_type" = ANY (ARRAY['none'::"text", 'node'::"text", 'flow'::"text", 'flow_template'::"text", 'flow_personalized'::"text"]))),
+    CONSTRAINT "maat_guidance_deliveries_kind_check" CHECK (("kind" = ANY (ARRAY['decan_opening'::"text", 'drift_nudge'::"text", 'strength_nudge'::"text"]))),
+    CONSTRAINT "maat_guidance_deliveries_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'shown'::"text", 'dismissed'::"text", 'opened'::"text", 'acted'::"text", 'expired'::"text"])))
+);
+
+
+ALTER TABLE "public"."maat_guidance_deliveries" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."maat_flow_briefs" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "decan_period_key" "text" NOT NULL,
+    "delivery_id" "uuid",
+    "brief_id" "text" NOT NULL,
+    "policy_version" "text" DEFAULT 'maat_flow_brief_v1'::"text" NOT NULL,
+    "brief" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "fingerprint" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "fallback_template_key" "text",
+    "generated_at" timestamp with time zone,
+    "generation_id" "uuid",
+    "flow_id" bigint,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."maat_flow_briefs" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."maat_corrections" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "decan_period_key" "text" NOT NULL,
+    "snapshot_id" "uuid",
+    "status" "text" DEFAULT 'open'::"text" NOT NULL,
+    "lead_axis" "text",
+    "hard_gates" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "payload" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "completed_at" timestamp with time zone,
+    "dismissed_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "maat_corrections_status_check" CHECK (("status" = ANY (ARRAY['open'::"text", 'completed'::"text", 'dismissed'::"text", 'expired'::"text"])))
+);
+
+
+ALTER TABLE "public"."maat_corrections" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."maat_guidance_evaluations" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "snapshot_id" "uuid",
+    "decan_period_key" "text" NOT NULL,
+    "window_date" "date" NOT NULL,
+    "policy_version" "text" NOT NULL,
+    "maturity_level" "text" NOT NULL,
+    "shaping_fingerprint" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "decision" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "suppressed" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "created_delivery_ids" "uuid"[] DEFAULT '{}'::"uuid"[] NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."maat_guidance_evaluations" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."maat_band_transitions" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "evaluation_id" "uuid",
+    "snapshot_id" "uuid",
+    "decan_period_key" "text" NOT NULL,
+    "from_window_date" "date" NOT NULL,
+    "to_window_date" "date" NOT NULL,
+    "from_band" "text" NOT NULL,
+    "to_band" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."maat_band_transitions" OWNER TO "postgres";
 
 
 CREATE SEQUENCE IF NOT EXISTS "public"."scheduled_notifications_id_seq"
@@ -8769,9 +9234,12 @@ CREATE OR REPLACE VIEW "public"."shared_calendar_filing_items_client" WITH ("sec
     ( SELECT ("count"(*))::integer AS "count"
            FROM "public"."shared_calendar_members" "inner_scm"
           WHERE (("inner_scm"."calendar_id" = "sc"."id") AND ("inner_scm"."status" = 'accepted'::"text"))) AS "member_count",
-    ( SELECT ("count"(*))::integer AS "count"
-           FROM "public"."shared_calendar_members" "inner_scm"
-          WHERE (("inner_scm"."calendar_id" = "sc"."id") AND ("inner_scm"."status" = 'pending'::"text"))) AS "pending_invite_count",
+        CASE
+            WHEN ("sc"."owner_id" = "auth"."uid"()) THEN ( SELECT ("count"(*))::integer AS "count"
+               FROM "public"."shared_calendar_members" "inner_scm"
+              WHERE (("inner_scm"."calendar_id" = "sc"."id") AND ("inner_scm"."status" = 'pending'::"text")))
+            ELSE 0
+        END AS "pending_invite_count",
     COALESCE("cec"."total_event_count", (0)::bigint) AS "total_event_count",
     COALESCE("cec"."live_event_count", (0)::bigint) AS "live_event_count",
     COALESCE("cec"."inactive_event_count", (0)::bigint) AS "inactive_event_count",
@@ -8800,7 +9268,7 @@ CREATE OR REPLACE VIEW "public"."shared_calendar_filing_items_client" WITH ("sec
 ALTER VIEW "public"."shared_calendar_filing_items_client" OWNER TO "postgres";
 
 
-COMMENT ON VIEW "public"."shared_calendar_filing_items_client" IS 'Client-safe filing view for accepted calendars. Event counts are derived from user_event_filing_items_client so calendar lists share the same live/deleted rules as calendar display.';
+COMMENT ON VIEW "public"."shared_calendar_filing_items_client" IS 'Client-safe filing view for accepted calendars. Pending invite counts are owner-only; event counts are derived from user_event_filing_items_client.';
 
 
 
@@ -8824,7 +9292,7 @@ CREATE OR REPLACE VIEW "public"."shared_calendar_invite_filing_items_client" WIT
     "inviter_profile"."display_name" AS "inviter_display_name",
         CASE
             WHEN ("scm"."user_id" = "auth"."uid"()) THEN 'incoming'::"text"
-            WHEN ("scm"."invited_by" = "auth"."uid"()) THEN 'sent'::"text"
+            WHEN (("sc"."owner_id" = "auth"."uid"()) AND ("scm"."user_id" <> "auth"."uid"())) THEN 'sent'::"text"
             ELSE 'other'::"text"
         END AS "invite_direction",
     'calendar_invite'::"text" AS "item_kind",
@@ -8833,20 +9301,20 @@ CREATE OR REPLACE VIEW "public"."shared_calendar_invite_filing_items_client" WIT
     "jsonb_build_object"('item_kind', 'calendar_invite', 'lifecycle', "scm"."status", 'direction',
         CASE
             WHEN ("scm"."user_id" = "auth"."uid"()) THEN 'incoming'::"text"
-            WHEN ("scm"."invited_by" = "auth"."uid"()) THEN 'sent'::"text"
+            WHEN (("sc"."owner_id" = "auth"."uid"()) AND ("scm"."user_id" <> "auth"."uid"())) THEN 'sent'::"text"
             ELSE 'other'::"text"
         END, 'calendar', "jsonb_build_object"('calendar_id', "sc"."id", 'calendar_name', "sc"."name", 'calendar_color', "sc"."color", 'owner_id', "sc"."owner_id"), 'membership', "jsonb_build_object"('role', "scm"."role", 'status', "scm"."status", 'invited_by', "scm"."invited_by", 'invitee_id', "scm"."user_id")) AS "filing_reasons"
    FROM ((("public"."shared_calendar_members" "scm"
      JOIN "public"."shared_calendars" "sc" ON (("sc"."id" = "scm"."calendar_id")))
      LEFT JOIN "public"."profiles" "inviter_profile" ON (("inviter_profile"."id" = "scm"."invited_by")))
      LEFT JOIN "public"."profiles" "invitee_profile" ON (("invitee_profile"."id" = "scm"."user_id")))
-  WHERE (("sc"."deleted_at" IS NULL) AND ("scm"."status" = 'pending'::"text") AND (("scm"."user_id" = "auth"."uid"()) OR (("scm"."invited_by" = "auth"."uid"()) AND ("scm"."user_id" <> "auth"."uid"()))));
+  WHERE (("sc"."deleted_at" IS NULL) AND ("scm"."status" = 'pending'::"text") AND (("scm"."user_id" = "auth"."uid"()) OR (("sc"."owner_id" = "auth"."uid"()) AND ("scm"."user_id" <> "auth"."uid"()))));
 
 
 ALTER VIEW "public"."shared_calendar_invite_filing_items_client" OWNER TO "postgres";
 
 
-COMMENT ON VIEW "public"."shared_calendar_invite_filing_items_client" IS 'Client-safe filing view for pending shared calendar invites, split by incoming vs sent direction with structured filing reasons.';
+COMMENT ON VIEW "public"."shared_calendar_invite_filing_items_client" IS 'Client-safe filing view for pending shared calendar invites. Incoming rows are visible to invitees; sent rows are owner-only.';
 
 
 
@@ -8887,7 +9355,7 @@ CREATE OR REPLACE VIEW "public"."shared_calendar_sent_pending_invites" WITH ("se
    FROM (("public"."shared_calendar_members" "scm"
      JOIN "public"."shared_calendars" "sc" ON (("sc"."id" = "scm"."calendar_id")))
      LEFT JOIN "public"."profiles" "invitee_profile" ON (("invitee_profile"."id" = "scm"."user_id")))
-  WHERE (("sc"."deleted_at" IS NULL) AND ("scm"."invited_by" = "auth"."uid"()) AND ("scm"."user_id" <> "auth"."uid"()) AND ("scm"."status" = 'pending'::"text"));
+  WHERE (("sc"."deleted_at" IS NULL) AND ("sc"."owner_id" = "auth"."uid"()) AND ("scm"."user_id" <> "auth"."uid"()) AND ("scm"."status" = 'pending'::"text"));
 
 
 ALTER VIEW "public"."shared_calendar_sent_pending_invites" OWNER TO "postgres";
@@ -8910,9 +9378,12 @@ CREATE OR REPLACE VIEW "public"."shared_calendar_summaries" WITH ("security_invo
     ( SELECT ("count"(*))::integer AS "count"
            FROM "public"."shared_calendar_members" "inner_scm"
           WHERE (("inner_scm"."calendar_id" = "sc"."id") AND ("inner_scm"."status" = 'accepted'::"text"))) AS "member_count",
-    ( SELECT ("count"(*))::integer AS "count"
-           FROM "public"."shared_calendar_members" "inner_scm"
-          WHERE (("inner_scm"."calendar_id" = "sc"."id") AND ("inner_scm"."status" = 'pending'::"text"))) AS "pending_invite_count"
+        CASE
+            WHEN ("sc"."owner_id" = "auth"."uid"()) THEN ( SELECT ("count"(*))::integer AS "count"
+               FROM "public"."shared_calendar_members" "inner_scm"
+              WHERE (("inner_scm"."calendar_id" = "sc"."id") AND ("inner_scm"."status" = 'pending'::"text")))
+            ELSE 0
+        END AS "pending_invite_count"
    FROM (("public"."shared_calendars" "sc"
      JOIN "public"."shared_calendar_members" "scm" ON (("scm"."calendar_id" = "sc"."id")))
      LEFT JOIN "public"."profiles" "owner_profile" ON (("owner_profile"."id" = "sc"."owner_id")))
@@ -9000,11 +9471,413 @@ CREATE TABLE IF NOT EXISTS "public"."user_choice_events" (
     "reflection_entry_id" "uuid",
     "metadata" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "user_choice_events_event_type_check" CHECK (("event_type" = ANY (ARRAY['node_opened'::"text", 'node_link_tapped'::"text", 'node_insight_saved'::"text", 'journal_linked_to_node'::"text", 'reflection_linked_to_node'::"text", 'node_linked_to_journal'::"text", 'node_linked_to_reflection'::"text", 'flow_completed'::"text", 'flow_skipped'::"text", 'reflection_opened'::"text", 'reflection_saved'::"text", 'reflection_rated'::"text", 'cycle_field_saved'::"text", 'checklist_completed'::"text", 'checklist_partial'::"text", 'checklist_skipped'::"text", 'todo_created'::"text", 'todo_completed'::"text", 'suggestion_accepted'::"text", 'suggestion_dismissed'::"text", 'suggestion_snoozed'::"text"])))
+    CONSTRAINT "user_choice_events_event_type_check" CHECK (("event_type" = ANY (ARRAY['node_opened'::"text", 'node_link_tapped'::"text", 'node_insight_saved'::"text", 'journal_linked_to_node'::"text", 'reflection_linked_to_node'::"text", 'node_linked_to_journal'::"text", 'node_linked_to_reflection'::"text", 'flow_completed'::"text", 'flow_skipped'::"text", 'reflection_opened'::"text", 'reflection_saved'::"text", 'reflection_rated'::"text", 'cycle_field_saved'::"text", 'checklist_completed'::"text", 'checklist_partial'::"text", 'checklist_skipped'::"text", 'todo_created'::"text", 'todo_completed'::"text", 'suggestion_accepted'::"text", 'suggestion_dismissed'::"text", 'suggestion_snoozed'::"text", 'maat_correction_opened'::"text", 'maat_correction_recovered'::"text", 'maat_correction_completed'::"text", 'maat_correction_dismissed'::"text"])))
 );
 
 
 ALTER TABLE "public"."user_choice_events" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."maat_guidance_drift_outcomes" WITH ("security_invoker"='true') AS
+ WITH "acted" AS (
+         SELECT "e"."id" AS "suggestion_event_id",
+            "e"."user_id",
+            "e"."created_at" AS "acted_at",
+            ("e"."created_at")::"date" AS "acted_date",
+            "d"."id" AS "delivery_id",
+            "d"."decan_period_key",
+            "d"."cta_type",
+            "d"."cta_ref"
+           FROM ("public"."user_choice_events" "e"
+             JOIN "public"."maat_guidance_deliveries" "d" ON ((("d"."id")::"text" = ("e"."metadata" ->> 'delivery_id'::"text"))))
+          WHERE (("e"."event_type" = 'suggestion_accepted'::"text") AND ("d"."kind" = 'drift_nudge'::"text"))
+        ), "nutrition" AS (
+         SELECT "jb"."user_id",
+            ("jb"."occurred_on")::"date" AS "occurred_on",
+                CASE
+                    WHEN ('state:done'::"text" = ANY (COALESCE("jb"."tags", '{}'::"text"[]))) THEN 1
+                    ELSE 0
+                END AS "done_count",
+                CASE
+                    WHEN ('state:skipped'::"text" = ANY (COALESCE("jb"."tags", '{}'::"text"[]))) THEN 1
+                    ELSE 0
+                END AS "skipped_count"
+           FROM "public"."journal_badges" "jb"
+          WHERE ('kind:nutrition'::"text" = ANY (COALESCE("jb"."tags", '{}'::"text"[])))
+        ), "aggregated" AS (
+         SELECT "a"."suggestion_event_id",
+            "a"."user_id",
+            "a"."acted_at",
+            "a"."acted_date",
+            "a"."delivery_id",
+            "a"."decan_period_key",
+            "a"."cta_type",
+            "a"."cta_ref",
+            count("n"."occurred_on") FILTER (WHERE (("n"."occurred_on" >= ("a"."acted_date" - 7)) AND ("n"."occurred_on" < "a"."acted_date"))) AS "pre_nutrition_count",
+            COALESCE(sum("n"."done_count") FILTER (WHERE (("n"."occurred_on" >= ("a"."acted_date" - 7)) AND ("n"."occurred_on" < "a"."acted_date"))), (0)::bigint) AS "pre_done_count",
+            COALESCE(sum("n"."skipped_count") FILTER (WHERE (("n"."occurred_on" >= ("a"."acted_date" - 7)) AND ("n"."occurred_on" < "a"."acted_date"))), (0)::bigint) AS "pre_skipped_count",
+            count("n"."occurred_on") FILTER (WHERE (("n"."occurred_on" > "a"."acted_date") AND ("n"."occurred_on" <= ("a"."acted_date" + 7)))) AS "post_nutrition_count",
+            COALESCE(sum("n"."done_count") FILTER (WHERE (("n"."occurred_on" > "a"."acted_date") AND ("n"."occurred_on" <= ("a"."acted_date" + 7)))), (0)::bigint) AS "post_done_count",
+            COALESCE(sum("n"."skipped_count") FILTER (WHERE (("n"."occurred_on" > "a"."acted_date") AND ("n"."occurred_on" <= ("a"."acted_date" + 7)))), (0)::bigint) AS "post_skipped_count"
+           FROM ("acted" "a"
+             LEFT JOIN "nutrition" "n" ON ((("n"."user_id" = "a"."user_id") AND ("n"."occurred_on" >= ("a"."acted_date" - 7)) AND ("n"."occurred_on" <= ("a"."acted_date" + 7)))))
+          GROUP BY "a"."suggestion_event_id", "a"."user_id", "a"."acted_at", "a"."acted_date", "a"."delivery_id", "a"."decan_period_key", "a"."cta_type", "a"."cta_ref"
+        )
+ SELECT "suggestion_event_id",
+    "user_id",
+    "acted_at",
+    "delivery_id",
+    "decan_period_key",
+    "cta_type",
+    "cta_ref",
+    "pre_nutrition_count",
+    "pre_done_count",
+    "pre_skipped_count",
+        CASE
+            WHEN ("pre_nutrition_count" = 0) THEN NULL::numeric
+            ELSE "round"((("pre_done_count")::numeric / ("pre_nutrition_count")::numeric), 4)
+        END AS "pre_done_rate",
+        CASE
+            WHEN ("pre_nutrition_count" = 0) THEN NULL::numeric
+            ELSE "round"((("pre_skipped_count")::numeric / ("pre_nutrition_count")::numeric), 4)
+        END AS "pre_skipped_rate",
+    "post_nutrition_count",
+    "post_done_count",
+    "post_skipped_count",
+        CASE
+            WHEN ("post_nutrition_count" = 0) THEN NULL::numeric
+            ELSE "round"((("post_done_count")::numeric / ("post_nutrition_count")::numeric), 4)
+        END AS "post_done_rate",
+        CASE
+            WHEN ("post_nutrition_count" = 0) THEN NULL::numeric
+            ELSE "round"((("post_skipped_count")::numeric / ("post_nutrition_count")::numeric), 4)
+        END AS "post_skipped_rate",
+        CASE
+            WHEN (("pre_nutrition_count" = 0) OR ("post_nutrition_count" = 0)) THEN NULL::numeric
+            ELSE "round"(((("post_done_count")::numeric / ("post_nutrition_count")::numeric) - (("pre_done_count")::numeric / ("pre_nutrition_count")::numeric)), 4)
+        END AS "delta_done_rate",
+        CASE
+            WHEN (("pre_nutrition_count" = 0) OR ("post_nutrition_count" = 0)) THEN NULL::numeric
+            ELSE "round"(((("post_skipped_count")::numeric / ("post_nutrition_count")::numeric) - (("pre_skipped_count")::numeric / ("pre_nutrition_count")::numeric)), 4)
+        END AS "delta_skipped_rate",
+    (CURRENT_DATE > ("acted_date" + 7)) AS "post_window_complete"
+   FROM "aggregated";
+
+
+CREATE OR REPLACE VIEW "public"."maat_guidance_drift_outcome_summary" WITH ("security_invoker"='true') AS
+ SELECT ("date_trunc"('week'::"text", "acted_at"))::"date" AS "acted_week",
+    "cta_type",
+    "cta_ref",
+    count(*) AS "acted_count",
+    count(*) FILTER (WHERE "post_window_complete") AS "completed_window_count",
+    "round"(avg("delta_done_rate") FILTER (WHERE ("post_window_complete" AND ("delta_done_rate" IS NOT NULL))), 4) AS "avg_delta_done_rate",
+    "round"(avg("delta_skipped_rate") FILTER (WHERE ("post_window_complete" AND ("delta_skipped_rate" IS NOT NULL))), 4) AS "avg_delta_skipped_rate",
+    "round"(avg("pre_done_rate") FILTER (WHERE ("post_window_complete" AND ("pre_done_rate" IS NOT NULL))), 4) AS "avg_pre_done_rate",
+    "round"(avg("post_done_rate") FILTER (WHERE ("post_window_complete" AND ("post_done_rate" IS NOT NULL))), 4) AS "avg_post_done_rate"
+   FROM "public"."maat_guidance_drift_outcomes"
+  GROUP BY (("date_trunc"('week'::"text", "acted_at"))::"date"), "cta_type", "cta_ref";
+
+
+CREATE OR REPLACE VIEW "public"."maat_guidance_drift_outcome_flags" WITH ("security_invoker"='true') AS
+ WITH "measured" AS (
+         SELECT "maat_guidance_drift_outcome_summary"."cta_type",
+            "maat_guidance_drift_outcome_summary"."cta_ref",
+            "maat_guidance_drift_outcome_summary"."completed_window_count",
+            "maat_guidance_drift_outcome_summary"."avg_delta_done_rate",
+            "maat_guidance_drift_outcome_summary"."avg_delta_skipped_rate"
+           FROM "public"."maat_guidance_drift_outcome_summary"
+          WHERE ("maat_guidance_drift_outcome_summary"."completed_window_count" > 0)
+        ), "aggregated" AS (
+         SELECT "measured"."cta_type",
+            "measured"."cta_ref",
+            count(*) FILTER (WHERE ("measured"."avg_delta_done_rate" IS NOT NULL)) AS "measured_week_count",
+            COALESCE(sum("measured"."completed_window_count") FILTER (WHERE ("measured"."avg_delta_done_rate" IS NOT NULL)), (0)::numeric) AS "completed_window_count",
+            COALESCE(count(*) FILTER (WHERE ("measured"."avg_delta_done_rate" >= 0.05)), (0)::bigint) AS "positive_week_count",
+            COALESCE(count(*) FILTER (WHERE ("measured"."avg_delta_done_rate" <= '-0.05'::numeric)), (0)::bigint) AS "negative_week_count",
+            "round"((COALESCE(sum(("measured"."avg_delta_done_rate" * ("measured"."completed_window_count")::numeric)) FILTER (WHERE ("measured"."avg_delta_done_rate" IS NOT NULL)), (0)::numeric) / (NULLIF(COALESCE(sum("measured"."completed_window_count") FILTER (WHERE ("measured"."avg_delta_done_rate" IS NOT NULL)), (0)::numeric), (0)::numeric))::numeric), 4) AS "weighted_delta_done_rate",
+            "round"((COALESCE(sum(("measured"."avg_delta_skipped_rate" * ("measured"."completed_window_count")::numeric)) FILTER (WHERE ("measured"."avg_delta_skipped_rate" IS NOT NULL)), (0)::numeric) / (NULLIF(COALESCE(sum("measured"."completed_window_count") FILTER (WHERE ("measured"."avg_delta_skipped_rate" IS NOT NULL)), (0)::numeric), (0)::numeric))::numeric), 4) AS "weighted_delta_skipped_rate"
+           FROM "measured"
+          GROUP BY "measured"."cta_type", "measured"."cta_ref"
+        )
+ SELECT "cta_type",
+    "cta_ref",
+    "measured_week_count",
+    "completed_window_count",
+    "positive_week_count",
+    "negative_week_count",
+    "weighted_delta_done_rate",
+    "weighted_delta_skipped_rate",
+        CASE
+            WHEN (("completed_window_count" >= (5)::numeric) AND ("measured_week_count" >= 2) AND ("weighted_delta_done_rate" >= 0.05) AND ("positive_week_count" > "negative_week_count")) THEN 'winning'::"text"
+            WHEN (("completed_window_count" >= (5)::numeric) AND ("measured_week_count" >= 2) AND ("weighted_delta_done_rate" <= '-0.05'::numeric) AND ("negative_week_count" >= "positive_week_count")) THEN 'negative'::"text"
+            ELSE 'neutral'::"text"
+        END AS "outcome_flag"
+   FROM "aggregated";
+
+
+CREATE OR REPLACE VIEW "public"."maat_guidance_drift_outcome_flags_user" WITH ("security_invoker"='true') AS
+ WITH "measured" AS (
+         SELECT "maat_guidance_drift_outcomes"."user_id",
+            ("date_trunc"('week'::"text", "maat_guidance_drift_outcomes"."acted_at"))::"date" AS "acted_week",
+            "maat_guidance_drift_outcomes"."cta_type",
+            "maat_guidance_drift_outcomes"."cta_ref",
+            count(*) FILTER (WHERE "maat_guidance_drift_outcomes"."post_window_complete") AS "completed_window_count",
+            "round"(avg("maat_guidance_drift_outcomes"."delta_done_rate") FILTER (WHERE ("maat_guidance_drift_outcomes"."post_window_complete" AND ("maat_guidance_drift_outcomes"."delta_done_rate" IS NOT NULL))), 4) AS "avg_delta_done_rate",
+            "round"(avg("maat_guidance_drift_outcomes"."delta_skipped_rate") FILTER (WHERE ("maat_guidance_drift_outcomes"."post_window_complete" AND ("maat_guidance_drift_outcomes"."delta_skipped_rate" IS NOT NULL))), 4) AS "avg_delta_skipped_rate"
+           FROM "public"."maat_guidance_drift_outcomes"
+          GROUP BY "maat_guidance_drift_outcomes"."user_id", (("date_trunc"('week'::"text", "maat_guidance_drift_outcomes"."acted_at"))::"date"), "maat_guidance_drift_outcomes"."cta_type", "maat_guidance_drift_outcomes"."cta_ref"
+         HAVING (count(*) FILTER (WHERE "maat_guidance_drift_outcomes"."post_window_complete") > 0)
+        ), "aggregated" AS (
+         SELECT "measured"."user_id",
+            "measured"."cta_type",
+            "measured"."cta_ref",
+            count(*) FILTER (WHERE ("measured"."avg_delta_done_rate" IS NOT NULL)) AS "measured_week_count",
+            COALESCE(sum("measured"."completed_window_count") FILTER (WHERE ("measured"."avg_delta_done_rate" IS NOT NULL)), (0)::numeric) AS "completed_window_count",
+            COALESCE(count(*) FILTER (WHERE ("measured"."avg_delta_done_rate" >= 0.05)), (0)::bigint) AS "positive_week_count",
+            COALESCE(count(*) FILTER (WHERE ("measured"."avg_delta_done_rate" <= '-0.05'::numeric)), (0)::bigint) AS "negative_week_count",
+            "round"((COALESCE(sum(("measured"."avg_delta_done_rate" * ("measured"."completed_window_count")::numeric)) FILTER (WHERE ("measured"."avg_delta_done_rate" IS NOT NULL)), (0)::numeric) / (NULLIF(COALESCE(sum("measured"."completed_window_count") FILTER (WHERE ("measured"."avg_delta_done_rate" IS NOT NULL)), (0)::numeric), (0)::numeric))::numeric), 4) AS "weighted_delta_done_rate",
+            "round"((COALESCE(sum(("measured"."avg_delta_skipped_rate" * ("measured"."completed_window_count")::numeric)) FILTER (WHERE ("measured"."avg_delta_skipped_rate" IS NOT NULL)), (0)::numeric) / (NULLIF(COALESCE(sum("measured"."completed_window_count") FILTER (WHERE ("measured"."avg_delta_skipped_rate" IS NOT NULL)), (0)::numeric), (0)::numeric))::numeric), 4) AS "weighted_delta_skipped_rate"
+           FROM "measured"
+          GROUP BY "measured"."user_id", "measured"."cta_type", "measured"."cta_ref"
+        )
+ SELECT "user_id",
+    "cta_type",
+    "cta_ref",
+    "measured_week_count",
+    "completed_window_count",
+    "positive_week_count",
+    "negative_week_count",
+    "weighted_delta_done_rate",
+    "weighted_delta_skipped_rate",
+        CASE
+            WHEN (("completed_window_count" >= (5)::numeric) AND ("measured_week_count" >= 2) AND ("weighted_delta_done_rate" >= 0.05) AND ("positive_week_count" > "negative_week_count")) THEN 'winning'::"text"
+            WHEN (("completed_window_count" >= (5)::numeric) AND ("measured_week_count" >= 2) AND ("weighted_delta_done_rate" <= '-0.05'::numeric) AND ("negative_week_count" >= "positive_week_count")) THEN 'negative'::"text"
+            ELSE 'neutral'::"text"
+        END AS "outcome_flag"
+   FROM "aggregated";
+
+
+CREATE OR REPLACE VIEW "public"."maat_guidance_drift_outcome_flags_cohort" WITH ("security_invoker"='true') AS
+ WITH "outcome_context" AS (
+         SELECT "o"."user_id",
+            "o"."delivery_id",
+            "o"."decan_period_key",
+            "o"."acted_at",
+            "o"."cta_type",
+            "o"."cta_ref",
+            "o"."pre_done_rate",
+            "o"."post_done_rate",
+            "o"."delta_done_rate",
+            "o"."pre_skipped_rate",
+            "o"."post_skipped_rate",
+            "o"."delta_skipped_rate",
+            "o"."post_window_complete",
+            COALESCE("e"."maturity_level", 'unknown'::"text") AS "maturity_level",
+            NULLIF((("e"."decision" -> 'goal_profile'::"text") ->> 'key'::"text"), ''::"text") AS "goal_profile_key",
+            COALESCE(NULLIF("split_part"("p"."timezone", '/'::"text", 1), ''::"text"), 'unknown'::"text") AS "timezone_region"
+           FROM (("public"."maat_guidance_drift_outcomes" "o"
+             LEFT JOIN "public"."profiles" "p" ON (("p"."id" = "o"."user_id")))
+             LEFT JOIN LATERAL ( SELECT "e_1"."maturity_level",
+                    "e_1"."decision"
+                   FROM "public"."maat_guidance_evaluations" "e_1"
+                  WHERE (("e_1"."user_id" = "o"."user_id") AND ("e_1"."decan_period_key" = "o"."decan_period_key") AND ("e_1"."created_at" <= "o"."acted_at"))
+                  ORDER BY "e_1"."created_at" DESC
+                 LIMIT 1) "e" ON (true))
+        ), "cohort_rows" AS (
+         SELECT "o"."user_id",
+            "o"."delivery_id",
+            "o"."decan_period_key",
+            "o"."acted_at",
+            "o"."cta_type",
+            "o"."cta_ref",
+            "o"."delta_done_rate",
+            "o"."delta_skipped_rate",
+            "o"."post_window_complete",
+            'maturity_level'::"text" AS "cohort_type",
+            "o"."maturity_level" AS "cohort_key"
+           FROM "outcome_context" "o"
+        UNION ALL
+         SELECT "o"."user_id",
+            "o"."delivery_id",
+            "o"."decan_period_key",
+            "o"."acted_at",
+            "o"."cta_type",
+            "o"."cta_ref",
+            "o"."delta_done_rate",
+            "o"."delta_skipped_rate",
+            "o"."post_window_complete",
+            'goal_profile'::"text" AS "cohort_type",
+            "o"."goal_profile_key" AS "cohort_key"
+           FROM "outcome_context" "o"
+          WHERE ("o"."goal_profile_key" IS NOT NULL)
+        UNION ALL
+         SELECT "o"."user_id",
+            "o"."delivery_id",
+            "o"."decan_period_key",
+            "o"."acted_at",
+            "o"."cta_type",
+            "o"."cta_ref",
+            "o"."delta_done_rate",
+            "o"."delta_skipped_rate",
+            "o"."post_window_complete",
+            'timezone_region'::"text" AS "cohort_type",
+            "o"."timezone_region" AS "cohort_key"
+           FROM "outcome_context" "o"
+        ), "measured" AS (
+         SELECT "cohort_rows"."cohort_type",
+            "cohort_rows"."cohort_key",
+            ("date_trunc"('week'::"text", "cohort_rows"."acted_at"))::"date" AS "acted_week",
+            "cohort_rows"."cta_type",
+            "cohort_rows"."cta_ref",
+            count(*) FILTER (WHERE "cohort_rows"."post_window_complete") AS "completed_window_count",
+            "round"(avg("cohort_rows"."delta_done_rate") FILTER (WHERE ("cohort_rows"."post_window_complete" AND ("cohort_rows"."delta_done_rate" IS NOT NULL))), 4) AS "avg_delta_done_rate",
+            "round"(avg("cohort_rows"."delta_skipped_rate") FILTER (WHERE ("cohort_rows"."post_window_complete" AND ("cohort_rows"."delta_skipped_rate" IS NOT NULL))), 4) AS "avg_delta_skipped_rate"
+           FROM "cohort_rows"
+          GROUP BY "cohort_rows"."cohort_type", "cohort_rows"."cohort_key", (("date_trunc"('week'::"text", "cohort_rows"."acted_at"))::"date"), "cohort_rows"."cta_type", "cohort_rows"."cta_ref"
+         HAVING (count(*) FILTER (WHERE "cohort_rows"."post_window_complete") > 0)
+        ), "aggregated" AS (
+         SELECT "measured"."cohort_type",
+            "measured"."cohort_key",
+            "measured"."cta_type",
+            "measured"."cta_ref",
+            count(*) FILTER (WHERE ("measured"."avg_delta_done_rate" IS NOT NULL)) AS "measured_week_count",
+            COALESCE(sum("measured"."completed_window_count") FILTER (WHERE ("measured"."avg_delta_done_rate" IS NOT NULL)), (0)::numeric) AS "completed_window_count",
+            COALESCE(count(*) FILTER (WHERE ("measured"."avg_delta_done_rate" >= 0.05)), (0)::bigint) AS "positive_week_count",
+            COALESCE(count(*) FILTER (WHERE ("measured"."avg_delta_done_rate" <= '-0.05'::numeric)), (0)::bigint) AS "negative_week_count",
+            "round"((COALESCE(sum(("measured"."avg_delta_done_rate" * ("measured"."completed_window_count")::numeric)) FILTER (WHERE ("measured"."avg_delta_done_rate" IS NOT NULL)), (0)::numeric) / (NULLIF(COALESCE(sum("measured"."completed_window_count") FILTER (WHERE ("measured"."avg_delta_done_rate" IS NOT NULL)), (0)::numeric), (0)::numeric))::numeric), 4) AS "weighted_delta_done_rate",
+            "round"((COALESCE(sum(("measured"."avg_delta_skipped_rate" * ("measured"."completed_window_count")::numeric)) FILTER (WHERE ("measured"."avg_delta_skipped_rate" IS NOT NULL)), (0)::numeric) / (NULLIF(COALESCE(sum("measured"."completed_window_count") FILTER (WHERE ("measured"."avg_delta_skipped_rate" IS NOT NULL)), (0)::numeric), (0)::numeric))::numeric), 4) AS "weighted_delta_skipped_rate"
+           FROM "measured"
+          GROUP BY "measured"."cohort_type", "measured"."cohort_key", "measured"."cta_type", "measured"."cta_ref"
+        )
+ SELECT "cohort_type",
+    "cohort_key",
+    "cta_type",
+    "cta_ref",
+    "measured_week_count",
+    "completed_window_count",
+    "positive_week_count",
+    "negative_week_count",
+    "weighted_delta_done_rate",
+    "weighted_delta_skipped_rate",
+        CASE
+            WHEN (("completed_window_count" >= (5)::numeric) AND ("measured_week_count" >= 2) AND ("weighted_delta_done_rate" >= 0.05) AND ("positive_week_count" > "negative_week_count")) THEN 'winning'::"text"
+            WHEN (("completed_window_count" >= (5)::numeric) AND ("measured_week_count" >= 2) AND ("weighted_delta_done_rate" <= '-0.05'::numeric) AND ("negative_week_count" >= "positive_week_count")) THEN 'negative'::"text"
+            ELSE 'neutral'::"text"
+        END AS "outcome_flag"
+   FROM "aggregated";
+
+
+CREATE OR REPLACE VIEW "public"."maat_guidance_drift_outcome_dashboard" WITH ("security_invoker"='true') AS
+ WITH "weekly" AS (
+         SELECT "maat_guidance_drift_outcome_summary"."acted_week",
+            "maat_guidance_drift_outcome_summary"."cta_type",
+            "maat_guidance_drift_outcome_summary"."cta_ref",
+            "maat_guidance_drift_outcome_summary"."acted_count",
+            "maat_guidance_drift_outcome_summary"."completed_window_count",
+            "maat_guidance_drift_outcome_summary"."avg_delta_done_rate",
+            "maat_guidance_drift_outcome_summary"."avg_delta_skipped_rate",
+            "maat_guidance_drift_outcome_summary"."avg_pre_done_rate",
+            "maat_guidance_drift_outcome_summary"."avg_post_done_rate"
+           FROM "public"."maat_guidance_drift_outcome_summary"
+          WHERE ("maat_guidance_drift_outcome_summary"."completed_window_count" > 0)
+        ), "weekly_rollup" AS (
+         SELECT "weekly"."cta_type",
+            "weekly"."cta_ref",
+            min("weekly"."acted_week") AS "first_measured_week",
+            max("weekly"."acted_week") AS "latest_measured_week",
+            "jsonb_agg"("jsonb_build_object"('week', "weekly"."acted_week", 'acted_count', "weekly"."acted_count", 'completed_window_count', "weekly"."completed_window_count", 'avg_delta_done_rate', "weekly"."avg_delta_done_rate", 'avg_delta_skipped_rate', "weekly"."avg_delta_skipped_rate", 'avg_pre_done_rate', "weekly"."avg_pre_done_rate", 'avg_post_done_rate', "weekly"."avg_post_done_rate") ORDER BY "weekly"."acted_week" DESC) AS "weekly_history"
+           FROM "weekly"
+          GROUP BY "weekly"."cta_type", "weekly"."cta_ref"
+        )
+ SELECT "f"."cta_type",
+    "f"."cta_ref",
+    "f"."outcome_flag",
+        CASE
+            WHEN ("f"."outcome_flag" = 'winning'::"text") THEN 'prefer_when_candidate'::"text"
+            WHEN ("f"."outcome_flag" = 'negative'::"text") THEN 'avoid_when_alternative_exists'::"text"
+            ELSE 'observe_only'::"text"
+        END AS "routing_effect",
+    "f"."measured_week_count",
+    "f"."completed_window_count",
+    "f"."positive_week_count",
+    "f"."negative_week_count",
+    "f"."weighted_delta_done_rate",
+    "f"."weighted_delta_skipped_rate",
+    "w"."first_measured_week",
+    "w"."latest_measured_week",
+    COALESCE("w"."weekly_history", '[]'::"jsonb") AS "weekly_history",
+    'requires >=5 completed windows, >=2 measured weeks, and abs(weighted_delta_done_rate) >= 0.05'::"text" AS "flag_rule"
+   FROM ("public"."maat_guidance_drift_outcome_flags" "f"
+     LEFT JOIN "weekly_rollup" "w" ON ((("w"."cta_type" = "f"."cta_type") AND ("w"."cta_ref" IS NOT DISTINCT FROM "f"."cta_ref"))));
+
+
+CREATE OR REPLACE VIEW "public"."maat_guidance_ops_alerts" WITH ("security_invoker"='true') AS
+ WITH "recent_summary" AS (
+         SELECT "maat_guidance_drift_outcome_summary"."cta_type",
+            "maat_guidance_drift_outcome_summary"."cta_ref",
+            COALESCE(sum("maat_guidance_drift_outcome_summary"."completed_window_count"), (0)::numeric) AS "recent_completed_window_count",
+            "round"((COALESCE(sum(("maat_guidance_drift_outcome_summary"."avg_delta_done_rate" * ("maat_guidance_drift_outcome_summary"."completed_window_count")::numeric)) FILTER (WHERE ("maat_guidance_drift_outcome_summary"."avg_delta_done_rate" IS NOT NULL)), (0)::numeric) / (NULLIF(COALESCE(sum("maat_guidance_drift_outcome_summary"."completed_window_count") FILTER (WHERE ("maat_guidance_drift_outcome_summary"."avg_delta_done_rate" IS NOT NULL)), (0)::numeric), (0)::numeric))::numeric), 4) AS "recent_weighted_delta_done_rate"
+           FROM "public"."maat_guidance_drift_outcome_summary"
+          WHERE ("maat_guidance_drift_outcome_summary"."acted_week" >= (CURRENT_DATE - 28))
+          GROUP BY "maat_guidance_drift_outcome_summary"."cta_type", "maat_guidance_drift_outcome_summary"."cta_ref"
+        ), "global_regressions" AS (
+         SELECT 'winning_cta_recent_regression'::"text" AS "alert_key",
+            'warning'::"text" AS "severity",
+            "f"."cta_type",
+            "f"."cta_ref",
+            NULL::"text" AS "cohort_type",
+            NULL::"text" AS "cohort_key",
+            "jsonb_build_object"('outcome_flag', "f"."outcome_flag", 'recent_completed_window_count', "r"."recent_completed_window_count", 'recent_weighted_delta_done_rate', "r"."recent_weighted_delta_done_rate", 'global_weighted_delta_done_rate', "f"."weighted_delta_done_rate") AS "details"
+           FROM ("public"."maat_guidance_drift_outcome_flags" "f"
+             JOIN "recent_summary" "r" ON ((("r"."cta_type" = "f"."cta_type") AND ("r"."cta_ref" IS NOT DISTINCT FROM "f"."cta_ref"))))
+          WHERE (("f"."outcome_flag" = 'winning'::"text") AND ("r"."recent_completed_window_count" >= (5)::numeric) AND ("r"."recent_weighted_delta_done_rate" < (0)::numeric))
+        ), "negative_dawn_house" AS (
+         SELECT 'dawn_house_negative_signal'::"text" AS "alert_key",
+            'warning'::"text" AS "severity",
+            "f"."cta_type",
+            "f"."cta_ref",
+            NULL::"text" AS "cohort_type",
+            NULL::"text" AS "cohort_key",
+            "jsonb_build_object"('outcome_flag', "f"."outcome_flag", 'completed_window_count', "f"."completed_window_count", 'weighted_delta_done_rate', "f"."weighted_delta_done_rate") AS "details"
+           FROM "public"."maat_guidance_drift_outcome_flags" "f"
+          WHERE (("f"."cta_type" = 'flow_template'::"text") AND ("f"."cta_ref" = 'dawn-house-rite'::"text") AND ("f"."outcome_flag" = 'negative'::"text"))
+        ), "cohort_negative" AS (
+         SELECT 'cohort_negative_signal'::"text" AS "alert_key",
+            'observe'::"text" AS "severity",
+            "f"."cta_type",
+            "f"."cta_ref",
+            "f"."cohort_type",
+            "f"."cohort_key",
+            "jsonb_build_object"('outcome_flag', "f"."outcome_flag", 'completed_window_count', "f"."completed_window_count", 'weighted_delta_done_rate', "f"."weighted_delta_done_rate") AS "details"
+           FROM "public"."maat_guidance_drift_outcome_flags_cohort" "f"
+          WHERE ("f"."outcome_flag" = 'negative'::"text")
+        )
+ SELECT "global_regressions"."alert_key",
+    "global_regressions"."severity",
+    "global_regressions"."cta_type",
+    "global_regressions"."cta_ref",
+    "global_regressions"."cohort_type",
+    "global_regressions"."cohort_key",
+    "global_regressions"."details"
+   FROM "global_regressions"
+UNION ALL
+ SELECT "negative_dawn_house"."alert_key",
+    "negative_dawn_house"."severity",
+    "negative_dawn_house"."cta_type",
+    "negative_dawn_house"."cta_ref",
+    "negative_dawn_house"."cohort_type",
+    "negative_dawn_house"."cohort_key",
+    "negative_dawn_house"."details"
+   FROM "negative_dawn_house"
+UNION ALL
+ SELECT "cohort_negative"."alert_key",
+    "cohort_negative"."severity",
+    "cohort_negative"."cta_type",
+    "cohort_negative"."cta_ref",
+    "cohort_negative"."cohort_type",
+    "cohort_negative"."cohort_key",
+    "cohort_negative"."details"
+   FROM "cohort_negative";
 
 
 ALTER TABLE "public"."user_event_completions" ALTER COLUMN "id" ADD GENERATED BY DEFAULT AS IDENTITY (
@@ -9311,6 +10184,46 @@ ALTER TABLE ONLY "public"."journal_badges"
 
 ALTER TABLE ONLY "public"."journal_entries"
     ADD CONSTRAINT "journal_entries_pkey" PRIMARY KEY ("id");
+
+
+ALTER TABLE ONLY "public"."maat_band_transitions"
+    ADD CONSTRAINT "maat_band_transitions_pkey" PRIMARY KEY ("id");
+
+
+ALTER TABLE ONLY "public"."maat_band_transitions"
+    ADD CONSTRAINT "maat_band_transitions_user_decan_window_band_key" UNIQUE ("user_id", "decan_period_key", "from_window_date", "to_window_date", "from_band", "to_band");
+
+
+ALTER TABLE ONLY "public"."maat_corrections"
+    ADD CONSTRAINT "maat_corrections_pkey" PRIMARY KEY ("id");
+
+
+ALTER TABLE ONLY "public"."maat_flow_briefs"
+    ADD CONSTRAINT "maat_flow_briefs_pkey" PRIMARY KEY ("id");
+
+
+ALTER TABLE ONLY "public"."maat_flow_briefs"
+    ADD CONSTRAINT "maat_flow_briefs_user_id_decan_period_key_brief_id_key" UNIQUE ("user_id", "decan_period_key", "brief_id");
+
+
+ALTER TABLE ONLY "public"."maat_guidance_deliveries"
+    ADD CONSTRAINT "maat_guidance_deliveries_pkey" PRIMARY KEY ("id");
+
+
+ALTER TABLE ONLY "public"."maat_guidance_evaluations"
+    ADD CONSTRAINT "maat_guidance_evaluations_pkey" PRIMARY KEY ("id");
+
+
+ALTER TABLE ONLY "public"."maat_user_baselines"
+    ADD CONSTRAINT "maat_user_baselines_pkey" PRIMARY KEY ("user_id");
+
+
+ALTER TABLE ONLY "public"."maat_snapshots"
+    ADD CONSTRAINT "maat_snapshots_pkey" PRIMARY KEY ("id");
+
+
+ALTER TABLE ONLY "public"."maat_snapshots"
+    ADD CONSTRAINT "maat_snapshots_user_window_decan_key" UNIQUE ("user_id", "window_date", "decan_period_key");
 
 
 
@@ -9880,6 +10793,45 @@ CREATE INDEX "idx_insight_links_user" ON "public"."insight_links" USING "btree" 
 CREATE INDEX "idx_journal_badges_user_on" ON "public"."journal_badges" USING "btree" ("user_id", "occurred_on");
 
 
+CREATE INDEX "idx_journal_badges_user_event_id" ON "public"."journal_badges" USING "btree" ("user_id", "event_id") WHERE ("event_id" IS NOT NULL);
+
+
+CREATE INDEX "idx_maat_band_transitions_user_decan_date" ON "public"."maat_band_transitions" USING "btree" ("user_id", "decan_period_key", "to_window_date" DESC);
+
+
+CREATE INDEX "idx_maat_corrections_open" ON "public"."maat_corrections" USING "btree" ("user_id", "decan_period_key", "status", "created_at" DESC);
+
+
+CREATE INDEX "idx_maat_flow_briefs_delivery" ON "public"."maat_flow_briefs" USING "btree" ("delivery_id");
+
+
+CREATE INDEX "idx_maat_flow_briefs_user_period" ON "public"."maat_flow_briefs" USING "btree" ("user_id", "decan_period_key");
+
+
+CREATE INDEX "idx_maat_guidance_decan" ON "public"."maat_guidance_deliveries" USING "btree" ("user_id", "decan_period_key", "kind");
+
+
+CREATE INDEX "idx_maat_guidance_evaluations_user_decan_date" ON "public"."maat_guidance_evaluations" USING "btree" ("user_id", "decan_period_key", "window_date" DESC, "created_at" DESC);
+
+
+CREATE INDEX "idx_maat_guidance_pending" ON "public"."maat_guidance_deliveries" USING "btree" ("user_id", "status", "priority", "created_at");
+
+
+CREATE INDEX "idx_maat_snapshots_user_decan_date" ON "public"."maat_snapshots" USING "btree" ("user_id", "decan_period_key", "window_date" DESC);
+
+
+CREATE INDEX "idx_maat_user_baselines_computed_at" ON "public"."maat_user_baselines" USING "btree" ("computed_at" DESC);
+
+
+CREATE UNIQUE INDEX "uq_maat_corrections_open" ON "public"."maat_corrections" USING "btree" ("user_id", "decan_period_key") WHERE ("status" = 'open'::"text");
+
+
+CREATE UNIQUE INDEX "uq_maat_guidance_decan_opening" ON "public"."maat_guidance_deliveries" USING "btree" ("user_id", "decan_period_key") WHERE ("kind" = 'decan_opening'::"text");
+
+
+CREATE UNIQUE INDEX "uq_maat_guidance_strength_nudge" ON "public"."maat_guidance_deliveries" USING "btree" ("user_id", "decan_period_key") WHERE ("kind" = 'strength_nudge'::"text");
+
+
 
 CREATE INDEX "idx_journal_user_date" ON "public"."journal_entries" USING "btree" ("user_id", "greg_date" DESC);
 
@@ -10368,6 +11320,24 @@ CREATE OR REPLACE TRIGGER "trg_touch_insight_links" BEFORE UPDATE ON "public"."i
 CREATE OR REPLACE TRIGGER "trg_touch_insight_posts" BEFORE UPDATE ON "public"."insight_posts" FOR EACH ROW EXECUTE FUNCTION "public"."touch_updated_at"();
 
 
+CREATE OR REPLACE TRIGGER "trg_enforce_maat_guidance_delivery_caps" BEFORE INSERT OR UPDATE OF "kind", "decan_period_key", "user_id" ON "public"."maat_guidance_deliveries" FOR EACH ROW EXECUTE FUNCTION "public"."enforce_maat_guidance_delivery_caps"();
+
+
+CREATE OR REPLACE TRIGGER "trg_touch_maat_corrections" BEFORE UPDATE ON "public"."maat_corrections" FOR EACH ROW EXECUTE FUNCTION "public"."touch_updated_at"();
+
+
+CREATE OR REPLACE TRIGGER "trg_touch_maat_guidance_deliveries" BEFORE UPDATE ON "public"."maat_guidance_deliveries" FOR EACH ROW EXECUTE FUNCTION "public"."touch_updated_at"();
+
+
+CREATE OR REPLACE TRIGGER "trg_touch_maat_flow_briefs" BEFORE UPDATE ON "public"."maat_flow_briefs" FOR EACH ROW EXECUTE FUNCTION "public"."touch_updated_at"();
+
+
+CREATE OR REPLACE TRIGGER "trg_touch_maat_snapshots" BEFORE UPDATE ON "public"."maat_snapshots" FOR EACH ROW EXECUTE FUNCTION "public"."touch_updated_at"();
+
+
+CREATE OR REPLACE TRIGGER "trg_touch_maat_user_baselines" BEFORE UPDATE ON "public"."maat_user_baselines" FOR EACH ROW EXECUTE FUNCTION "public"."touch_updated_at"();
+
+
 
 CREATE OR REPLACE TRIGGER "trg_touch_node_insight_entries" BEFORE UPDATE ON "public"."node_insight_entries" FOR EACH ROW EXECUTE FUNCTION "public"."touch_updated_at"();
 
@@ -10673,6 +11643,58 @@ ALTER TABLE ONLY "public"."journal_badges"
 
 ALTER TABLE ONLY "public"."journal_badges"
     ADD CONSTRAINT "journal_badges_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+ALTER TABLE ONLY "public"."maat_band_transitions"
+    ADD CONSTRAINT "maat_band_transitions_evaluation_id_fkey" FOREIGN KEY ("evaluation_id") REFERENCES "public"."maat_guidance_evaluations"("id") ON DELETE SET NULL;
+
+
+ALTER TABLE ONLY "public"."maat_band_transitions"
+    ADD CONSTRAINT "maat_band_transitions_snapshot_id_fkey" FOREIGN KEY ("snapshot_id") REFERENCES "public"."maat_snapshots"("id") ON DELETE SET NULL;
+
+
+ALTER TABLE ONLY "public"."maat_band_transitions"
+    ADD CONSTRAINT "maat_band_transitions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+ALTER TABLE ONLY "public"."maat_corrections"
+    ADD CONSTRAINT "maat_corrections_snapshot_id_fkey" FOREIGN KEY ("snapshot_id") REFERENCES "public"."maat_snapshots"("id") ON DELETE SET NULL;
+
+
+ALTER TABLE ONLY "public"."maat_corrections"
+    ADD CONSTRAINT "maat_corrections_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+ALTER TABLE ONLY "public"."maat_flow_briefs"
+    ADD CONSTRAINT "maat_flow_briefs_delivery_id_fkey" FOREIGN KEY ("delivery_id") REFERENCES "public"."maat_guidance_deliveries"("id") ON DELETE SET NULL;
+
+
+ALTER TABLE ONLY "public"."maat_flow_briefs"
+    ADD CONSTRAINT "maat_flow_briefs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+ALTER TABLE ONLY "public"."maat_guidance_deliveries"
+    ADD CONSTRAINT "maat_guidance_deliveries_generation_id_fkey" FOREIGN KEY ("generation_id") REFERENCES "public"."reflection_generations"("id") ON DELETE SET NULL;
+
+
+ALTER TABLE ONLY "public"."maat_guidance_deliveries"
+    ADD CONSTRAINT "maat_guidance_deliveries_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+ALTER TABLE ONLY "public"."maat_guidance_evaluations"
+    ADD CONSTRAINT "maat_guidance_evaluations_snapshot_id_fkey" FOREIGN KEY ("snapshot_id") REFERENCES "public"."maat_snapshots"("id") ON DELETE SET NULL;
+
+
+ALTER TABLE ONLY "public"."maat_guidance_evaluations"
+    ADD CONSTRAINT "maat_guidance_evaluations_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+ALTER TABLE ONLY "public"."maat_user_baselines"
+    ADD CONSTRAINT "maat_user_baselines_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+ALTER TABLE ONLY "public"."maat_snapshots"
+    ADD CONSTRAINT "maat_snapshots_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -11348,6 +12370,48 @@ CREATE POLICY "journal_badges_owner_select" ON "public"."journal_badges" FOR SEL
 CREATE POLICY "journal_badges_owner_upd" ON "public"."journal_badges" FOR UPDATE USING (("auth"."uid"() = "user_id")) WITH CHECK (("auth"."uid"() = "user_id"));
 
 
+ALTER TABLE "public"."maat_band_transitions" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "maat_band_transitions owner select" ON "public"."maat_band_transitions" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+ALTER TABLE "public"."maat_corrections" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "maat_corrections owner select" ON "public"."maat_corrections" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+ALTER TABLE "public"."maat_guidance_deliveries" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "maat_guidance_deliveries owner select" ON "public"."maat_guidance_deliveries" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+ALTER TABLE "public"."maat_flow_briefs" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "maat_flow_briefs owner select" ON "public"."maat_flow_briefs" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+ALTER TABLE "public"."maat_guidance_evaluations" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "maat_guidance_evaluations owner select" ON "public"."maat_guidance_evaluations" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+ALTER TABLE "public"."maat_user_baselines" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "maat_user_baselines owner select" ON "public"."maat_user_baselines" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+ALTER TABLE "public"."maat_snapshots" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "maat_snapshots owner select" ON "public"."maat_snapshots" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
 
 ALTER TABLE "public"."journal_entries" ENABLE ROW LEVEL SECURITY;
 
@@ -11518,7 +12582,7 @@ CREATE POLICY "sel_nutrition_items" ON "public"."nutrition_items" FOR SELECT USI
 ALTER TABLE "public"."shared_calendar_members" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "shared_calendar_members_select_visible" ON "public"."shared_calendar_members" FOR SELECT USING ((("user_id" = "auth"."uid"()) OR "public"."can_view_shared_calendar_members"("calendar_id")));
+CREATE POLICY "shared_calendar_members_select_visible" ON "public"."shared_calendar_members" FOR SELECT USING ((("user_id" = "auth"."uid"()) OR "public"."can_view_shared_calendar_member_row"("calendar_id", "status")));
 
 
 
@@ -11997,6 +13061,11 @@ GRANT ALL ON FUNCTION "public"."can_view_shared_calendar_members"("p_calendar_id
 GRANT ALL ON FUNCTION "public"."can_view_shared_calendar_members"("p_calendar_id" "uuid") TO "service_role";
 
 
+GRANT ALL ON FUNCTION "public"."can_view_shared_calendar_member_row"("p_calendar_id" "uuid", "p_member_status" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."can_view_shared_calendar_member_row"("p_calendar_id" "uuid", "p_member_status" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."can_view_shared_calendar_member_row"("p_calendar_id" "uuid", "p_member_status" "text") TO "service_role";
+
+
 
 REVOKE ALL ON FUNCTION "public"."claim_due_decan_reflection_schedule"("p_now" timestamp with time zone, "p_limit" integer, "p_lease_seconds" integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."claim_due_decan_reflection_schedule"("p_now" timestamp with time zone, "p_limit" integer, "p_lease_seconds" integer) TO "anon";
@@ -12346,6 +13415,11 @@ GRANT ALL ON FUNCTION "public"."leave_shared_calendar"("p_calendar_id" "uuid") T
 GRANT ALL ON FUNCTION "public"."leave_shared_calendar"("p_calendar_id" "uuid") TO "service_role";
 
 
+GRANT ALL ON FUNCTION "public"."list_shared_calendar_members"("p_calendar_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."list_shared_calendar_members"("p_calendar_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."list_shared_calendar_members"("p_calendar_id" "uuid") TO "service_role";
+
+
 
 GRANT ALL ON FUNCTION "public"."log_flow_inserts"() TO "anon";
 GRANT ALL ON FUNCTION "public"."log_flow_inserts"() TO "authenticated";
@@ -12422,6 +13496,16 @@ GRANT ALL ON FUNCTION "public"."repair_active_reminder_filing_backbone"() TO "se
 GRANT ALL ON FUNCTION "public"."respond_to_shared_calendar_invite"("p_calendar_id" "uuid", "p_accept" boolean) TO "anon";
 GRANT ALL ON FUNCTION "public"."respond_to_shared_calendar_invite"("p_calendar_id" "uuid", "p_accept" boolean) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."respond_to_shared_calendar_invite"("p_calendar_id" "uuid", "p_accept" boolean) TO "service_role";
+
+
+GRANT ALL ON FUNCTION "public"."remove_shared_calendar_member"("p_calendar_id" "uuid", "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."remove_shared_calendar_member"("p_calendar_id" "uuid", "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."remove_shared_calendar_member"("p_calendar_id" "uuid", "p_user_id" "uuid") TO "service_role";
+
+
+GRANT ALL ON FUNCTION "public"."revoke_shared_calendar_invite"("p_calendar_id" "uuid", "p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."revoke_shared_calendar_invite"("p_calendar_id" "uuid", "p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."revoke_shared_calendar_invite"("p_calendar_id" "uuid", "p_user_id" "uuid") TO "service_role";
 
 
 
@@ -12567,6 +13651,11 @@ GRANT ALL ON FUNCTION "public"."update_scheduled_notifications_updated_at"() TO 
 GRANT ALL ON FUNCTION "public"."update_shared_calendar"("p_calendar_id" "uuid", "p_name" "text", "p_color" bigint) TO "anon";
 GRANT ALL ON FUNCTION "public"."update_shared_calendar"("p_calendar_id" "uuid", "p_name" "text", "p_color" bigint) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_shared_calendar"("p_calendar_id" "uuid", "p_name" "text", "p_color" bigint) TO "service_role";
+
+
+GRANT ALL ON FUNCTION "public"."update_shared_calendar_member_role"("p_calendar_id" "uuid", "p_user_id" "uuid", "p_role" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."update_shared_calendar_member_role"("p_calendar_id" "uuid", "p_user_id" "uuid", "p_role" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_shared_calendar_member_role"("p_calendar_id" "uuid", "p_user_id" "uuid", "p_role" "text") TO "service_role";
 
 
 
@@ -12988,6 +14077,76 @@ GRANT ALL ON TABLE "public"."journal_badges" TO "service_role";
 GRANT ALL ON TABLE "public"."journal_entries" TO "anon";
 GRANT ALL ON TABLE "public"."journal_entries" TO "authenticated";
 GRANT ALL ON TABLE "public"."journal_entries" TO "service_role";
+
+
+GRANT ALL ON TABLE "public"."maat_band_transitions" TO "anon";
+GRANT ALL ON TABLE "public"."maat_band_transitions" TO "authenticated";
+GRANT ALL ON TABLE "public"."maat_band_transitions" TO "service_role";
+
+
+GRANT ALL ON TABLE "public"."maat_corrections" TO "anon";
+GRANT ALL ON TABLE "public"."maat_corrections" TO "authenticated";
+GRANT ALL ON TABLE "public"."maat_corrections" TO "service_role";
+
+
+GRANT ALL ON TABLE "public"."maat_guidance_deliveries" TO "anon";
+GRANT ALL ON TABLE "public"."maat_guidance_deliveries" TO "authenticated";
+GRANT ALL ON TABLE "public"."maat_guidance_deliveries" TO "service_role";
+
+
+GRANT ALL ON TABLE "public"."maat_flow_briefs" TO "anon";
+GRANT ALL ON TABLE "public"."maat_flow_briefs" TO "authenticated";
+GRANT ALL ON TABLE "public"."maat_flow_briefs" TO "service_role";
+
+
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_dashboard" TO "anon";
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_dashboard" TO "authenticated";
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_dashboard" TO "service_role";
+
+
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_flags" TO "anon";
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_flags" TO "authenticated";
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_flags" TO "service_role";
+
+
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_flags_cohort" TO "anon";
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_flags_cohort" TO "authenticated";
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_flags_cohort" TO "service_role";
+
+
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_flags_user" TO "anon";
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_flags_user" TO "authenticated";
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_flags_user" TO "service_role";
+
+
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_summary" TO "anon";
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_summary" TO "authenticated";
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcome_summary" TO "service_role";
+
+
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcomes" TO "anon";
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcomes" TO "authenticated";
+GRANT SELECT ON TABLE "public"."maat_guidance_drift_outcomes" TO "service_role";
+
+
+GRANT SELECT ON TABLE "public"."maat_guidance_ops_alerts" TO "anon";
+GRANT SELECT ON TABLE "public"."maat_guidance_ops_alerts" TO "authenticated";
+GRANT SELECT ON TABLE "public"."maat_guidance_ops_alerts" TO "service_role";
+
+
+GRANT ALL ON TABLE "public"."maat_guidance_evaluations" TO "anon";
+GRANT ALL ON TABLE "public"."maat_guidance_evaluations" TO "authenticated";
+GRANT ALL ON TABLE "public"."maat_guidance_evaluations" TO "service_role";
+
+
+GRANT ALL ON TABLE "public"."maat_user_baselines" TO "anon";
+GRANT ALL ON TABLE "public"."maat_user_baselines" TO "authenticated";
+GRANT ALL ON TABLE "public"."maat_user_baselines" TO "service_role";
+
+
+GRANT ALL ON TABLE "public"."maat_snapshots" TO "anon";
+GRANT ALL ON TABLE "public"."maat_snapshots" TO "authenticated";
+GRANT ALL ON TABLE "public"."maat_snapshots" TO "service_role";
 
 
 
