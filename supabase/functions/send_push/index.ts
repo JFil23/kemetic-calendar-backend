@@ -11,6 +11,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
 import { SignJWT } from "https://deno.land/x/jose@v4.15.5/index.ts";
 import webpush from "https://esm.sh/web-push@3.6.7";
+import { recordMaatDeliveryTimingEvent } from "../_shared/maat_delivery_timing.ts";
+import { resolveCompiledPackagePushText } from "../_shared/output_compiler.ts";
 
 type SendRequest = {
   userIds?: string[];
@@ -28,6 +30,11 @@ type SendResponse = {
   delivered: boolean;
   reason?: string;
   failedReasons?: string[];
+  deliveryKey?: string;
+  pushSource?: string;
+  pushBlocked?: boolean;
+  pushPackageVersion?: string | null;
+  pushCompilerStatus?: string | null;
 };
 
 const SUPABASE_URL = Deno.env.get("PROJECT_URL") ??
@@ -225,14 +232,47 @@ function buildAppTargetUrl(data?: Record<string, unknown>) {
   const explicitUrl = firstString(data?.url) ?? firstString(data?.link);
   if (explicitUrl) return explicitUrl;
 
-  const kind = firstString(data?.kind) ?? firstString(data?.type);
+  const initialDeliveryKey = firstString(data?.delivery_key) ??
+    firstString(data?.deliveryKey);
+  const kind = firstString(data?.kind) ?? firstString(data?.type) ??
+    (initialDeliveryKey?.startsWith("maat_guidance:") ? "maat_guidance" : null);
+  if (kind === "maat_guidance") {
+    const deliveryId = firstString(data?.delivery_id) ??
+      firstString(data?.deliveryId) ??
+      firstString(data?.maat_guidance_id) ??
+      firstString(data?.maatGuidanceId);
+    const deliveryKey = initialDeliveryKey;
+    const keyId = deliveryKey?.startsWith("maat_guidance:")
+      ? deliveryKey.slice("maat_guidance:".length)
+      : null;
+    const resolvedDeliveryId = deliveryId ?? keyId;
+    if (resolvedDeliveryId) {
+      const params = new URLSearchParams({
+        push_kind: "maat_guidance",
+        delivery_id: resolvedDeliveryId,
+      });
+      const ctaType = firstString(data?.cta_type) ??
+        firstString(data?.ctaType);
+      const ctaRef = firstString(data?.cta_ref) ?? firstString(data?.ctaRef);
+      if (ctaType) params.set("cta_type", ctaType);
+      if (ctaRef) params.set("cta_ref", ctaRef);
+      return `/?${params.toString()}`;
+    }
+  }
   if (kind === "decan_reflection") {
     const reflectionId = firstString(data?.reflectionId) ??
       firstString(data?.reflection_id);
     if (reflectionId) {
-      return `/?push_kind=decan_reflection&reflection_id=${
-        encodeURIComponent(reflectionId)
-      }`;
+      const params = new URLSearchParams({
+        push_kind: "decan_reflection",
+        reflection_id: reflectionId,
+      });
+      const ctaType = firstString(data?.cta_type) ??
+        firstString(data?.ctaType);
+      const ctaRef = firstString(data?.cta_ref) ?? firstString(data?.ctaRef);
+      if (ctaType) params.set("cta_type", ctaType);
+      if (ctaRef) params.set("cta_ref", ctaRef);
+      return `/?${params.toString()}`;
     }
   }
 
@@ -341,6 +381,32 @@ function buildAppTargetUrl(data?: Record<string, unknown>) {
   return "/";
 }
 
+function appendDeliveryTrackingParams(
+  url: string,
+  data?: Record<string, unknown>,
+) {
+  const deliveryKey = firstString(data?.delivery_key) ??
+    firstString(data?.deliveryKey);
+  if (!deliveryKey) return url;
+
+  const deliveryKind = firstString(data?.delivery_kind) ??
+    firstString(data?.deliveryKind) ??
+    firstString(data?.kind) ??
+    firstString(data?.type);
+  const isAbsolute = /^[a-z][a-z0-9+.-]*:\/\//i.test(url);
+
+  try {
+    const parsed = new URL(url, "https://kemetic.local");
+    parsed.searchParams.set("delivery_key", deliveryKey);
+    if (deliveryKind) parsed.searchParams.set("delivery_kind", deliveryKind);
+    return isAbsolute
+      ? parsed.toString()
+      : `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return url;
+  }
+}
+
 function enrichPushData(data?: Record<string, unknown>) {
   const base = data ? { ...data } : {};
   if (!firstString(base.kind) && firstString(base.type)) {
@@ -349,7 +415,69 @@ function enrichPushData(data?: Record<string, unknown>) {
   if (!firstString(base.url) && !firstString(base.link)) {
     base.url = buildAppTargetUrl(base);
   }
+  if (firstString(base.link)) {
+    base.link = appendDeliveryTrackingParams(String(base.link), base);
+  }
+  if (firstString(base.url)) {
+    base.url = appendDeliveryTrackingParams(String(base.url), base);
+  }
   return base;
+}
+
+type PushTestDeliveryContext = {
+  deliveryKey: string;
+  userId: string | null;
+  scheduledFor: string;
+  functionStartedAt: string;
+};
+
+function buildPushTestDeliveryContext(
+  body: SendRequest,
+  requesterUid: string | null,
+  functionStartedAt: string,
+): PushTestDeliveryContext | null {
+  const data = body.data ?? {};
+  const kind = firstString(data.kind) ?? firstString(data.type);
+  if (kind !== "push_test") return null;
+  const deliveryKey = firstString(data.delivery_key) ??
+    firstString(data.deliveryKey);
+  if (!deliveryKey) return null;
+  return {
+    deliveryKey,
+    userId: requesterUid ?? body.userIds?.[0] ?? null,
+    scheduledFor: firstString(data.sent_at) ?? functionStartedAt,
+    functionStartedAt,
+  };
+}
+
+async function recordPushTestDeliveryTiming(
+  context: PushTestDeliveryContext | null,
+  params: {
+    status: "picked" | "sent" | "skipped" | "failed";
+    deliveredAt?: string | null;
+    skipReason?: string | null;
+    errorCode?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+) {
+  if (!context) return;
+  await recordMaatDeliveryTimingEvent(supabase, {
+    deliveryKey: context.deliveryKey,
+    deliveryKind: "push_test",
+    targetTable: "push_tokens",
+    targetId: context.deliveryKey,
+    userId: context.userId,
+    scheduledFor: context.scheduledFor,
+    cronPickedAt: params.status === "picked" ? context.functionStartedAt : null,
+    functionStartedAt: context.functionStartedAt,
+    deliveredAt: params.deliveredAt ?? null,
+    cronJobName: "send_push_self_test",
+    deliveryAttempt: 1,
+    deliveryStatus: params.status,
+    skipReason: params.skipReason ?? null,
+    errorCode: params.errorCode ?? null,
+    metadata: params.metadata ?? {},
+  });
 }
 
 function normalizeNotification(
@@ -599,6 +727,7 @@ Deno.serve(async (req) => {
     }
 
     const body = (await req.json()) as SendRequest;
+    const functionStartedAt = new Date(start).toISOString();
     const internalHeader = req.headers.get("x-internal-key") ?? "";
     const authHeader =
       req.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
@@ -656,6 +785,75 @@ Deno.serve(async (req) => {
         });
       }
     }
+
+    const pushTestDelivery = buildPushTestDeliveryContext(
+      body,
+      requesterUid,
+      functionStartedAt,
+    );
+    await recordPushTestDeliveryTiming(pushTestDelivery, {
+      status: "picked",
+      metadata: {
+        auth_mode: authMode,
+        device_ids: body.deviceIds ?? [],
+      },
+    });
+
+    const pushResolution = resolveCompiledPackagePushText({
+      payload: body.data,
+      legacyPushText: body.notification?.body,
+    });
+    if (pushResolution.blocked) {
+      log("push blocked by compiled package policy", {
+        reason: pushResolution.reason,
+        push_source: pushResolution.source,
+      });
+      await recordPushTestDeliveryTiming(pushTestDelivery, {
+        status: "skipped",
+        deliveredAt: new Date().toISOString(),
+        skipReason: pushResolution.reason ?? pushResolution.source,
+        metadata: {
+          push_source: pushResolution.source,
+          package_version: pushResolution.packageVersion,
+          compiler_status: pushResolution.compilerStatus,
+        },
+      });
+      return jsonResponse(
+        req,
+        {
+          sent: 0,
+          failed: 0,
+          stale: 0,
+          matchedTokens: 0,
+          delivered: false,
+          reason: pushResolution.reason ?? pushResolution.source,
+          failedReasons: [],
+          deliveryKey: pushTestDelivery?.deliveryKey,
+          pushSource: pushResolution.source,
+          pushBlocked: true,
+          pushPackageVersion: pushResolution.packageVersion,
+          pushCompilerStatus: pushResolution.compilerStatus,
+        } satisfies SendResponse,
+        { status: 200 },
+      );
+    }
+    if (pushResolution.text) {
+      const notification = normalizeNotification(body.notification);
+      body.notification = {
+        ...notification,
+        body: pushResolution.text,
+      };
+    }
+    body.data = {
+      ...(body.data ?? {}),
+      push_source: pushResolution.source,
+      ...(pushResolution.packageVersion
+        ? { compiled_package_version: pushResolution.packageVersion }
+        : {}),
+      ...(pushResolution.compilerStatus
+        ? { compiler_status: pushResolution.compilerStatus }
+        : {}),
+    };
 
     log("env", {
       url: SUPABASE_URL,
@@ -724,6 +922,14 @@ Deno.serve(async (req) => {
 
     if (!targets.length) {
       log("no tokens found for users");
+      await recordPushTestDeliveryTiming(pushTestDelivery, {
+        status: "skipped",
+        deliveredAt: new Date().toISOString(),
+        skipReason: "no_tokens_for_recipients",
+        metadata: {
+          matched_tokens: 0,
+        },
+      });
       return jsonResponse(
         req,
         {
@@ -734,6 +940,10 @@ Deno.serve(async (req) => {
           delivered: false,
           reason: "no_tokens_for_recipients",
           failedReasons: [],
+          deliveryKey: pushTestDelivery?.deliveryKey,
+          pushSource: pushResolution.source,
+          pushPackageVersion: pushResolution.packageVersion,
+          pushCompilerStatus: pushResolution.compilerStatus,
         } satisfies SendResponse,
         { status: 200 },
       );
@@ -806,6 +1016,22 @@ Deno.serve(async (req) => {
       failedReasons,
     });
 
+    await recordPushTestDeliveryTiming(pushTestDelivery, {
+      status: sent > 0 ? "sent" : "failed",
+      deliveredAt: new Date().toISOString(),
+      errorCode: sent > 0 ? null : "push_not_delivered",
+      metadata: {
+        matched_tokens: targets.length,
+        sent,
+        failed,
+        stale: staleDeviceIds.length,
+        failed_reasons: failedReasons,
+        push_source: pushResolution.source,
+        package_version: pushResolution.packageVersion,
+        compiler_status: pushResolution.compilerStatus,
+      },
+    });
+
     return jsonResponse(
       req,
       {
@@ -816,6 +1042,10 @@ Deno.serve(async (req) => {
         delivered: sent > 0,
         reason,
         failedReasons,
+        deliveryKey: pushTestDelivery?.deliveryKey,
+        pushSource: pushResolution.source,
+        pushPackageVersion: pushResolution.packageVersion,
+        pushCompilerStatus: pushResolution.compilerStatus,
       } satisfies SendResponse,
       { status: 200 },
     );
