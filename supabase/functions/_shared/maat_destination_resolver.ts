@@ -187,6 +187,362 @@ function nodeForAxis(
   });
 }
 
+function nodeDestination(
+  ref: string,
+  reason: string,
+  source: MaatDestinationSource,
+  confidence = 0.72,
+) {
+  return destination({
+    type: "node",
+    ref,
+    reason,
+    source,
+    confidence,
+  });
+}
+
+function nodeForReflectionLens(
+  lens: MaatAlignmentLens,
+  reason: string,
+  source: MaatDestinationSource,
+) {
+  const lensNodes: Record<MaatAlignmentLens, string> = {
+    truth: "maat",
+    witness: "maat",
+    measure: "djehuty",
+    order: "ptah",
+    life_preservation: "renenutet",
+    restraint: "sekhmet",
+    self_mastery: "sekhmet",
+    reciprocity: "instruction_amenemope",
+    care: "instruction_amenemope",
+    justice: "maat",
+    vulnerable_protection: "instruction_amenemope",
+    offering_service: "maat",
+    harmony: "nile",
+    worthiness: "maat",
+    becoming: "djehuty",
+    continuity: "djehuty",
+    repair_isfet: "ptah",
+    effective_speech: "instruction_amenemope",
+  };
+  return nodeDestination(lensNodes[lens] ?? "maat", reason, source);
+}
+
+function includesAny(text: string, patterns: RegExp[]) {
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+function profileFactHaystack(facts: MaatUserProfileFact[] | null | undefined) {
+  return haystack(
+    (facts ?? []).flatMap((fact) => [
+      fact.fact_type,
+      fact.value,
+      fact.source,
+      fact.stability,
+    ]),
+  );
+}
+
+function reflectionDestinationText(params: {
+  judgment?: ReflectionJudgment | null;
+  moralPortrait?: ReflectionMoralPortrait | null;
+  profileSnapshot?: ReflectionProfileSnapshot | null;
+  calendarFrame?: ReflectionCalendarFrame | null;
+  profileFacts?: MaatUserProfileFact[] | null;
+}) {
+  const judgment = params.judgment;
+  const portrait = params.moralPortrait;
+  const snapshot = params.profileSnapshot;
+  const frame = params.calendarFrame;
+  return haystack([
+    judgment?.primaryMaatQuestion,
+    judgment?.selectedMaatLens,
+    judgment?.secondaryMaatLens,
+    judgment?.centralMoralReading,
+    judgment?.alignment,
+    judgment?.underalignment,
+    judgment?.evidenceAnchor,
+    judgment?.userProfileConnection,
+    judgment?.deeperDirective,
+    judgment?.reflectionThesis,
+    judgment?.closingText,
+    portrait?.decanCall,
+    portrait?.sacredDimension,
+    portrait?.relationalDimension,
+    portrait?.naturalDimension,
+    portrait?.heartSignal,
+    portrait?.serudjCall,
+    portrait?.portraitStatement,
+    portrait?.personBecomingStatement,
+    portrait?.serudjDirective,
+    snapshot?.dominantMaatLens,
+    snapshot?.secondaryMaatLens,
+    snapshot?.dominantUserLens,
+    snapshot?.userPatternSummary,
+    snapshot?.ethicalQuestion,
+    snapshot?.alignmentReading,
+    snapshot?.underalignmentReading,
+    snapshot?.repairDirection,
+    snapshot?.calendarFit,
+    snapshot?.reflectionInstruction,
+    profileFactHaystack(params.profileFacts),
+    frame?.monthMeaning,
+    frame?.seasonMeaning,
+    frame?.decanTheme,
+    frame?.decanDescription,
+    frame?.arcSummary,
+  ]);
+}
+
+function evidenceScore(parts: Array<[boolean, number, string]>) {
+  let score = 0;
+  const reasons: string[] = [];
+  for (const [matched, weight, reason] of parts) {
+    if (!matched) continue;
+    score += weight;
+    reasons.push(reason);
+  }
+  return { score, reasons };
+}
+
+function strongCareThread(
+  threads: MaatNormalizedObligationThreads | null | undefined,
+) {
+  const nutrition = threads?.nutrition;
+  const threadRows = threads?.threads ?? [];
+  return Boolean(
+    (nutrition &&
+      (nutrition.confidence === "high" ||
+        nutrition.same_item_repeated ||
+        nutrition.pending_count >= 3 ||
+        nutrition.skipped_count >= 2 ||
+        nutrition.unique_item_count >= 2)) ||
+      threadRows.some((thread) =>
+        ["nutrition", "care", "health", "family", "household"].some((domain) =>
+          thread.domain?.toLowerCase().includes(domain)
+        ) &&
+        (thread.confidence === "high" ||
+          thread.pending_count >= 2 ||
+          thread.same_item_repeated)
+      ),
+  );
+}
+
+function strongAgreementText(text: string) {
+  return includesAny(text, [
+    /\bagreement\b/,
+    /\bpromise\b/,
+    /\bkept word\b/,
+    /\bword and act\b/,
+    /\bword\b.*\bact\b/,
+    /\bspeech\b/,
+    /\bvow\b/,
+    /\bcommitment\b/,
+  ]);
+}
+
+function calendarNodeDestination(params: {
+  calendarFrame?: ReflectionCalendarFrame | null;
+}) {
+  const text = haystack([
+    params.calendarFrame?.monthMeaning,
+    params.calendarFrame?.seasonMeaning,
+    params.calendarFrame?.decanTheme,
+    params.calendarFrame?.decanDescription,
+    params.calendarFrame?.arcSummary,
+  ]);
+  if (includesAny(text, [/\bwisdom\b/, /\blearn/, /\binstruction\b/])) {
+    return nodeDestination(
+      "instruction_amenemope",
+      "calendar_arc:wisdom_node",
+      "calendar_arc",
+      0.74,
+    );
+  }
+  if (includesAny(text, [/\btruth\b/, /\bwitness\b/, /\bmaat\b/])) {
+    return nodeDestination("maat", "calendar_arc:truth_node", "calendar_arc");
+  }
+  if (includesAny(text, [/\border\b/, /\bform\b/, /\bcraft\b/])) {
+    return nodeDestination("ptah", "calendar_arc:order_node", "calendar_arc");
+  }
+  if (includesAny(text, [/\bcare\b/, /\blife\b/, /\bprovision\b/])) {
+    return nodeDestination(
+      "renenutet",
+      "calendar_arc:provision_node",
+      "calendar_arc",
+    );
+  }
+  if (includesAny(text, [/\bsky\b/, /\bseason\b/, /\briver\b/, /\bcycle\b/])) {
+    return nodeDestination("nile", "calendar_arc:cycle_node", "calendar_arc");
+  }
+  return nodeDestination("maat", "calendar_arc:default_node", "calendar_arc");
+}
+
+function highAlignmentFlowForReflection(params: {
+  lens: MaatAlignmentLens;
+  source: MaatDestinationSource;
+  text: string;
+  nodeFallback: MaatDestinationResolution;
+  normalizedObligationThreads?: MaatNormalizedObligationThreads | null;
+  profileFacts?: MaatUserProfileFact[] | null;
+}) {
+  const profileText = profileFactHaystack(params.profileFacts);
+  const text = `${params.text} ${profileText}`;
+  const candidates: Array<{
+    ref: string;
+    reasonKey: string;
+    score: number;
+    reasons: string[];
+  }> = [];
+
+  const addCandidate = (
+    ref: string,
+    reasonKey: string,
+    scored: { score: number; reasons: string[] },
+  ) => {
+    candidates.push({ ref, reasonKey, ...scored });
+  };
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.theTending,
+    "tending",
+    evidenceScore([
+      [
+        [
+          "care",
+          "reciprocity",
+          "vulnerable_protection",
+          "life_preservation",
+        ].includes(params.lens),
+        3,
+        "lens",
+      ],
+      [strongCareThread(params.normalizedObligationThreads), 3, "care_thread"],
+      [
+        includesAny(text, [
+          /\btend/,
+          /\bcare\b/,
+          /\bvulnerable\b/,
+          /\bbody\b/,
+          /\bprovision\b/,
+          /\bnutrition\b/,
+          /\bself-care\b/,
+          /\bboundar/,
+        ]),
+        2,
+        "care_language",
+      ],
+      [
+        includesAny(profileText, [/\bcare_direction\b/, /\bself_provision/]),
+        1,
+        "profile_care",
+      ],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.theKeptWord,
+    "kept_word",
+    evidenceScore([
+      [
+        ["effective_speech", "truth", "witness", "worthiness"].includes(
+          params.lens,
+        ),
+        params.lens === "effective_speech" ? 4 : 2,
+        "lens",
+      ],
+      [strongAgreementText(text), 3, "agreement_language"],
+      [
+        includesAny(profileText, [/\bcommitment_pattern\b/, /\bagreement\b/]),
+        1,
+        "profile_commitment",
+      ],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.theDjed,
+    "djed",
+    evidenceScore([
+      [
+        ["order", "repair_isfet", "restraint", "self_mastery"].includes(
+          params.lens,
+        ),
+        3,
+        "lens",
+      ],
+      [
+        includesAny(text, [
+          /\bstabil/,
+          /\bfoundation\b/,
+          /\bstructure\b/,
+          /\border\b/,
+          /\brepair\b/,
+          /\brais/,
+        ]),
+        3,
+        "structure_language",
+      ],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.theCourse,
+    "course",
+    evidenceScore([
+      [
+        ["measure", "becoming", "continuity"].includes(params.lens),
+        3,
+        "lens",
+      ],
+      [
+        includesAny(text, [
+          /\bcourse\b/,
+          /\blesson\b/,
+          /\bsequence\b/,
+          /\bstage\b/,
+          /\bmeasure\b/,
+          /\bpractice arc\b/,
+        ]),
+        3,
+        "course_language",
+      ],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.theWeighing,
+    "weighing",
+    evidenceScore([
+      [["truth", "witness", "measure"].includes(params.lens), 2, "lens"],
+      [
+        includesAny(text, [
+          /\bweigh/,
+          /\bjudg/,
+          /\bfalse record\b/,
+          /\baccountability\b/,
+          /\btruthful account\b/,
+        ]),
+        4,
+        "weighing_language",
+      ],
+    ]),
+  );
+
+  const best = candidates.sort((a, b) => b.score - a.score)[0];
+  if (!best || best.score < 7) return null;
+
+  return flowTemplate(
+    best.ref,
+    `reflection_alignment:${best.reasonKey}:${best.reasons.join("+")}`,
+    params.source,
+    Math.min(0.95, 0.72 + best.score / 100),
+    params.nodeFallback,
+  );
+}
+
 function ctaCandidate(
   resolution: MaatDestinationResolution,
   baseWeight: number,
@@ -659,18 +1015,39 @@ export function resolveReflectionDestination(params: {
 }): MaatDestinationResolution {
   const judgmentLens = params.judgment?.selectedMaatLens;
   if (judgmentLens) {
-    const selected = destinationForLens(judgmentLens, "reflection_judgment");
-    return { ...selected, source: "reflection_judgment" };
+    const nodeFallback = nodeForReflectionLens(
+      judgmentLens,
+      `reflection_alignment:${judgmentLens}:node_default`,
+      "reflection_judgment",
+    );
+    const flow = highAlignmentFlowForReflection({
+      lens: judgmentLens,
+      source: "reflection_judgment",
+      text: reflectionDestinationText(params),
+      nodeFallback,
+      normalizedObligationThreads: params.normalizedObligationThreads,
+      profileFacts: params.profileFacts,
+    });
+    return flow ?? nodeFallback;
   }
   const snapshotLens = params.profileSnapshot?.dominantMaatLens;
   if (snapshotLens) {
-    const selected = destinationForLens(snapshotLens, "profile_snapshot");
-    return { ...selected, source: "profile_pattern" };
+    const nodeFallback = nodeForReflectionLens(
+      snapshotLens,
+      `profile_pattern:${snapshotLens}:node_default`,
+      "profile_pattern",
+    );
+    const flow = highAlignmentFlowForReflection({
+      lens: snapshotLens,
+      source: "profile_pattern",
+      text: reflectionDestinationText(params),
+      nodeFallback,
+      normalizedObligationThreads: params.normalizedObligationThreads,
+      profileFacts: params.profileFacts,
+    });
+    return flow ?? nodeFallback;
   }
-  const calendar = resolveCalendarDestination({
-    calendarFrame: params.calendarFrame,
-  });
-  return { ...calendar, confidence: Math.min(calendar.confidence, 0.76) };
+  return calendarNodeDestination({ calendarFrame: params.calendarFrame });
 }
 
 export function destinationPayload(
