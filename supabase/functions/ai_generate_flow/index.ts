@@ -6,10 +6,14 @@ import {
   buildSourceBackedOverview,
   buildSparsePromptExpertDefaults,
   buildSparsePromptRoutineNotes,
+  buildStructuredSourceFlowNotes,
+  buildVideoLearningOverview,
+  buildYoutubeChannelFlowNotes,
   calendarizeRecurringSourceRoutineHint,
   calendarizeSourceDayHint,
   countYoutubeUrls,
   extractFirstUrl,
+  extractYoutubeChannelUrl,
   findUnderSpecifiedActionPlaceholder,
   type FlowFormat,
   hasUnsafeVisibleRepeatReference,
@@ -34,7 +38,9 @@ import {
   stripVisibleNumberedInstructionListMarkers,
   unsafeVisibleRepeatTargetDayIndex,
   wantsThreeMealDailyFlow,
+  wantsYoutubeChannelVideoFlow,
   wantsYoutubeLinks,
+  type YoutubeChannelVideoResource,
 } from "./generation_hints.ts";
 import {
   buildDecisionMatrix,
@@ -1352,6 +1358,284 @@ function dedupeYoutubeResources(
     });
   }
   return out;
+}
+
+function normalizeYoutubeChannelShortsUrl(
+  raw: string | null | undefined,
+): string | null {
+  const extracted = extractYoutubeChannelUrl(raw);
+  if (!extracted) return null;
+
+  try {
+    const parsed = new URL(extracted);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    if (segments.length === 0) return null;
+    return `https://www.youtube.com/${segments.join("/")}/shorts`;
+  } catch {
+    return null;
+  }
+}
+
+function parseYoutubeInitialData(html: string): Record<string, unknown> | null {
+  const match = html.match(/var ytInitialData = (\{[\s\S]*?\});<\/script>/) ??
+    html.match(/window\["ytInitialData"\]\s*=\s*(\{[\s\S]*?\});/);
+  if (!match?.[1]) return null;
+
+  try {
+    const parsed = JSON.parse(match[1]);
+    return parsed && typeof parsed === "object"
+      ? parsed as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function cleanYoutubeShortAccessibilityTitle(
+  raw: string | null | undefined,
+): string {
+  return String(raw ?? "")
+    .replace(
+      /\s*,\s*(?:no|[\d,.]+(?:\s*(?:k|m|b|thousand|million|billion))?)\s+views?\s*-\s*play\s+short\s*$/i,
+      "",
+    )
+    .replace(/\s*-\s*play\s+short\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function collectYoutubeShortResourcesFromValue(
+  value: unknown,
+  videos: YoutubeChannelVideoResource[],
+  continuations: string[],
+  seenVideoUrls: Set<string>,
+  seenContinuations: Set<string>,
+) {
+  if (!value || typeof value !== "object") return;
+  const record = value as Record<string, unknown>;
+
+  const shortsLockup = record.shortsLockupViewModel as
+    | Record<string, unknown>
+    | undefined;
+  if (shortsLockup) {
+    const onTap = shortsLockup.onTap as Record<string, unknown> | undefined;
+    const innertubeCommand = onTap?.innertubeCommand as
+      | Record<string, unknown>
+      | undefined;
+    const reelEndpoint = innertubeCommand?.reelWatchEndpoint as
+      | Record<string, unknown>
+      | undefined;
+    const commandMetadata = innertubeCommand?.commandMetadata as
+      | Record<string, unknown>
+      | undefined;
+    const webCommandMetadata = commandMetadata?.webCommandMetadata as
+      | Record<string, unknown>
+      | undefined;
+    const videoId = typeof reelEndpoint?.videoId === "string"
+      ? reelEndpoint.videoId
+      : "";
+    const rawUrl = typeof webCommandMetadata?.url === "string"
+      ? webCommandMetadata.url
+      : (videoId ? `/shorts/${videoId}` : "");
+    const absoluteUrl = rawUrl.startsWith("http")
+      ? rawUrl
+      : `https://www.youtube.com${rawUrl}`;
+    const overlayMetadata = shortsLockup.overlayMetadata as
+      | Record<string, unknown>
+      | undefined;
+    const primaryText = overlayMetadata?.primaryText as
+      | Record<string, unknown>
+      | undefined;
+    const title = typeof primaryText?.content === "string"
+      ? primaryText.content
+      : (typeof shortsLockup.accessibilityText === "string"
+        ? shortsLockup.accessibilityText
+        : "");
+    const normalizedUrl = normalizeYoutubeUrl(absoluteUrl);
+    if (normalizedUrl && !seenVideoUrls.has(normalizedUrl)) {
+      seenVideoUrls.add(normalizedUrl);
+      videos.push({
+        title: cleanYoutubeShortAccessibilityTitle(title) ||
+          "Daily Math Visual",
+        url: normalizedUrl,
+        videoId: videoId || null,
+      });
+    }
+  }
+
+  const continuationItem = record.continuationItemRenderer as
+    | Record<string, unknown>
+    | undefined;
+  const continuationEndpoint = continuationItem?.continuationEndpoint as
+    | Record<string, unknown>
+    | undefined;
+  const continuationCommand = continuationEndpoint?.continuationCommand as
+    | Record<string, unknown>
+    | undefined;
+  const token = typeof continuationCommand?.token === "string"
+    ? continuationCommand.token
+    : "";
+  if (token && !seenContinuations.has(token)) {
+    seenContinuations.add(token);
+    continuations.push(token);
+  }
+
+  for (const child of Object.values(record)) {
+    collectYoutubeShortResourcesFromValue(
+      child,
+      videos,
+      continuations,
+      seenVideoUrls,
+      seenContinuations,
+    );
+  }
+}
+
+function collectYoutubeShortResources(
+  value: unknown,
+  seenVideoUrls: Set<string>,
+): { videos: YoutubeChannelVideoResource[]; continuations: string[] } {
+  const videos: YoutubeChannelVideoResource[] = [];
+  const continuations: string[] = [];
+  collectYoutubeShortResourcesFromValue(
+    value,
+    videos,
+    continuations,
+    seenVideoUrls,
+    new Set<string>(),
+  );
+  return { videos, continuations };
+}
+
+async function fetchYoutubeChannelShorts(args: {
+  channelUrl: string;
+  maxResults: number;
+}): Promise<
+  | { ok: true; resources: YoutubeChannelVideoResource[]; pagesFetched: number }
+  | {
+    ok: false;
+    error: string;
+    message: string;
+    resources: YoutubeChannelVideoResource[];
+  }
+> {
+  const shortsUrl = normalizeYoutubeChannelShortsUrl(args.channelUrl);
+  if (!shortsUrl) {
+    return {
+      ok: false,
+      error: "INVALID_YOUTUBE_CHANNEL_URL",
+      message: "The YouTube channel URL could not be normalized.",
+      resources: [],
+    };
+  }
+
+  const seenUrls = new Set<string>();
+  const resources: YoutubeChannelVideoResource[] = [];
+  let pagesFetched = 0;
+
+  let html: string;
+  try {
+    const res = await fetch(shortsUrl, {
+      headers: { "Accept-Language": "en-US,en;q=0.9" },
+      signal: AbortSignal.timeout(OPENAI_FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: "YOUTUBE_CHANNEL_FETCH_FAILED",
+        message: `YouTube returned HTTP ${res.status} for ${shortsUrl}`,
+        resources,
+      };
+    }
+    html = await res.text();
+  } catch (err: any) {
+    return {
+      ok: false,
+      error: "YOUTUBE_CHANNEL_FETCH_FAILED",
+      message: err?.message ?? String(err),
+      resources,
+    };
+  }
+
+  const apiKey = html.match(/"INNERTUBE_API_KEY":"([^"]+)"/)?.[1] ?? "";
+  const clientVersion = html.match(
+    /"INNERTUBE_CONTEXT_CLIENT_VERSION":"([^"]+)"/,
+  )?.[1] ?? "";
+  const initialData = parseYoutubeInitialData(html);
+  if (!initialData) {
+    return {
+      ok: false,
+      error: "YOUTUBE_INITIAL_DATA_MISSING",
+      message: "Could not read the channel Shorts data from YouTube.",
+      resources,
+    };
+  }
+
+  const initial = collectYoutubeShortResources(initialData, seenUrls);
+  resources.push(...initial.videos);
+  pagesFetched = 1;
+
+  let nextContinuation = initial.continuations[0] ?? "";
+  const maxPages = Math.min(
+    8,
+    Math.max(2, Math.ceil(args.maxResults / 48) + 2),
+  );
+  while (
+    nextContinuation &&
+    apiKey &&
+    clientVersion &&
+    resources.length < args.maxResults &&
+    pagesFetched < maxPages
+  ) {
+    try {
+      const res = await fetch(
+        `https://www.youtube.com/youtubei/v1/browse?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-youtube-client-name": "1",
+            "x-youtube-client-version": clientVersion,
+          },
+          body: JSON.stringify({
+            context: {
+              client: {
+                clientName: "WEB",
+                clientVersion,
+                hl: "en",
+                gl: "US",
+              },
+            },
+            continuation: nextContinuation,
+          }),
+          signal: AbortSignal.timeout(OPENAI_FETCH_TIMEOUT_MS),
+        },
+      );
+      if (!res.ok) break;
+      const data = await res.json();
+      const page = collectYoutubeShortResources(data, seenUrls);
+      resources.push(...page.videos);
+      nextContinuation = page.continuations[0] ?? "";
+      pagesFetched += 1;
+    } catch {
+      break;
+    }
+  }
+
+  if (resources.length === 0) {
+    return {
+      ok: false,
+      error: "YOUTUBE_CHANNEL_EMPTY",
+      message: "No Shorts were found on the requested channel.",
+      resources,
+    };
+  }
+
+  return {
+    ok: true,
+    resources: resources.slice(0, args.maxResults),
+    pagesFetched,
+  };
 }
 
 function extractOutputTextFromResponsesApi(data: any): string {
@@ -2682,7 +2966,7 @@ function repeatExpansionTokens(note: ParsedNote): Set<string> {
     note.end_time ?? ""
   }`
     .toLowerCase();
-  const tokens = text.match(/[a-z0-9]+/g) ?? [];
+  const tokens: string[] = text.match(/[a-z0-9]+/g) ?? [];
   const stopwords = new Set([
     "day",
     "routine",
@@ -2695,7 +2979,9 @@ function repeatExpansionTokens(note: ParsedNote): Set<string> {
     "with",
   ]);
   return new Set(
-    tokens.filter((token) => token.length >= 3 && !stopwords.has(token)),
+    tokens.filter((token: string) =>
+      token.length >= 3 && !stopwords.has(token)
+    ),
   );
 }
 
@@ -4331,7 +4617,8 @@ ${flowFormatPromptBlock}${
     if (!chunk || !Array.isArray(chunk.notes)) {
       return {
         ok: false,
-        error: "parse",
+        error:
+          "The model returned an invalid JSON segment for this long flow before the deterministic fast path could handle it.",
         tin: aiResp.tokensIn,
         tout: aiResp.tokensOut,
       };
@@ -4691,6 +4978,87 @@ function corsHeaders(origin: string | null) {
   };
 }
 
+function parseMaatFlowBrief(sourceText: string | undefined) {
+  if (!sourceText || !sourceText.includes("MAAT_FLOW_BRIEF v1")) return null;
+  const fenced = sourceText.match(
+    /MAAT_FLOW_BRIEF v1\s*```json\s*([\s\S]*?)```/,
+  );
+  const raw = fenced?.[1]?.trim();
+  if (!raw) return { policy_version: "maat_flow_brief_v1" };
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      return parsed as Record<string, unknown>;
+    }
+  } catch (error) {
+    console.warn("[ai_generate_flow] failed to parse maat flow brief", error);
+  }
+  return { policy_version: "maat_flow_brief_v1", parse_error: true };
+}
+
+function inferRequestedFlowName(
+  explicitFlowName: unknown,
+  description: string,
+): string | null {
+  const explicit = typeof explicitFlowName === "string"
+    ? explicitFlowName.trim()
+    : "";
+  if (explicit) return explicit;
+
+  const match = description.match(
+    /\bcalled\s+["“]([^"”\n]{1,160})["”]/i,
+  );
+  const fromDescription = match?.[1]?.replace(/\s+/g, " ").trim();
+  return fromDescription || null;
+}
+
+function maatFlowBriefSystemInstruction(
+  brief: Record<string, unknown> | null,
+) {
+  if (!brief) return "";
+  const plannerHints =
+    brief.planner_hints && typeof brief.planner_hints === "object"
+      ? brief.planner_hints as Record<string, unknown>
+      : {};
+  const forbiddenTerms = Array.isArray(brief.forbidden_terms)
+    ? brief.forbidden_terms
+      .map((term) => typeof term === "string" ? term.trim() : "")
+      .filter(Boolean)
+    : [];
+  const lines = [
+    "MAAT GUIDANCE FLOW CONSTRAINTS:",
+    "- The user explicitly accepted a preview before generation; keep the flow practical and non-judgmental.",
+    "- Do not expose or mention internal Ma'at scoring, bands, gate IDs, or diagnostic labels in titles, event names, notes, or explanations.",
+    "- Event titles must describe concrete supportive actions, not moral verdicts.",
+  ];
+  const maxActions = Number(plannerHints.max_actions_per_day);
+  if (Number.isFinite(maxActions) && maxActions > 0) {
+    lines.push(
+      `- Use no more than ${Math.floor(maxActions)} planned actions per day.`,
+    );
+  }
+  const minDuration = Number(plannerHints.minimum_duration_min);
+  if (Number.isFinite(minDuration) && minDuration > 0) {
+    lines.push(
+      `- Keep each planned action near ${
+        Math.floor(minDuration)
+      } minutes unless the user expands it later.`,
+    );
+  }
+  if (plannerHints.downshift_required === true) {
+    lines.push(
+      "- Prefer small, downshifted actions over intense, punitive, or overextended plans.",
+    );
+  }
+  if (typeof plannerHints.cue_type === "string" && plannerHints.cue_type) {
+    lines.push(`- Use ${plannerHints.cue_type} as the practical cue family.`);
+  }
+  if (forbiddenTerms.length) {
+    lines.push(`- Forbidden terms: ${forbiddenTerms.join(", ")}.`);
+  }
+  return lines.join("\n");
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
   console.log(
@@ -4711,9 +5079,9 @@ Deno.serve(async (req) => {
   }
 
   console.log(
-    "AI_GENERATE_FLOW_BUILD=2026-05-08_flow_plan_fast_path_v1",
+    "AI_GENERATE_FLOW_BUILD=2026-05-25_structured_video_focus_reflection_v6",
   );
-  const systemPrompt = getMemoSystemPrompt();
+  let systemPrompt = getMemoSystemPrompt();
   const promptFingerprint = await getMemoPromptFingerprint();
   const promptFingerprintShort = promptFingerprint.slice(0, 12);
   console.log(`[ai_generate_flow] PROMPT_VERSION=${promptFingerprintShort}`);
@@ -4741,6 +5109,19 @@ Deno.serve(async (req) => {
       typeof rawSource === "string" && rawSource.length > MAX_INBOUND_SOURCE
         ? rawSource.slice(0, MAX_INBOUND_SOURCE)
         : (typeof rawSource === "string" ? rawSource : undefined);
+    const maatFlowBrief = parseMaatFlowBrief(source_text);
+    const maatFlowBriefInstruction = maatFlowBriefSystemInstruction(
+      maatFlowBrief,
+    );
+    if (maatFlowBriefInstruction) {
+      systemPrompt = `${systemPrompt}\n\n${maatFlowBriefInstruction}`;
+    }
+    const maatDeliveryId = typeof body?.maat_delivery_id === "string"
+      ? body.maat_delivery_id.trim()
+      : null;
+    const maatBriefId = typeof body?.maat_brief_id === "string"
+      ? body.maat_brief_id.trim()
+      : null;
     const forceRefresh = body?.force_refresh === true;
     console.log("[ai_generate_flow] PROMPT_VERSION:", promptFingerprintShort);
     console.log("[ai_generate_flow] force_refresh:", forceRefresh);
@@ -5117,6 +5498,14 @@ Deno.serve(async (req) => {
     let youtubeResources: YouTubeResource[] = [];
     let youtubePromptBlock = "";
     let youtubeSearchModel = "";
+    let youtubeChannelResources: YoutubeChannelVideoResource[] = [];
+    let youtubeChannelFetchStatus:
+      | "not_requested"
+      | "ok"
+      | "error"
+      | "insufficient_videos" = "not_requested";
+    let youtubeChannelFetchError: string | null = null;
+    let youtubeChannelFastPathUsed = false;
     let planIntent: ReturnType<typeof classifyIntent> | null = null;
     let planDecisionMatrix: PlanDecisionMatrixV2 | null = null;
     let planSpec: PlanSpecV2 | null = null;
@@ -5265,6 +5654,46 @@ Deno.serve(async (req) => {
       !sourceHasYoutubeLinks;
     const requestedTimeWindow = inferRequestedTimeWindow(description) ??
       inferRequestedTimeWindow(source_text ?? "");
+    const youtubeChannelUrl = extractYoutubeChannelUrl(
+      [description, source_text ?? ""].filter(Boolean).join("\n"),
+    );
+    const youtubeChannelFlowRequested = wantsYoutubeChannelVideoFlow(
+      description,
+      source_text,
+    );
+    let youtubeChannelFlowNotes = null;
+    if (youtubeChannelFlowRequested && youtubeChannelUrl) {
+      const channelFetch = await fetchYoutubeChannelShorts({
+        channelUrl: youtubeChannelUrl,
+        maxResults: Math.max(dateRangeDays, 120),
+      });
+      if (channelFetch.ok === true) {
+        youtubeChannelResources = channelFetch.resources;
+        youtubeChannelFetchStatus = channelFetch.resources.length >=
+            dateRangeDays
+          ? "ok"
+          : "insufficient_videos";
+      } else {
+        youtubeChannelResources = channelFetch.resources;
+        youtubeChannelFetchStatus = "error";
+        youtubeChannelFetchError =
+          `${channelFetch.error}: ${channelFetch.message}`;
+      }
+      youtubeChannelFlowNotes = buildYoutubeChannelFlowNotes({
+        videos: youtubeChannelResources,
+        dateRangeDays,
+        requestedTimeWindow,
+      });
+    }
+    const structuredSourceNotes = buildStructuredSourceFlowNotes({
+      description,
+      sourceText: source_text,
+      dateRangeDays,
+      sourceHandling,
+      requestedTimeWindow,
+    });
+    const structuredSourceFastPathEligible = structuredSourceNotes != null;
+    let structuredSourceFastPathUsed = false;
     const sparsePromptExpertDefaultsBlock = buildSparsePromptExpertDefaults({
       description,
       sourceText: source_text,
@@ -5334,6 +5763,14 @@ Deno.serve(async (req) => {
     baseInputMeta.youtube_search_version = shouldSearchYoutubeResources
       ? YOUTUBE_SEARCH_VERSION
       : null;
+    baseInputMeta.youtube_channel_flow_requested = youtubeChannelFlowRequested;
+    baseInputMeta.youtube_channel_url = youtubeChannelUrl;
+    baseInputMeta.youtube_channel_fetch_status = youtubeChannelFetchStatus;
+    baseInputMeta.youtube_channel_fetch_error = youtubeChannelFetchError;
+    baseInputMeta.youtube_channel_results_count =
+      youtubeChannelResources.length;
+    baseInputMeta.structured_source_fast_path_eligible =
+      structuredSourceFastPathEligible;
 
     const constraintsFingerprint = constraintsCanInject
       ? { v: constraintsJson.constraints_version, max_epd: maxEpd }
@@ -5372,7 +5809,11 @@ Deno.serve(async (req) => {
         ? "expert_defaults_v1"
         : "none",
       cache_enabled: FLOW_GENERATION_CACHE_ENABLED,
-      generation_strategy: PLANNER_FIRST_ENABLED && mode !== "DICTATION"
+      generation_strategy: structuredSourceFastPathEligible
+        ? "structured_source_video_v1"
+        : youtubeChannelFlowNotes
+        ? "youtube_channel_shorts_v1"
+        : PLANNER_FIRST_ENABLED && mode !== "DICTATION"
         ? "planner_first_v1"
         : (FLOWSPEC_V2_ENABLED
           ? (dateRangeDays >= LONG_FLOW_THRESHOLD_DAYS
@@ -5388,7 +5829,60 @@ Deno.serve(async (req) => {
       console.log("[ai_generate_flow] cache unavailable (no service role key)");
     }
 
-    if (!skipCache) {
+    if (structuredSourceNotes) {
+      const deterministicFlowName = inferRequestedFlowName(
+        flowName,
+        [description, source_text ?? ""].filter(Boolean).join("\n\n"),
+      ) ?? "Structured Video Flow";
+      const deterministicOverview = buildVideoLearningOverview(
+        deterministicFlowName,
+        dateRangeDays,
+      );
+      parsedFlow = {
+        flow_name: deterministicFlowName,
+        overview_title: deterministicOverview.title,
+        overview_summary: deterministicOverview.summary,
+        notes: sortParsedNotesByDayAndTime(
+          sanitizeVisibleNumberedInstructionDetails(
+            sanitizeGeneratedLocations(structuredSourceNotes),
+          ),
+        ),
+      };
+      structuredSourceFastPathUsed = true;
+      modelUsed = "deterministic:structured_source_video_v1";
+      llmStatus = "structured_source_video_fast_path";
+      baseInputMeta.structured_source_fast_path_used = true;
+      console.log(
+        "[ai_generate_flow] structured source video fast path notes=",
+        parsedFlow.notes.length,
+      );
+    } else if (youtubeChannelFlowNotes) {
+      const deterministicFlowName = inferRequestedFlowName(
+        flowName,
+        description,
+      ) ?? "Daily Math Visuals Learning Flow";
+      parsedFlow = {
+        flow_name: deterministicFlowName,
+        overview_title: deterministicFlowName,
+        overview_summary:
+          `A ${dateRangeDays}-day Daily Math Visuals flow that orders channel Shorts from beginner-friendly math ideas toward more advanced topics, with one tappable video at noon each day.`,
+        notes: sortParsedNotesByDayAndTime(
+          sanitizeVisibleNumberedInstructionDetails(
+            sanitizeGeneratedLocations(youtubeChannelFlowNotes),
+          ),
+        ),
+      };
+      youtubeChannelFastPathUsed = true;
+      modelUsed = "deterministic:youtube_channel_shorts_v1";
+      llmStatus = "youtube_channel_shorts_fast_path";
+      baseInputMeta.youtube_channel_fast_path_used = true;
+      console.log(
+        "[ai_generate_flow] youtube channel shorts fast path notes=",
+        parsedFlow.notes.length,
+      );
+    }
+
+    if (!skipCache && !parsedFlow) {
       const { data: cacheRows, error: cacheErr } = await supabaseAdmin
         .from("flow_generation_cache")
         .select(
@@ -5508,7 +6002,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (!cached) {
+    if (!cached && !parsedFlow) {
       sourceHandling = inferSourceHandling(description, source_text);
       mode = inferMode(description, source_text);
       const schedule = inferSchedule(description);
@@ -6188,25 +6682,27 @@ Deno.serve(async (req) => {
         recurringSourceRoutineHints.length,
       );
     }
-    const canonicalSourceNotes = buildCanonicalSourceStructuredRoutineNotes({
-      sourceHandling,
-      recurringHints: recurringSourceRoutineHints,
-      sourceDayHints,
-      dateRangeDays,
-    });
-    if (canonicalSourceNotes) {
-      parsedFlow.notes = canonicalSourceNotes;
-    } else {
-      parsedFlow.notes = ensureRecurringSourceRoutineNotes(
-        parsedFlow.notes,
-        recurringSourceRoutineHints,
-        dateRangeDays,
-      );
-      parsedFlow.notes = hydrateNotesFromSourceHints(
-        parsedFlow.notes,
-        sourceDayHints,
+    if (!structuredSourceFastPathUsed && !youtubeChannelFastPathUsed) {
+      const canonicalSourceNotes = buildCanonicalSourceStructuredRoutineNotes({
         sourceHandling,
-      );
+        recurringHints: recurringSourceRoutineHints,
+        sourceDayHints,
+        dateRangeDays,
+      });
+      if (canonicalSourceNotes) {
+        parsedFlow.notes = canonicalSourceNotes;
+      } else {
+        parsedFlow.notes = ensureRecurringSourceRoutineNotes(
+          parsedFlow.notes,
+          recurringSourceRoutineHints,
+          dateRangeDays,
+        );
+        parsedFlow.notes = hydrateNotesFromSourceHints(
+          parsedFlow.notes,
+          sourceDayHints,
+          sourceHandling,
+        );
+      }
     }
     const sparsePromptRoutineNotes = buildSparsePromptRoutineNotes({
       description,
@@ -6288,7 +6784,10 @@ Deno.serve(async (req) => {
     );
 
     // Enforce richer structure when LLM output is thin/unlabeled
-    if (mode === "ELABORATION") {
+    if (
+      mode === "ELABORATION" && !structuredSourceFastPathUsed &&
+      !youtubeChannelFastPathUsed
+    ) {
       enforceRichStructure(parsedFlow);
     }
 
@@ -6484,7 +6983,10 @@ Deno.serve(async (req) => {
       source_text,
       dateRangeDays,
     );
-    if (sourceBackedOverview) {
+    if (
+      sourceBackedOverview && !structuredSourceFastPathUsed &&
+      !youtubeChannelFastPathUsed
+    ) {
       parsedFlow.flow_name = sourceBackedOverview.title;
       parsedFlow.overview_title = sourceBackedOverview.title;
       parsedFlow.overview_summary = sourceBackedOverview.summary;
@@ -6701,6 +7203,24 @@ Deno.serve(async (req) => {
       planSpecError,
       plan_spec: planSpec,
       flowPlanMetadata,
+      maat_guidance: maatFlowBrief
+        ? {
+          origin: "maat_guidance",
+          brief_id: typeof maatFlowBrief.brief_id === "string"
+            ? maatFlowBrief.brief_id
+            : maatBriefId || null,
+          delivery_id: maatDeliveryId || null,
+          request_brief_id: maatBriefId || null,
+          source_brief_id: typeof maatFlowBrief.brief_id === "string"
+            ? maatFlowBrief.brief_id
+            : null,
+          policy_version: maatFlowBrief.policy_version ??
+            "maat_flow_brief_v1",
+          domain: maatFlowBrief.domain ?? null,
+          intent: maatFlowBrief.intent ?? null,
+          duration_days: maatFlowBrief.duration_days ?? null,
+        }
+        : null,
     };
 
     // ═══════════════════════════════════════════════════════════
@@ -6897,8 +7417,30 @@ Deno.serve(async (req) => {
             .planner_first_skip_reason,
           planner_first_status: plannerFirstTelemetry.planner_first_status,
           plan_spec_error: planSpecError,
+          structured_source_fast_path: structuredSourceFastPathUsed,
+          youtube_channel_fast_path: youtubeChannelFastPathUsed,
+          youtube_channel_results_count: youtubeChannelResources.length,
+          youtube_channel_fetch_status: youtubeChannelFetchStatus,
           plan_decision_matrix: planDecisionMatrix,
           plan_spec: planSpec,
+          maat_guidance: maatFlowBrief
+            ? {
+              origin: "maat_guidance",
+              brief_id: typeof maatFlowBrief.brief_id === "string"
+                ? maatFlowBrief.brief_id
+                : maatBriefId || null,
+              delivery_id: maatDeliveryId || null,
+              request_brief_id: maatBriefId || null,
+              source_brief_id: typeof maatFlowBrief.brief_id === "string"
+                ? maatFlowBrief.brief_id
+                : null,
+              policy_version: maatFlowBrief.policy_version ??
+                "maat_flow_brief_v1",
+              domain: maatFlowBrief.domain ?? null,
+              intent: maatFlowBrief.intent ?? null,
+              duration_days: maatFlowBrief.duration_days ?? null,
+            }
+            : null,
         },
         generation_id: generationId,
         schema_version: schemaVersion,

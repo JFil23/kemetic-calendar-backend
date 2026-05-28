@@ -11,10 +11,14 @@ import {
   buildSourceBackedOverview,
   buildSparsePromptExpertDefaults,
   buildSparsePromptRoutineNotes,
+  buildStructuredSourceFlowNotes,
+  buildVideoLearningOverview,
+  buildYoutubeChannelFlowNotes,
   calendarizeRecurringSourceRoutineHint,
   calendarizeSourceDayHint,
   countYoutubeUrls,
   extractFirstUrl,
+  extractYoutubeChannelUrl,
   findUnderSpecifiedActionPlaceholder,
   hasUnderSpecifiedActionPlaceholder,
   hasUnsafeVisibleRepeatReference,
@@ -38,6 +42,7 @@ import {
   stripVisibleNumberedInstructionListMarkers,
   unsafeVisibleRepeatTargetDayIndex,
   wantsThreeMealDailyFlow,
+  wantsYoutubeChannelVideoFlow,
   wantsYoutubeLinks,
 } from "./generation_hints.ts";
 
@@ -63,6 +68,17 @@ Deno.test("inferRequestedTimeWindow handles explicit ranges", () => {
   assertEquals(result.source, "range");
 });
 
+Deno.test("inferRequestedTimeWindow handles noon phrasing", () => {
+  const result = inferRequestedTimeWindow(
+    "12 noon every day is when they watch",
+  );
+
+  assertExists(result);
+  assertEquals(result.startTime, "12:00");
+  assertEquals(result.endTime, "13:00");
+  assertEquals(result.source, "single");
+});
+
 Deno.test("parseSourceDayHints captures day URLs from pasted plans", () => {
   const hints = parseSourceDayHints(
     `
@@ -85,6 +101,545 @@ Deno.test("parseSourceDayHints captures day URLs from pasted plans", () => {
     hints.get(1)?.location,
     "https://www.youtube.com/watch?v=40bPxbFUCj4",
   );
+});
+
+Deno.test("buildStructuredSourceFlowNotes materializes a 90-day daily video ladder", () => {
+  const days = [
+    [
+      "Area of Square",
+      "https://www.youtube.com/shorts/Y9EynW7GVn8",
+      "What does area mean when you can actually see it?",
+    ],
+    [
+      "How to Simplify Fractions Using GCD",
+      "https://www.youtube.com/shorts/YBlWcfyCo6U",
+      "What does simplifying a fraction really do?",
+    ],
+    [
+      "What Does the Number in y = 2x Really Mean?",
+      "https://www.youtube.com/shorts/DAqRm2JPGsk",
+      "What does slope tell us about a line?",
+    ],
+    [
+      "This Algebra Equation Has NO SOLUTION",
+      "https://www.youtube.com/shorts/hpYO6TQtC3U",
+      "How can an equation look normal but have no answer?",
+    ],
+    [
+      "Why (a+b)^2 Is Actually a Square",
+      "https://www.youtube.com/shorts/ozSkfIzJHg0",
+      "How does algebra become a picture?",
+    ],
+    [
+      "Why a² − b² Is Actually a Rectangle",
+      "https://m.youtube.com/shorts/8lcelJLhG2o",
+      "What happens when one square is removed from another?",
+    ],
+    [
+      "The 9-Tile Secret: Visualizing (a+b+c)^2",
+      "https://www.youtube.com/shorts/7dZfAI_ztPk",
+      "How do tiles help explain algebra?",
+    ],
+    [
+      "Why Do Cubes Add Up to a Perfect Square?",
+      "https://www.youtube.com/shorts/q1DCRIxEqCQ",
+      "What pattern appears when cubes stack together?",
+    ],
+    [
+      "The Pythagorean Theorem, Rebuilt From First Principles",
+      "https://www.youtube.com/shorts/M4tRtg9v3vU",
+      "Why does a² + b² = c² make visual sense?",
+    ],
+    [
+      "Why a Straight Line Is the Shortest Path",
+      "https://www.youtube.com/shorts/5UnfwDHaOok",
+      "Why is the direct path usually the shortest?",
+    ],
+    [
+      "The Spider’s Shortcut",
+      "https://www.youtube.com/shorts/S7ZpbvyFgPk",
+      "How can unfolding a shape reveal the shortcut?",
+    ],
+    [
+      "This Sum Never Changes",
+      "https://www.youtube.com/shorts/LmdPPw8_ZAk",
+      "What stays the same no matter where the point moves?",
+    ],
+    [
+      "This Geometry Puzzle Has an Elegant Answer",
+      "https://www.youtube.com/shorts/tCYXMxEzUUM",
+      "What hidden structure solves the puzzle?",
+    ],
+    [
+      "How Many Rectangles in an 8×8 Grid?",
+      "https://www.youtube.com/shorts/4_F1tIeXKVY",
+      "Why do we count choices instead of drawing every rectangle?",
+    ],
+    [
+      "Where Does π Come From?",
+      "https://www.youtube.com/shorts/DDlwZke9nVQ",
+      "What does rolling a circle reveal about π?",
+    ],
+    [
+      "Where Does πr² Come From?",
+      "https://www.youtube.com/shorts/GLgmYIcmJds",
+      "Why does the circle’s area connect to a triangle?",
+    ],
+    [
+      "A Circle Inside a Circle",
+      "https://www.youtube.com/shorts/Ewu8vpCPEcI",
+      "What kind of curve appears when one circle rolls inside another?",
+    ],
+    [
+      "Why Pyramid Volume = ⅓ × Base × Height",
+      "https://www.youtube.com/shorts/LzXzh878wpg",
+      "Why does the pyramid formula need one-third?",
+    ],
+    [
+      "Why Sin²θ + Cos²θ = 1",
+      "https://www.youtube.com/shorts/fjHHOy5Nyb4",
+      "How is trigonometry hiding inside a circle?",
+    ],
+    [
+      "The sin(a+b) Formula Finally Makes Sense",
+      "https://www.youtube.com/shorts/2zVIYLsiBXg",
+      "What does the formula show visually?",
+    ],
+    [
+      "Why Strikers Cut Inside Before They Shoot",
+      "https://www.youtube.com/shorts/402ddJ-_jPs",
+      "How does geometry affect sports?",
+    ],
+    [
+      "A Perfect Penalty Outruns Reaction Time",
+      "https://www.youtube.com/shorts/P2NO1FDLmkg",
+      "How can math explain reaction time?",
+    ],
+    [
+      "Why Music Sounds Good",
+      "https://www.youtube.com/shorts/r9r9jaypZQQ",
+      "What does math have to do with sound?",
+    ],
+    [
+      "How Do Ships Navigate Using a Lighthouse?",
+      "https://www.youtube.com/shorts/fDTjy1bdfbU",
+      "How can rotation help people find direction?",
+    ],
+    [
+      "15 Pendulums",
+      "https://www.youtube.com/shorts/uHne_bt-CII",
+      "What pattern appears when motion repeats?",
+    ],
+    [
+      "The Möbius Strip",
+      "https://www.youtube.com/shorts/BYJ7UhxXFZA",
+      "How can one shape have only one side?",
+    ],
+    [
+      "The Lo Shu Square",
+      "https://www.youtube.com/shorts/y0-CTf8PmY0",
+      "What makes a magic square “magic”?",
+    ],
+    [
+      "The Spiral Hidden Inside Square Roots",
+      "https://www.youtube.com/shorts/kgORwuMVJrs",
+      "How can square roots become a spiral?",
+    ],
+    [
+      "The Hidden Constant in a Rotating Square",
+      "https://www.youtube.com/shorts/qlmA7E6qZCs",
+      "What stays the same while the square moves?",
+    ],
+    [
+      "When an Ellipse Becomes a Cylinder",
+      "https://www.youtube.com/shorts/DtMuHrZluAI",
+      "How does a 2D shape become a 3D object?",
+    ],
+    [
+      "Why an Egg Is NOT an Ellipse",
+      "https://www.youtube.com/shorts/S5HBTmk4ldo",
+      "Why are real-world shapes harder than textbook shapes?",
+    ],
+    [
+      "What Happens When You Bend a Spring Into a Circle?",
+      "https://www.youtube.com/shorts/Fwpb2ojcbS4",
+      "What kind of shape appears from circular motion?",
+    ],
+    [
+      "The Math of Mountains",
+      "https://www.youtube.com/shorts/NC4uoubKFd8",
+      "How can math build a landscape?",
+    ],
+    [
+      "Why $1 Becomes e",
+      "https://www.youtube.com/shorts/B82_jAMayPM",
+      "Why does repeated growth create the number e?",
+    ],
+    [
+      "Why Magnitude 7 Is 100× a 5",
+      "https://www.youtube.com/shorts/hXG29YSeu7M",
+      "Why do logarithms help compare huge changes?",
+    ],
+    [
+      "What Is a Limit?",
+      "https://www.youtube.com/shorts/xKnsPgihiug",
+      "What does it mean for a value to approach something?",
+    ],
+    [
+      "x² vs 1.1^x",
+      "https://www.youtube.com/shorts/pjCJja2-n3U",
+      "Why can slow exponential growth eventually win?",
+    ],
+    [
+      "Three Functions Behave. The Fourth Surprises You.",
+      "https://www.youtube.com/shorts/Fel3A10C1jM",
+      "What does an inverse function do?",
+    ],
+    [
+      "The Function That Solves the UNSOLVABLE",
+      "https://www.youtube.com/shorts/8v9ZCuI-cEA",
+      "Why do some equations need new kinds of functions?",
+    ],
+    [
+      "Harvard Math Problem: t^t = 49",
+      "https://www.youtube.com/shorts/32Q8veFRD3Q",
+      "Why is guessing not enough here?",
+    ],
+    [
+      "Why 1 + 1/2 + 1/3 + … = Infinity",
+      "https://www.youtube.com/shorts/p0ufANPceOQ",
+      "How can tiny pieces still add up forever?",
+    ],
+    [
+      "The Area Under One Arch of Sine = 2",
+      "https://www.youtube.com/shorts/ULFIxo-Xt0E",
+      "How does area connect to a wave?",
+    ],
+    [
+      "Why ∫sin(x)dx = -cos(x)",
+      "https://www.youtube.com/shorts/uO8BvPXCOzA",
+      "How can motion around a circle explain an integral?",
+    ],
+    [
+      "The Integral of e^x Equals e^x",
+      "https://www.youtube.com/shorts/-cdD4yl5OwM",
+      "Why is e^x special?",
+    ],
+    [
+      "This Integral Is a Quarter Circle",
+      "https://www.youtube.com/shorts/XbeXC8ocRts",
+      "How can an integral secretly be geometry?",
+    ],
+    [
+      "The Integral That Equals ZERO",
+      "https://www.youtube.com/shorts/0UbhMLAk8-Y",
+      "How can symmetry make an answer disappear?",
+    ],
+    [
+      "This Integral Gives the Same Answer No Matter What",
+      "https://www.youtube.com/shorts/gczr-9RFN4M",
+      "What stays fixed even when the curve changes?",
+    ],
+    [
+      "The Integral That Stumped Map-Makers",
+      "https://www.youtube.com/shorts/UB-7NNkvpHA",
+      "Why would map-making need calculus?",
+    ],
+    [
+      "The Integral That Hides π/√2",
+      "https://www.youtube.com/shorts/ChE0snd4798",
+      "Why does π appear in unexpected places?",
+    ],
+    [
+      "Why ∫ sin(x)/x = π/2",
+      "https://www.youtube.com/shorts/TnP0qLUqc3w",
+      "How can a hard integral be solved by changing the question?",
+    ],
+    [
+      "Watch a Polynomial Become the Sine Wave",
+      "https://www.youtube.com/shorts/c6atsiO-1Ws",
+      "How can a wave be built from powers?",
+    ],
+    [
+      "Why 0! = 1",
+      "https://www.youtube.com/shorts/cV4UR3af9Ng",
+      "Why does zero factorial need to equal one?",
+    ],
+    [
+      "How Many Zeros at the End of 1000!?",
+      "https://www.youtube.com/shorts/GwKSoNDWndk",
+      "Why do factors of 10 matter?",
+    ],
+    [
+      "Why Every Shuffled Deck Is Unique",
+      "https://www.youtube.com/shorts/XwavLcb5dd8",
+      "Why are there so many possible card orders?",
+    ],
+    [
+      "INSTAGRAM = GRIM SATAN",
+      "https://www.youtube.com/shorts/HrhkG9w7BuM",
+      "How can rearranging letters become math?",
+    ],
+    [
+      "Why Sheldon Said 73 Is the Best Number",
+      "https://www.youtube.com/shorts/bmjLDFwvHGM",
+      "What makes a number interesting?",
+    ],
+    [
+      "Why Your Calculator Says ERROR for (-2)!",
+      "https://www.youtube.com/shorts/lNVEEyC5SG0",
+      "Why do some operations stop working?",
+    ],
+    [
+      "42 Paper Folds Reaches the Moon",
+      "https://www.youtube.com/shorts/3JLXnnIIMxc",
+      "How does doubling become enormous?",
+    ],
+    [
+      "The Math Rule That Proves the Impossible",
+      "https://www.youtube.com/shorts/zv9CkWkLJG0",
+      "What does the pigeonhole principle guarantee?",
+    ],
+    [
+      "10 Princesses, 3 Classes",
+      "https://www.youtube.com/shorts/1VbomAKsmKM",
+      "How can counting prove something must happen?",
+    ],
+    [
+      "14 Workers: The Minimum to Guarantee a Full Team",
+      "https://www.youtube.com/shorts/ADBpfHqWBG0",
+      "How do guarantees work in counting problems?",
+    ],
+    [
+      "Pascal’s Triangle Has a Secret Pattern",
+      "https://www.youtube.com/shorts/XNIaAeF8zNc",
+      "What patterns appear when numbers stack?",
+    ],
+    [
+      "Triangular Numbers Hidden in Pascal’s Triangle",
+      "https://www.youtube.com/shorts/8Mw_bwmiDUE",
+      "Where do triangular numbers show up?",
+    ],
+    [
+      "This Ancient Puzzle Has a Perfect Solution",
+      "https://www.youtube.com/shorts/MuY9Zh7Ne6Y",
+      "What pattern solves the puzzle?",
+    ],
+    [
+      "The Frog and the Well",
+      "https://www.youtube.com/shorts/bsEd5zYV_-A",
+      "Why is the obvious answer wrong?",
+    ],
+    [
+      "The Walking Puzzle That Invented Graph Theory",
+      "https://www.youtube.com/shorts/m3DtmQTapHQ",
+      "How can a walking puzzle become a new field of math?",
+    ],
+    [
+      "Find 1 in a Billion in 30 Guesses",
+      "https://www.youtube.com/shorts/PAeFohfO02c",
+      "Why is cutting the problem in half powerful?",
+    ],
+    [
+      "Binary Search Among 1 Million",
+      "https://www.youtube.com/shorts/oan9C52tVh0",
+      "How does binary search save time?",
+    ],
+    [
+      "Binary Search on Strings",
+      "https://www.youtube.com/shorts/7PlqtAk9V00",
+      "How can the same math work on words?",
+    ],
+    [
+      "How Hash Tables Find Anything in 1 Step",
+      "https://www.youtube.com/shorts/h3r9-4urKzE",
+      "How does a hash table turn searching into arithmetic?",
+    ],
+    [
+      "Bubble Sort Explained",
+      "https://www.youtube.com/shorts/LWaKIgg5Z7k",
+      "Why is sorting a list harder than it looks?",
+    ],
+    [
+      "How a GPU Runs 270,000 Threads at Once",
+      "https://www.youtube.com/shorts/xkQIuGbLQ5k",
+      "How does parallel work change speed?",
+    ],
+    [
+      "Your First GPU Kernel in 3 Lines of Code",
+      "https://www.youtube.com/shorts/HYLT1_Gb0mE",
+      "How can many tiny workers solve one big problem?",
+    ],
+    [
+      "CPU vs GPU",
+      "https://www.youtube.com/shorts/n-lpWVpEfgo",
+      "What is the difference between one smart worker and many simple workers?",
+    ],
+    [
+      "GPU vs TPU",
+      "https://www.youtube.com/shorts/lCli1f5MrWc",
+      "Why are different machines built for different math?",
+    ],
+    [
+      "The Identity Matrix Explained",
+      "https://www.youtube.com/shorts/cbnhfrAPCIo",
+      "Why is the identity matrix like the number 1?",
+    ],
+    [
+      "The Undo Button of Linear Algebra",
+      "https://www.youtube.com/shorts/31CY6Ct9OYE",
+      "What does an inverse matrix undo?",
+    ],
+    [
+      "Why Google Uses Eigenvectors to Rank the Internet",
+      "https://www.youtube.com/shorts/c86OaJuDCbg",
+      "How can repeated movement reveal importance?",
+    ],
+    [
+      "The Cartesian Plane Is One of the Most Powerful Ideas in Math",
+      "https://www.youtube.com/shorts/jQnLcfJoBg8",
+      "How does the coordinate plane help us move and rotate?",
+    ],
+    [
+      "Why Complex Numbers Make Rotation Simple",
+      "https://www.youtube.com/shorts/46fA0v6zkZk",
+      "How can imaginary numbers help with real motion?",
+    ],
+    [
+      "How Computers Draw Curves",
+      "https://www.youtube.com/shorts/xLLZ9V5MJs4",
+      "How do computers create smooth curves?",
+    ],
+    [
+      "Why king − man + woman = queen",
+      "https://www.youtube.com/shorts/YlsJ_D2EIuY",
+      "How can meaning become geometry?",
+    ],
+    [
+      "The “+b” That Lets AI Exist",
+      "https://www.youtube.com/shorts/9122zJtMUtE",
+      "Why does shifting a line matter in AI?",
+    ],
+    [
+      "Perceptron Explained Visually",
+      "https://www.youtube.com/shorts/DXOyzpTK4qQ",
+      "What is the smallest learning machine?",
+    ],
+    [
+      "The Sigmoid Function Explained",
+      "https://www.youtube.com/shorts/HdiKxlBJLbE",
+      "How can a function turn numbers into decisions?",
+    ],
+    [
+      "ReLU Explained",
+      "https://www.youtube.com/shorts/0pMKiW_UQQs",
+      "Why is a simple function powerful for AI?",
+    ],
+    [
+      "How AI Actually Learns: Gradient Descent",
+      "https://www.youtube.com/shorts/nfYo_MMiYMQ",
+      "How does AI move toward a better answer?",
+    ],
+    [
+      "Backpropagation Explained",
+      "https://www.youtube.com/shorts/OZBnJQPWD6A",
+      "How does a neural network learn from mistakes?",
+    ],
+    [
+      "Dropout Explained",
+      "https://www.youtube.com/shorts/bR1JP92jBIo",
+      "Why would turning parts off make a model stronger?",
+    ],
+    [
+      "The Kernel Trick Explained Visually",
+      "https://www.youtube.com/shorts/Fo1aw1glI0k",
+      "How can lifting a problem into another dimension make it easier?",
+    ],
+  ];
+
+  assertEquals(days.length, 90);
+
+  const prompt = [
+    "Create a 90-day learning flow called “Daily Math Visuals: 90-Day Visual Math Ladder.”",
+    "",
+    "Schedule:",
+    "- One task per day for 90 days.",
+    "- Time: 12:00 PM every day.",
+    "- Each day should have one video link.",
+    "- After watching, ask the kids to say or write one sentence: “What did this video help me see?”",
+    "",
+    ...days.flatMap(([title, url, dayPrompt], index) => [
+      `Day ${index + 1} — ${title}`,
+      `Watch: ${url}`,
+      `Prompt: ${dayPrompt}`,
+      "",
+    ]),
+  ].join("\n");
+
+  const requestedTimeWindow = inferRequestedTimeWindow(prompt);
+  assertExists(requestedTimeWindow);
+  const notes = buildStructuredSourceFlowNotes({
+    description: prompt,
+    dateRangeDays: 90,
+    sourceHandling: inferSourceHandling(prompt),
+    requestedTimeWindow,
+  });
+
+  assertExists(notes);
+  assertEquals(notes.length, 90);
+  assertEquals(new Set(notes.map((note) => note.day_index)).size, 90);
+  assertEquals(notes.every((note) => note.start_time === "12:00"), true);
+  assertEquals(notes.every((note) => note.end_time === "13:00"), true);
+  assertEquals(
+    notes.every((note) =>
+      note.location?.startsWith("https://www.youtube.com/watch?v=")
+    ),
+    true,
+  );
+  assertEquals(
+    notes.filter((note) => (note.details.match(/https?:\/\//g) ?? []).length)
+      .length,
+    0,
+  );
+  assertStringIncludes(notes[0].details, "Watch the linked video.");
+  assertStringIncludes(notes[0].details, "What did this video help me see?");
+  assertStringIncludes(notes[89].details, days[89][2]);
+  assertEquals(
+    notes[5].location,
+    "https://www.youtube.com/watch?v=8lcelJLhG2o",
+  );
+
+  const appSplitDescription = [
+    "USER_INTENT_SUMMARY:",
+    "Create a 90-day learning flow called Daily Math Visuals.",
+    "",
+    "Transform SOURCE_TEXT into a flow for the selected date range. Preserve concrete initiatives, constraints, milestones, numbers, sequence, and voice from SOURCE_TEXT. Organize it into a clear progression instead of generic summaries.",
+  ].join("\n");
+  const appSplitTimeWindow = inferRequestedTimeWindow(appSplitDescription) ??
+    inferRequestedTimeWindow(prompt);
+  const appSplitNotes = buildStructuredSourceFlowNotes({
+    description: appSplitDescription,
+    sourceText: prompt,
+    dateRangeDays: 90,
+    sourceHandling: inferSourceHandling(appSplitDescription, prompt),
+    requestedTimeWindow: appSplitTimeWindow,
+  });
+
+  assertExists(appSplitNotes);
+  assertEquals(appSplitNotes.length, 90);
+  assertEquals(appSplitNotes[89].title, "The Kernel Trick Explained Visually");
+
+  const classifierMismatchNotes = buildStructuredSourceFlowNotes({
+    description: "Create a 90-day learning flow from this source material.",
+    sourceText: prompt,
+    dateRangeDays: 90,
+    sourceHandling: "SYNTHESIZE_FROM_SOURCE",
+    requestedTimeWindow,
+  });
+
+  assertExists(classifierMismatchNotes);
+  assertEquals(classifierMismatchNotes.length, 90);
+  assertEquals(classifierMismatchNotes[0].location?.includes("watch?v="), true);
 });
 
 Deno.test("parseSourceDayHints handles markdown day headings and preserves rich details", () => {
@@ -608,6 +1163,21 @@ Deno.test("buildSourceBackedOverview gives sparse learning prompts a concise ove
   assertEquals(overview.summary.length < 260, true);
 });
 
+Deno.test("buildVideoLearningOverview keeps math video flows concise", () => {
+  const overview = buildVideoLearningOverview(
+    "Daily Math Visuals: 90-Day Visual Math Ladder",
+    90,
+  );
+
+  assertEquals(overview.title, "Daily Math Visuals: 90-Day Visual Math Ladder");
+  assertStringIncludes(overview.summary, "90-day visual math learning flow");
+  assertStringIncludes(overview.summary, "one linked video each day");
+  assertEquals(
+    /\b(?:song|tune|chart|riff|chord)\b/i.test(overview.summary),
+    false,
+  );
+});
+
 Deno.test("buildSourceBackedOverview specializes Medu Neter prompts with starter signs", () => {
   const overview = buildSourceBackedOverview("learn medu neter", null, 7);
 
@@ -815,6 +1385,8 @@ Deno.test("generic placeholder detector rejects notes that require extra researc
     "Study these electrical engineering concepts: voltage, current, resistance, Ohm's Law, and Kirchhoff's current law.",
     "Practice foundational exercises: dead bugs, bird dogs, glute bridges, side planks, and slow mountain climbers.",
     "Use MIT OpenCourseWare Circuits and Electronics notes or Khan Academy circuit lessons to check one worked example.",
+    'Watch the linked video. Think about: Why would map-making need calculus? After watching, say or write one sentence: "What did this video help me see?"',
+    'Watch the linked video. Focus: Compare small numbers to huge factorial numbers. Reflection: Why can a simple rule create an enormous result? After watching, say or write one sentence: "What did this video help me see?"',
   ];
 
   for (const detail of goodDetails) {
@@ -1123,6 +1695,127 @@ Deno.test("wantsYoutubeLinks detects explicit youtube link requests", () => {
     wantsYoutubeLinks("turn this into a study flow", "youtube video please"),
     false,
   );
+});
+
+Deno.test("youtube channel flow prompt is recognized as a link-backed video flow", () => {
+  const prompt =
+    "Visit this YouTube channel https://youtube.com/@dailymathvisuals?si=4wYGuTa1NvhVHcZM and arrange the shorts videos from beginner level math to advanced topics. Create a flow with one video per day for 90 days. Include links so they can tap and watch. 12 noon every day is when they watch.";
+
+  assertEquals(
+    extractYoutubeChannelUrl(prompt),
+    "https://www.youtube.com/@dailymathvisuals",
+  );
+  assertEquals(wantsYoutubeChannelVideoFlow(prompt), true);
+  assertEquals(wantsYoutubeLinks(prompt), true);
+});
+
+Deno.test("buildYoutubeChannelFlowNotes sorts channel shorts from beginner to advanced", () => {
+  const notes = buildYoutubeChannelFlowNotes({
+    dateRangeDays: 5,
+    requestedTimeWindow: {
+      startTime: "12:00",
+      endTime: "13:00",
+      source: "single",
+    },
+    videos: [
+      {
+        title: "The Kernel Trick Explained Visually",
+        url: "https://www.youtube.com/shorts/Fo1aw1glI0k",
+      },
+      {
+        title: "Area of Square",
+        url: "https://www.youtube.com/shorts/Y9EynW7GVn8",
+      },
+      {
+        title: "Why ∫ sin(x)/x = π/2",
+        url: "https://www.youtube.com/shorts/TnP0qLUqc3w",
+      },
+      {
+        title: "How to Simplify Fractions Using GCD",
+        url: "https://www.youtube.com/shorts/YBlWcfyCo6U",
+      },
+      {
+        title: "Perceptron Explained Visually",
+        url: "https://www.youtube.com/shorts/DXOyzpTK4qQ",
+      },
+    ],
+  });
+
+  assertExists(notes);
+  assertEquals(notes.map((note) => note.title), [
+    "Area of Square",
+    "How to Simplify Fractions Using GCD",
+    "Why ∫ sin(x)/x = π/2",
+    "The Kernel Trick Explained Visually",
+    "Perceptron Explained Visually",
+  ]);
+  assertEquals(notes.every((note) => note.start_time === "12:00"), true);
+  assertEquals(notes.every((note) => note.end_time === "13:00"), true);
+  assertEquals(
+    notes[0].location,
+    "https://www.youtube.com/watch?v=Y9EynW7GVn8",
+  );
+  assertStringIncludes(notes[0].details, "What did this video help me see?");
+});
+
+Deno.test("structured video flow preserves focus and reflection labels without false generic failures", () => {
+  const prompt = `
+Create a 4-day learning flow called “Daily Math Visuals: 4-Day Deep Visual Math Path.”
+
+Schedule:
+- One lesson per day for 4 days.
+- Time: 12:00 PM every day.
+- Each day includes a longer Daily Math Visuals video link.
+- After each lesson, ask the kids to answer one short reflection:
+  “What did this video help me see?”
+
+Day 1 — What Is a Factorial?
+Watch: https://www.youtube.com/watch?v=FNseOd4J7T0
+Focus: Understand factorial as repeated multiplication.
+Reflection: What does “5!” mean, and why does it grow so quickly?
+
+Day 2 — Factorials as Arrangements
+Watch: https://www.youtube.com/watch?v=FNseOd4J7T0
+Focus: Watch again for the idea of arranging objects.
+Reflection: Why does changing order create so many possibilities?
+
+Day 3 — Factorials and Real Life
+Watch: https://www.youtube.com/watch?v=FNseOd4J7T0
+Focus: Connect factorials to cards, passwords, schedules, and choices.
+Reflection: Where could factorial growth show up in real life?
+
+Day 4 — Explosive Growth
+Watch: https://www.youtube.com/watch?v=FNseOd4J7T0
+Focus: Compare small numbers to huge factorial numbers.
+Reflection: Why can a simple rule create an enormous result?
+`;
+
+  const notes = buildStructuredSourceFlowNotes({
+    description: prompt,
+    dateRangeDays: 4,
+    sourceHandling: inferSourceHandling(prompt),
+    requestedTimeWindow: inferRequestedTimeWindow(prompt),
+  });
+
+  assertExists(notes);
+  assertEquals(notes.length, 4);
+  assertEquals(notes.every((note) => note.start_time === "12:00"), true);
+  assertEquals(
+    notes.every((note) =>
+      note.location === "https://www.youtube.com/watch?v=FNseOd4J7T0"
+    ),
+    true,
+  );
+  assertStringIncludes(
+    notes[3].details,
+    "Focus: Compare small numbers to huge factorial numbers.",
+  );
+  assertStringIncludes(
+    notes[3].details,
+    "Reflection: Why can a simple rule create an enormous result?",
+  );
+  assertStringIncludes(notes[3].details, "What did this video help me see?");
+  assertEquals(findUnderSpecifiedActionPlaceholder(notes[3].details), null);
 });
 
 Deno.test("countYoutubeUrls counts both youtube.com and youtu.be links", () => {

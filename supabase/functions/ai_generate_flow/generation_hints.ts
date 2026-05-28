@@ -64,6 +64,22 @@ export type SparsePromptRoutineNote = {
   location?: string | null;
 };
 
+export type StructuredSourceFlowNote = {
+  day_index: number;
+  title: string;
+  details: string;
+  all_day: boolean;
+  start_time: string | null;
+  end_time: string | null;
+  location?: string | null;
+};
+
+export type YoutubeChannelVideoResource = {
+  title: string;
+  url: string;
+  videoId?: string | null;
+};
+
 const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>()]+/gi;
 const DAY_MARKER_RE =
   /(?:^|\n)\s*(?:#{1,6}\s*)?(?:[-*•]\s*)?(?:\*\*)?\s*day\s+(\d{1,3})\s*[:\-–—]\s*(.+?)(?:\*\*)?\s*(?=\n|$)/gi;
@@ -73,6 +89,16 @@ const YOUTUBE_URL_RE =
   /\b(?:https?:\/\/|www\.)?(?:m\.)?(?:youtube\.com|youtu\.be)\/[^\s<>()]+/gi;
 const YOUTUBE_URL_LIKE_RE =
   /(?:https?:\/\/|www\.)?(?:m\.)?(?:youtube\.com|youtu\.be)\//i;
+const YOUTUBE_CHANNEL_URL_RE =
+  /\b(?:https?:\/\/|www\.)?(?:m\.)?youtube\.com\/(?:@[\w.-]+|channel\/[A-Za-z0-9_-]+|c\/[^\s<>()]+|user\/[^\s<>()]+)(?:[^\s<>()]*)?/i;
+const GLOBAL_AFTER_WATCHING_SENTENCE_RE =
+  /\bafter\s+watching,?\s+(?:ask\s+)?(?:the\s+)?(?:kids?\s+to\s+)?(?:say\s+or\s+write|write\s+or\s+say|say|write)\s+(?:one\s+)?sentence\s*:\s*["“]([^"”\n]+)["”]/i;
+const GLOBAL_AFTER_WATCHING_LINE_RE =
+  /\bafter\s+watching,?\s+(?:ask\s+)?(?:the\s+)?(?:kids?\s+to\s+)?(?:say\s+or\s+write|write\s+or\s+say|say|write)\s+(?:one\s+)?sentence\s*:\s*([^\n]+)/i;
+const GLOBAL_LESSON_REFLECTION_SENTENCE_RE =
+  /\bafter\s+each\s+(?:lesson|video|day),?\s+(?:ask\s+)?(?:the\s+)?(?:kids?\s+to\s+)?(?:answer|say|write|say\s+or\s+write|write\s+or\s+say)\s+(?:one\s+)?(?:short\s+)?reflection\s*:\s*["“]([^"”\n]+)["”]/i;
+const GLOBAL_LESSON_REFLECTION_LINE_RE =
+  /\bafter\s+each\s+(?:lesson|video|day),?\s+(?:ask\s+)?(?:the\s+)?(?:kids?\s+to\s+)?(?:answer|say|write|say\s+or\s+write|write\s+or\s+say)\s+(?:one\s+)?(?:short\s+)?reflection\s*:\s*([^\n]+)/i;
 const MEAL_FLOW_KEYWORD_RE =
   /\b(meal(?:\s*plan)?|meals|nutrition|diet|recipes?|menu|meal prep|food|foods|breakfast|lunch|dinner|snack|ingredients)\b/i;
 const MEAL_FOOD_SIGNAL_RE =
@@ -123,6 +149,8 @@ const CONVERSATION_DUMP_RE =
   /(?:^|\n)\s*(?:user|assistant|me|them|speaker\s*\d+|q|a)\s*:/im;
 const YOUTUBE_REQUEST_RE =
   /\b(?:with|include|add|use|find|give\s+me|need|want|show)\b[\s\S]{0,36}\b(?:real|relevant|actual|direct)?[\s\S]{0,18}\b(?:youtube|yt)\b[\s\S]{0,18}\b(?:links?|videos?)\b|\b(?:youtube|yt)\b[\s\S]{0,18}\b(?:links?|videos?)\b/i;
+const YOUTUBE_CHANNEL_FLOW_REQUEST_RE =
+  /\b(?:visit|use|from|pull\s+from|arrange|order)\b[\s\S]{0,120}\byoutube\s+channel\b|\byoutube\s+channel\b[\s\S]{0,180}\b(?:flow|one\s+video\s+per\s+day|watch|links?|videos?|shorts?)\b/i;
 const YOUTUBE_VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
 const GENERIC_LOCATION_VALUE_RE =
   /^(?:study materials open|training space ready|open your budget\/docs workspace|project workspace and current deliverable visible|quiet place with your practice cue visible|desk clear and the required document open|kitchen or prep space ready|the place where this task normally happens)$/i;
@@ -214,7 +242,7 @@ const REFERENTIAL_SET_PLACEHOLDER_PATTERNS: Array<[RegExp, string]> = [
     "references a numbered set without naming the items",
   ],
   [
-    /\b(?:basic|common|important|key|core|main|foundational|starter|essential|relevant|appropriate|simple)\s+(?:hieroglyphs?|glyphs?|symbols?|signs?|verbs?|vocabulary|words?|phrases?|sentences?|terms?|examples?|problems?|questions?|cases?|topics?|themes?|facts?|rules?|forms?|chords?|riffs?|sections?|stretches?|exercises?|movements?|techniques?|drills?|concepts?|principles?|patterns?|figures?|people|texts?|sources?|resources?|materials?|historical\s+figures?|cultural\s+figures?)\b/i,
+    /\b(?:basic|common|important|key|core|main|foundational|starter|essential|relevant|appropriate)\s+(?:hieroglyphs?|glyphs?|symbols?|signs?|verbs?|vocabulary|words?|phrases?|sentences?|terms?|examples?|problems?|questions?|cases?|topics?|themes?|facts?|rules?|forms?|chords?|riffs?|sections?|stretches?|exercises?|movements?|techniques?|drills?|concepts?|principles?|patterns?|figures?|people|texts?|sources?|resources?|materials?|historical\s+figures?|cultural\s+figures?)\b/i,
     "references a set without naming the items",
   ],
   [
@@ -286,7 +314,7 @@ const GENERIC_CONDITIONAL_ACTION_PLACEHOLDER_PATTERNS: Array<
     MUSIC_TUNING_SPECIFICITY_SIGNAL_RE,
   ],
   [
-    /\b(?:one-page\s+)?(?:song\s+)?(?:map|chart)\b/i,
+    /\b(?:one-page\s+)?song\s+(?:map|chart)\b|\bone-page\s+(?:music\s+)?(?:map|chart)\b|\b(?:map|chart)\b(?=[\s\S]{0,80}\b(?:song|verse|chorus|bridge|riff|chords?|strumming?))/i,
     "song map guidance needs the map contents",
     MUSIC_MAP_SPECIFICITY_SIGNAL_RE,
   ],
@@ -336,10 +364,47 @@ function hasConcreteNamedItemEvidence(text: string): boolean {
   );
 }
 
+function sentenceAroundMatch(text: string, matchIndex: number): string {
+  const safeIndex = Math.max(0, Math.min(matchIndex, text.length));
+  const before = text.slice(0, safeIndex);
+  const after = text.slice(safeIndex);
+  const start = Math.max(
+    before.lastIndexOf("."),
+    before.lastIndexOf("?"),
+    before.lastIndexOf("!"),
+    before.lastIndexOf("\n"),
+  );
+  const endCandidates = [
+    after.indexOf("."),
+    after.indexOf("?"),
+    after.indexOf("!"),
+  ]
+    .filter((value) => value >= 0);
+  const endOffset = endCandidates.length > 0 ? Math.min(...endCandidates) : -1;
+  const end = endOffset >= 0 ? safeIndex + endOffset + 1 : text.length;
+  return text.slice(start + 1, end).trim();
+}
+
+function isReflectiveQuestionContext(
+  text: string,
+  matchIndex: number,
+): boolean {
+  const sentence = sentenceAroundMatch(text, matchIndex);
+  return /\?/.test(sentence) ||
+    /\b(?:think\s+about|reflection|reflect|prompt|answer)\s*:/i.test(
+      sentence,
+    ) ||
+    /\bafter\s+watching\b/i.test(sentence);
+}
+
 function findReferentialCompletenessIssue(text: string): string | null {
   for (const [pattern, reason] of REFERENTIAL_SET_PLACEHOLDER_PATTERNS) {
     const match = text.match(pattern);
-    if (match && !hasConcreteNamedItemEvidence(text)) {
+    if (
+      match &&
+      !hasConcreteNamedItemEvidence(text) &&
+      !isReflectiveQuestionContext(text, match.index ?? 0)
+    ) {
       return `${reason}: "${match[0]}"`;
     }
   }
@@ -738,8 +803,10 @@ function extractSourceHintRepeatTargetDayIndex(
 }
 
 function detailTokens(text: string): Set<string> {
-  const tokens = (text.toLowerCase().match(/[a-z0-9]+/g) ?? [])
-    .filter((token) => token.length >= 3 && !DETAIL_TOKEN_STOPWORDS.has(token));
+  const tokens: string[] = (text.toLowerCase().match(/[a-z0-9]+/g) ?? [])
+    .filter((token: string) =>
+      token.length >= 3 && !DETAIL_TOKEN_STOPWORDS.has(token)
+    );
   return new Set(tokens);
 }
 
@@ -1057,7 +1124,10 @@ function parseTimeToken(
   rawToken: string,
   inheritedMeridiem?: "am" | "pm",
 ): string | null {
-  const token = rawToken.trim().toLowerCase();
+  const token = rawToken.trim().toLowerCase().replace(/\s+/g, " ");
+  if (/^(?:(?:12\s*)?noon|midday)$/.test(token)) return "12:00";
+  if (/^(?:(?:12\s*)?midnight)$/.test(token)) return "00:00";
+
   const match = token.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
   if (!match) return null;
 
@@ -1210,8 +1280,73 @@ export function wantsYoutubeLinks(
 ): boolean {
   const desc = normalizeWhitespace(description ?? "");
   const source = normalizeWhitespace(sourceText ?? "");
+  if (wantsYoutubeChannelVideoFlow(description, sourceText)) return true;
   if (YOUTUBE_REQUEST_RE.test(desc)) return true;
+  if (
+    /\binclude\s+links?\b[\s\S]{0,120}\b(?:watch|videos?|shorts?)\b/i.test(
+      desc,
+    ) ||
+    /\b(?:watch|videos?|shorts?)\b[\s\S]{0,120}\binclude\s+links?\b/i.test(
+      desc,
+    )
+  ) {
+    return true;
+  }
   return /\b(?:youtube|yt)\b/i.test(desc) && /\b(?:link|video)\b/i.test(source);
+}
+
+export function extractYoutubeChannelUrl(
+  text: string | null | undefined,
+): string | null {
+  const clean = normalizeWhitespace(text ?? "");
+  if (!clean) return null;
+
+  const raw = clean.match(YOUTUBE_CHANNEL_URL_RE)?.[0];
+  if (!raw) return null;
+
+  let candidate = stripTrailingUrlPunctuation(raw);
+  if (!candidate) return null;
+  if (!/^https?:\/\//i.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+
+  try {
+    const parsed = new URL(candidate);
+    const host = parsed.hostname.toLowerCase()
+      .replace(/^www\./, "")
+      .replace(/^m\./, "");
+    if (host !== "youtube.com") return null;
+
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const first = segments[0] ?? "";
+    if (
+      first.startsWith("@") ||
+      (["channel", "c", "user"].includes(first) && !!segments[1])
+    ) {
+      return `https://www.youtube.com/${segments.slice(0, 2).join("/")}`;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export function wantsYoutubeChannelVideoFlow(
+  description: string | null | undefined,
+  sourceText?: string | null,
+): boolean {
+  const combined = normalizeWhitespace(
+    [description ?? "", sourceText ?? ""].filter(Boolean).join("\n\n"),
+  );
+  if (!extractYoutubeChannelUrl(combined)) return false;
+  if (!YOUTUBE_CHANNEL_FLOW_REQUEST_RE.test(combined)) return false;
+
+  return (
+    /\b(?:one\s+video\s+per\s+day|per\s+day|every\s+day|90\s+days?|flow|arrange|order|beginner|advanced)\b/i
+      .test(combined) &&
+    /\b(?:shorts?|videos?|links?|watch)\b/i.test(combined)
+  );
 }
 
 export function looksStructuredDayPlan(text: string): boolean {
@@ -2147,7 +2282,9 @@ export function inferRequestedTimeWindow(
   }
 
   const singlePatterns = [
+    /\b(?:at|around|starting(?:\s+at)?|start(?:\s+at)?|schedule(?:d)?(?:\s+for|\s+at)?|do(?:\s+this)?(?:\s+at)?|begin(?:\s+at)?|watch(?:ing)?(?:\s+at)?|when\s+they\s+watch\s+at?)\s+((?:12\s*)?noon|midday|(?:12\s*)?midnight)\b/i,
     /\b(?:at|around|starting(?:\s+at)?|start(?:\s+at)?|schedule(?:d)?(?:\s+for|\s+at)?|do(?:\s+this)?(?:\s+at)?|begin(?:\s+at)?)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b/i,
+    /\b((?:12\s*)?noon|midday|(?:12\s*)?midnight)\b/i,
     /\b(\d{1,2}(?::\d{2})\s*(?:am|pm)?)\b/i,
   ];
 
@@ -2348,6 +2485,351 @@ export function parseSourceDayHints(
   }
 
   return out;
+}
+
+function extractGlobalAfterWatchingSentence(
+  text: string | null | undefined,
+): string | null {
+  const clean = normalizeWhitespace(text ?? "");
+  if (!clean) return null;
+
+  const quoted = clean.match(GLOBAL_AFTER_WATCHING_SENTENCE_RE)?.[1];
+  const lessonQuoted = clean.match(GLOBAL_LESSON_REFLECTION_SENTENCE_RE)?.[1];
+  const fallback = clean.match(GLOBAL_AFTER_WATCHING_LINE_RE)?.[1];
+  const lessonFallback = clean.match(GLOBAL_LESSON_REFLECTION_LINE_RE)?.[1];
+  const sentence = (quoted ?? lessonQuoted ?? fallback ?? lessonFallback ?? "")
+    .replace(/^["“]+|["”]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return sentence || null;
+}
+
+function extractLabeledSourceLine(
+  details: string | null | undefined,
+  label: string,
+): string | null {
+  const clean = normalizeWhitespace(details ?? "");
+  if (!clean) return null;
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = clean.match(
+    new RegExp(`(?:^|\\n)\\s*${escaped}\\s*:\\s*([^\\n]+)`, "i"),
+  );
+  const value = (match?.[1] ?? "").replace(/\s+/g, " ").trim();
+  return value || null;
+}
+
+function stripSourceUrlsForVisibleDetails(text: string): string {
+  return text
+    .replace(URL_RE, "the linked video")
+    .replace(/\bwatch\s*:\s*the linked video\b/gi, "Watch the linked video")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function detailsForStructuredVideoSourceNote(
+  hint: SourceDayHint,
+  globalAfterWatchingSentence: string | null,
+): string {
+  const rawDetails = hint.details ?? "";
+  const dayPrompt = extractLabeledSourceLine(rawDetails, "Prompt");
+  const dayFocus = extractLabeledSourceLine(rawDetails, "Focus");
+  const dayReflection = extractLabeledSourceLine(rawDetails, "Reflection");
+  const parts: string[] = [];
+
+  if (hint.location || looksLikeYoutubeUrl(rawDetails)) {
+    parts.push("Watch the linked video.");
+  }
+
+  if (dayFocus || dayReflection || dayPrompt) {
+    if (dayFocus) parts.push(`Focus: ${dayFocus}`);
+    if (dayReflection) parts.push(`Reflection: ${dayReflection}`);
+    if (!dayReflection && dayPrompt) parts.push(`Think about: ${dayPrompt}`);
+  } else {
+    const displayHint = calendarizeSourceDayHint(hint);
+    const visible = stripSourceUrlsForVisibleDetails(
+      displayHint.details ?? rawDetails,
+    );
+    if (visible) parts.push(visible);
+  }
+
+  if (globalAfterWatchingSentence) {
+    const existing = parts.join(" ").toLowerCase();
+    if (!existing.includes(globalAfterWatchingSentence.toLowerCase())) {
+      parts.push(
+        `After watching, say or write one sentence: "${globalAfterWatchingSentence}"`,
+      );
+    }
+  }
+
+  return parts.join(" ").replace(/\s+/g, " ").trim() ||
+    "Watch the linked video and write one sentence about what you noticed.";
+}
+
+function defaultEndTimeForStart(startTime: string): string {
+  const parsed = parseTimeToken(startTime);
+  if (!parsed) return "13:00";
+  const [hour, minute] = parsed.split(":").map((value) => parseInt(value, 10));
+  return minutesToTime(hour * 60 + minute + 60);
+}
+
+export function buildStructuredSourceFlowNotes(args: {
+  description: string | null | undefined;
+  sourceText?: string | null;
+  dateRangeDays: number;
+  sourceHandling: SourceHandlingMode;
+  requestedTimeWindow?: RequestedTimeWindow | null;
+}): StructuredSourceFlowNote[] | null {
+  const {
+    description,
+    sourceText,
+    dateRangeDays,
+    sourceHandling,
+    requestedTimeWindow,
+  } = args;
+
+  if (!Number.isFinite(dateRangeDays) || dateRangeDays <= 0) return null;
+
+  const combined = normalizeWhitespace(
+    [description ?? "", sourceText ?? ""].filter(Boolean).join("\n\n"),
+  );
+  if (!combined) return null;
+  if (
+    sourceHandling !== "PRESERVE_STRUCTURE" &&
+    !looksStructuredDayPlan(combined)
+  ) {
+    return null;
+  }
+
+  const sourceDayHints = parseSourceDayHints(combined, dateRangeDays);
+  if (sourceDayHints.size < dateRangeDays) return null;
+
+  const youtubeUrlCount = countYoutubeUrls(combined);
+  const videoListRequested =
+    /\b(each|every)\s+day\b[\s\S]{0,80}\b(?:video|youtube|watch|link)\b/i
+      .test(combined) ||
+    /\bwatch\s*:\s*(?:https?:\/\/|www\.)?(?:m\.)?(?:youtube\.com|youtu\.be)\//i
+      .test(combined);
+  const minimumVideoCoverage = Math.max(
+    2,
+    Math.ceil(dateRangeDays * 0.8),
+  );
+  if (!videoListRequested || youtubeUrlCount < minimumVideoCoverage) {
+    return null;
+  }
+
+  const globalAfterWatchingSentence = extractGlobalAfterWatchingSentence(
+    combined,
+  );
+  const inferredTimeWindow = requestedTimeWindow ??
+    inferRequestedTimeWindow(combined);
+  const notes: StructuredSourceFlowNote[] = [];
+
+  for (let dayIndex = 0; dayIndex < dateRangeDays; dayIndex++) {
+    const hint = sourceDayHints.get(dayIndex);
+    if (!hint) return null;
+    const displayHint = calendarizeSourceDayHint(hint);
+    const rawLocation = displayHint.location?.trim() || hint.location?.trim() ||
+      null;
+    const location = normalizeYoutubeVideoUrl(rawLocation) ??
+      sanitizeFlowLocation(rawLocation);
+    if (!location || !looksLikeYoutubeUrl(location)) return null;
+
+    const startTime = inferredTimeWindow?.startTime ??
+      displayHint.startTime ?? "12:00";
+    const endTime = inferredTimeWindow?.endTime ??
+      displayHint.endTime ?? defaultEndTimeForStart(startTime);
+
+    notes.push({
+      day_index: dayIndex,
+      title: displayHint.title?.trim() || `Day ${dayIndex + 1}`,
+      details: detailsForStructuredVideoSourceNote(
+        {
+          ...hint,
+          title: displayHint.title,
+          location,
+          startTime: displayHint.startTime,
+          endTime: displayHint.endTime,
+        },
+        globalAfterWatchingSentence,
+      ),
+      all_day: false,
+      start_time: startTime,
+      end_time: endTime,
+      location,
+    });
+  }
+
+  return notes;
+}
+
+function cleanYoutubeVideoTitle(title: string | null | undefined): string {
+  return normalizeWhitespace(title ?? "")
+    .replace(
+      /\s*,\s*(?:no|[\d,.]+(?:\s*(?:k|m|b|thousand|million|billion))?)\s+views?\s*-\s*play\s+short\s*$/i,
+      "",
+    )
+    .replace(/\s*-\s*play\s+short\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function youtubeMathDifficultyScore(title: string): number {
+  const text = title.toLowerCase();
+  let score = 50;
+
+  const has = (pattern: RegExp) => pattern.test(text);
+
+  if (
+    has(
+      /\b(area|square|rectangle|fraction|fractions|gcd|add fractions|denominator|simplify)\b/,
+    )
+  ) {
+    score = Math.min(score, 8);
+  }
+  if (
+    has(/\b(slope|line|cartesian|coordinate|pythagorean|grid|count choices)\b/)
+  ) {
+    score = Math.min(score, 18);
+  }
+  if (
+    has(
+      /\b(circle|pi|π|ellipse|geometry|triangle|pyramid|volume|path|shortcut|mobius|möbius)\b/,
+    )
+  ) {
+    score = Math.min(score, 28);
+  }
+  if (
+    has(
+      /\b(pattern|spiral|square roots?|magic square|pendulum|music|sound|lighthouse|sports?|penalty)\b/,
+    )
+  ) {
+    score = Math.min(score, 34);
+  }
+  if (
+    has(
+      /\b(exponential|logarithm|logarithms|limit|function|inverse|equation|polynomial|e\^x|becomes e)\b/,
+    )
+  ) {
+    score = Math.max(score, 44);
+  }
+  if (
+    has(
+      /\b(factorial|deck|shuffle|pigeonhole|pascal|triangular|binary search|hash table|sort|graph theory|monty hall|palindrome)\b/,
+    )
+  ) {
+    score = Math.max(score, 56);
+  }
+  if (
+    has(
+      /\b(sine|cos|sin|trigonometry|integral|∫|calculus|feynman|quarter circle|π\/2|map-makers|map makers)\b/,
+    )
+  ) {
+    score = Math.max(score, 66);
+  }
+  if (
+    has(
+      /\b(matrix|matrices|eigenvector|eigenvectors|linear algebra|linear independence|complex numbers?|rotation|vector)\b/,
+    )
+  ) {
+    score = Math.max(score, 76);
+  }
+  if (
+    has(
+      /\b(cpu|gpu|tpu|kernel|thread|threads|computer|computers|code|draw curves)\b/,
+    )
+  ) {
+    score = Math.max(score, 80);
+  }
+  if (
+    has(
+      /\b(ai|perceptron|sigmoid|relu|gradient descent|backpropagation|dropout|kernel trick|neural|model)\b/,
+    )
+  ) {
+    score = Math.max(score, 88);
+  }
+  if (
+    has(
+      /\b0\/0|undefined|unsolvable|harvard|t\^t|lambert|infinity|π\/√2|sin\(x\)\/x\b/,
+    )
+  ) {
+    score = Math.max(score, 72);
+  }
+
+  return score;
+}
+
+export function rankYoutubeChannelVideosForLearning(
+  videos: YoutubeChannelVideoResource[],
+): YoutubeChannelVideoResource[] {
+  const seen = new Set<string>();
+  const cleaned: Array<
+    YoutubeChannelVideoResource & { originalIndex: number }
+  > = [];
+
+  for (const [originalIndex, video] of videos.entries()) {
+    const normalizedUrl = normalizeYoutubeVideoUrl(video.url);
+    if (!normalizedUrl || seen.has(normalizedUrl)) continue;
+    seen.add(normalizedUrl);
+    cleaned.push({
+      ...video,
+      title: cleanYoutubeVideoTitle(video.title) || "Daily Math Visual",
+      url: normalizedUrl,
+      originalIndex,
+    });
+  }
+
+  return cleaned
+    .sort((a, b) => {
+      const scoreDiff = youtubeMathDifficultyScore(a.title) -
+        youtubeMathDifficultyScore(b.title);
+      if (scoreDiff !== 0) return scoreDiff;
+      return a.originalIndex - b.originalIndex;
+    })
+    .map(({ originalIndex: _originalIndex, ...video }) => video);
+}
+
+export function buildYoutubeChannelFlowNotes(args: {
+  videos: YoutubeChannelVideoResource[];
+  dateRangeDays: number;
+  requestedTimeWindow?: RequestedTimeWindow | null;
+}): StructuredSourceFlowNote[] | null {
+  const { videos, dateRangeDays, requestedTimeWindow } = args;
+  if (!Number.isFinite(dateRangeDays) || dateRangeDays <= 0) return null;
+
+  const ranked = rankYoutubeChannelVideosForLearning(videos);
+  if (ranked.length < dateRangeDays) return null;
+
+  const startTime = requestedTimeWindow?.startTime ?? "12:00";
+  const endTime = requestedTimeWindow?.endTime ?? defaultEndTimeForStart(
+    startTime,
+  );
+
+  return ranked.slice(0, dateRangeDays).map((video, dayIndex) => ({
+    day_index: dayIndex,
+    title: video.title || `Daily Math Visual ${dayIndex + 1}`,
+    details:
+      `Watch the linked Daily Math Visuals short. Think about the idea in "${video.title}". After watching, say or write one sentence: "What did this video help me see?"`,
+    all_day: false,
+    start_time: startTime,
+    end_time: endTime,
+    location: normalizeYoutubeVideoUrl(video.url) ?? video.url,
+  }));
+}
+
+export function buildVideoLearningOverview(
+  flowName: string | null | undefined,
+  dateRangeDays: number,
+): SourceBackedOverview {
+  const title = normalizeWhitespace(flowName ?? "") ||
+    `${dayFlowLabel(dateRangeDays)} Video Learning Flow`;
+  const lowerTitle = title.toLowerCase();
+  const subject = /\bmath\b/.test(lowerTitle) ? "visual math" : "video-based";
+
+  return {
+    title,
+    summary:
+      `A ${dateRangeDays}-day ${subject} learning flow with one linked video each day. The sequence moves from beginner-friendly ideas toward more advanced topics, and each day ends with a short reflection about what the video helped the learner see.`,
+  };
 }
 
 export function parseRecurringSourceRoutineHints(
