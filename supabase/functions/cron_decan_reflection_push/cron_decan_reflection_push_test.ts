@@ -368,6 +368,15 @@ Deno.test("cron_decan_reflection_push drains due batches and keeps no-token rows
     "no_tokens_for_recipients",
   );
   assertEquals(tables.decan_reflections.length, 2);
+  for (const push of stats.pushBodies) {
+    const reflectionId = push.data?.reflectionId;
+    const userId = Array.isArray(push.userIds) ? push.userIds[0] : null;
+    assert(
+      tables.decan_reflections.some((row) =>
+        row.id === reflectionId && row.user_id === userId
+      ),
+    );
+  }
   assertEquals(
     stats.pushBodies[0].notification.body,
     "Compiled reflection push.",
