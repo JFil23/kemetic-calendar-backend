@@ -8809,11 +8809,15 @@ CREATE TABLE IF NOT EXISTS "public"."maat_guidance_deliveries" (
     "opened_at" timestamp with time zone,
     "acted_at" timestamp with time zone,
     "expired_at" timestamp with time zone,
+    "push_sent_at" timestamp with time zone,
+    "push_error" "text",
+    "push_attempt_count" integer DEFAULT 0 NOT NULL,
+    "push_last_attempt_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "maat_guidance_deliveries_cta_type_check" CHECK (("cta_type" = ANY (ARRAY['none'::"text", 'node'::"text", 'flow'::"text", 'flow_template'::"text", 'flow_personalized'::"text"]))),
     CONSTRAINT "maat_guidance_deliveries_kind_check" CHECK (("kind" = ANY (ARRAY['decan_opening'::"text", 'drift_nudge'::"text", 'strength_nudge'::"text"]))),
-    CONSTRAINT "maat_guidance_deliveries_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'shown'::"text", 'dismissed'::"text", 'opened'::"text", 'acted'::"text", 'expired'::"text"])))
+    CONSTRAINT "maat_guidance_deliveries_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'shown'::"text", 'dismissed'::"text", 'opened'::"text", 'acted'::"text", 'expired'::"text", 'archive_only'::"text"])))
 );
 
 
@@ -10815,6 +10819,9 @@ CREATE INDEX "idx_maat_guidance_evaluations_user_decan_date" ON "public"."maat_g
 
 
 CREATE INDEX "idx_maat_guidance_pending" ON "public"."maat_guidance_deliveries" USING "btree" ("user_id", "status", "priority", "created_at");
+
+
+CREATE INDEX "idx_maat_guidance_push_retry" ON "public"."maat_guidance_deliveries" USING "btree" ("kind", "push_sent_at", "push_attempt_count", "push_last_attempt_at") WHERE (("kind" = 'decan_opening'::"text") AND ("push_sent_at" IS NULL));
 
 
 CREATE INDEX "idx_maat_snapshots_user_decan_date" ON "public"."maat_snapshots" USING "btree" ("user_id", "decan_period_key", "window_date" DESC);

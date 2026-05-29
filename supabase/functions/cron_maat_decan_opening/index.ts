@@ -70,8 +70,90 @@ type OpeningCronResult = {
   created?: boolean;
   enriched?: boolean;
   refreshed?: boolean;
+  push_sent?: boolean;
+  push_skipped?: string;
+  push_error?: string;
   error?: string;
 };
+
+type OpeningPushResult = {
+  ok: boolean;
+  status?: number;
+  data?: unknown;
+  sent?: number;
+  delivered?: boolean;
+  reason?: string | null;
+  error?: string | null;
+};
+
+type OpeningPushSender = (params: {
+  userId: string;
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+}) => Promise<OpeningPushResult>;
+
+function createDefaultOpeningPushSender(): OpeningPushSender {
+  const supabaseUrl = Deno.env.get("PROJECT_URL") ??
+    Deno.env.get("SUPABASE_URL");
+  const internalFunctionKey = Deno.env.get("INTERNAL_FUNCTION_KEY");
+
+  return async ({ userId, title, body, data }) => {
+    if (!supabaseUrl) {
+      return { ok: false, error: "Missing Supabase URL environment" };
+    }
+    if (!internalFunctionKey) {
+      return { ok: false, error: "INTERNAL_FUNCTION_KEY not configured" };
+    }
+
+    const res = await fetch(new URL("/functions/v1/send_push", supabaseUrl), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-key": internalFunctionKey,
+      },
+      body: JSON.stringify({
+        userIds: [userId],
+        notification: { title, body },
+        data,
+      }),
+    });
+    const text = await res.text();
+    let parsed: unknown = text;
+    if (text.trim()) {
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = text;
+      }
+    } else {
+      parsed = null;
+    }
+
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        data: parsed,
+        error: typeof parsed === "string" ? parsed : `send_push ${res.status}`,
+      };
+    }
+
+    const result = isRecord(parsed) ? parsed : {};
+    const sent = typeof result.sent === "number" ? result.sent : 0;
+    const delivered = result.delivered === true || sent > 0;
+    const reason = typeof result.reason === "string" ? result.reason : null;
+    return {
+      ok: delivered,
+      status: res.status,
+      data: parsed,
+      sent,
+      delivered,
+      reason,
+      error: delivered ? null : reason ?? "push_not_delivered",
+    };
+  };
+}
 
 function boundedInteger(
   value: number | string | null | undefined,
@@ -195,6 +277,216 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function cleanString(value: unknown) {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+}
+
+function timestampString(value: unknown) {
+  const text = cleanString(value);
+  return text ? text : null;
+}
+
+function boundedAttemptCount(value: unknown) {
+  const number = typeof value === "number" ? value : Number(value ?? 0);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.trunc(number));
+}
+
+function openingPushErrorMessage(result: OpeningPushResult) {
+  if (result.error) return cleanString(result.error) || "push_not_delivered";
+  if (result.reason) return cleanString(result.reason) || "push_not_delivered";
+  const data = isRecord(result.data) ? result.data : null;
+  const error = data && isRecord(data.error) ? data.error : data?.error;
+  if (typeof error === "string" && error.trim()) return error.trim();
+  if (isRecord(error) && typeof error.message === "string") {
+    return error.message.trim() || "push_not_delivered";
+  }
+  return "push_not_delivered";
+}
+
+function openingPushPayload(delivery: Record<string, unknown>) {
+  return isRecord(delivery.payload) ? delivery.payload : {};
+}
+
+function openingCompiledPackage(payload: Record<string, unknown>) {
+  const compiled = payload.compiled_output_package;
+  return isRecord(compiled) ? compiled : null;
+}
+
+function openingCtaValue(
+  delivery: Record<string, unknown>,
+  compiledPackage: Record<string, unknown> | null,
+  field: "type" | "ref",
+) {
+  const deliveryField = field === "type" ? "cta_type" : "cta_ref";
+  const fromDelivery = cleanString(delivery[deliveryField]);
+  if (fromDelivery) return fromDelivery;
+  const cta = compiledPackage && isRecord(compiledPackage.cta)
+    ? compiledPackage.cta
+    : null;
+  return cleanString(cta?.[field]);
+}
+
+async function updateOpeningPushState(params: {
+  client: SupabaseClientLike;
+  userId: string;
+  deliveryId: string;
+  values: Record<string, unknown>;
+}) {
+  const { data, error } = await params.client
+    .from("maat_guidance_deliveries")
+    .update(params.values)
+    .eq("id", params.deliveryId)
+    .eq("user_id", params.userId)
+    .select()
+    .single();
+  if (error) {
+    console.error("opening push state update error", error);
+    return null;
+  }
+  return isRecord(data) ? data : null;
+}
+
+async function sendOpeningPushIfEligible(params: {
+  client: SupabaseClientLike;
+  sendPush: OpeningPushSender;
+  userId: string;
+  delivery: unknown;
+  now: Date;
+}): Promise<Partial<OpeningCronResult> & { delivery?: unknown }> {
+  if (!isRecord(params.delivery)) {
+    return { push_skipped: "missing_delivery" };
+  }
+
+  const delivery = params.delivery;
+  const deliveryId = cleanString(delivery.id);
+  if (!deliveryId) return { push_skipped: "missing_delivery_id" };
+  if (timestampString(delivery.push_sent_at)) {
+    return { push_skipped: "already_sent" };
+  }
+  const status = cleanString(delivery.status);
+  if (status === "archive_only") {
+    return { push_skipped: "archive_only" };
+  }
+  if (
+    status === "dismissed" || status === "opened" || status === "acted" ||
+    status === "expired"
+  ) {
+    return { push_skipped: `status_${status}` };
+  }
+
+  const attemptCount = boundedAttemptCount(delivery.push_attempt_count);
+  if (attemptCount >= 3) {
+    return { push_skipped: "attempt_limit" };
+  }
+
+  const payload = openingPushPayload(delivery);
+  const compiledPackage = openingCompiledPackage(payload);
+  const pushResolution = resolveCompiledPackagePushText({
+    payload,
+    legacyTeaserText: delivery.teaser_text,
+    legacyBodyText: delivery.body_text,
+  });
+  const nowIso = params.now.toISOString();
+  const nextAttemptCount = attemptCount + 1;
+
+  if (pushResolution.blocked) {
+    const pushError = pushResolution.reason ?? pushResolution.source;
+    const updated = await updateOpeningPushState({
+      client: params.client,
+      userId: params.userId,
+      deliveryId,
+      values: {
+        push_error: pushError,
+        push_attempt_count: nextAttemptCount,
+        push_last_attempt_at: nowIso,
+      },
+    });
+    return {
+      delivery: updated ?? delivery,
+      push_error: pushError,
+    };
+  }
+
+  const ctaKind = openingCtaValue(delivery, compiledPackage, "type");
+  const ctaId = openingCtaValue(delivery, compiledPackage, "ref");
+  const destination = compiledPackage && isRecord(compiledPackage.destination)
+    ? compiledPackage.destination
+    : isRecord(payload.destination)
+    ? payload.destination
+    : null;
+  const deepLink = `/maat-guidance/${encodeURIComponent(deliveryId)}`;
+  const body = pushResolution.text ||
+    cleanString(delivery.teaser_text) ||
+    "Open today's Ma'at guidance.";
+  let result: OpeningPushResult;
+  try {
+    result = await params.sendPush({
+      userId: params.userId,
+      title: "A new decan opens",
+      body,
+      data: {
+        kind: "maat_guidance",
+        guidance_id: deliveryId,
+        delivery_id: deliveryId,
+        guidance_kind: DECAN_CONTEXT_OPENING_TRACK,
+        deep_link: deepLink,
+        link: deepLink,
+        url: deepLink,
+        delivery_key: `maat_guidance:${deliveryId}`,
+        delivery_kind: "decan_opening",
+        cta_kind: ctaKind || null,
+        cta_id: ctaId || null,
+        cta_type: ctaKind || null,
+        cta_ref: ctaId || null,
+        ...(destination ? { destination } : {}),
+        ...(compiledPackage
+          ? { compiled_output_package: compiledPackage }
+          : {}),
+      },
+    });
+  } catch (error) {
+    result = {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (result.ok) {
+    const updated = await updateOpeningPushState({
+      client: params.client,
+      userId: params.userId,
+      deliveryId,
+      values: {
+        push_sent_at: nowIso,
+        push_error: null,
+        push_attempt_count: nextAttemptCount,
+        push_last_attempt_at: nowIso,
+      },
+    });
+    return {
+      delivery: updated ?? delivery,
+      push_sent: true,
+    };
+  }
+
+  const pushError = openingPushErrorMessage(result);
+  const updated = await updateOpeningPushState({
+    client: params.client,
+    userId: params.userId,
+    deliveryId,
+    values: {
+      push_error: pushError,
+      push_attempt_count: nextAttemptCount,
+      push_last_attempt_at: nowIso,
+    },
+  });
+  return {
+    delivery: updated ?? delivery,
+    push_error: pushError,
+  };
+}
+
 async function recordOpeningDeliveryOutcome(params: {
   client: SupabaseClientLike;
   userId: string;
@@ -232,6 +524,9 @@ async function recordOpeningDeliveryOutcome(params: {
       created: params.result.created === true,
       enriched: params.result.enriched === true,
       refreshed: params.result.refreshed === true,
+      os_push_sent: params.result.push_sent === true,
+      os_push_skipped: params.result.push_skipped ?? null,
+      os_push_error: params.result.push_error ?? null,
       notification_track: notificationTrack,
       delivery_track: notificationTrack,
       content_source: typeof deliveryPayload.content_source === "string"
@@ -568,9 +863,11 @@ async function ensureOpeningForUser(params: {
 
 export function createCronMaatDecanOpeningHandler(options?: {
   client?: SupabaseClientLike;
+  sendPush?: OpeningPushSender;
   now?: () => Date;
 }) {
   const client = options?.client ?? createDefaultClient();
+  const sendPush = options?.sendPush ?? createDefaultOpeningPushSender();
   const nowFn = options?.now ?? (() => new Date());
 
   return async (req: Request): Promise<Response> => {
@@ -684,20 +981,34 @@ export function createCronMaatDecanOpeningHandler(options?: {
               timezone,
               now,
             });
+            const pushOutcome = await sendOpeningPushIfEligible({
+              client,
+              sendPush,
+              userId: profile.id,
+              delivery: result.delivery,
+              now,
+            });
+            const cronResult = {
+              user_id: profile.id,
+              ...result,
+              ...pushOutcome,
+            };
             if (
-              result.created === true || result.enriched === true ||
-              result.refreshed === true
+              cronResult.created === true || cronResult.enriched === true ||
+              cronResult.refreshed === true ||
+              cronResult.push_sent === true ||
+              typeof cronResult.push_error === "string"
             ) {
               await recordOpeningDeliveryOutcome({
                 client,
                 userId: profile.id,
-                result: { user_id: profile.id, ...result },
+                result: cronResult,
                 scheduledFor,
                 functionStartedAt,
                 deliveredAt: new Date().toISOString(),
               });
             }
-            results.push({ user_id: profile.id, ...result });
+            results.push(cronResult);
           } catch (err) {
             await recordMaatDeliveryTimingEvent(client, {
               deliveryKey: `decan_opening:${profile.id}:${scheduledFor}`,
@@ -739,6 +1050,9 @@ export function createCronMaatDecanOpeningHandler(options?: {
         created: results.filter((row) => row.created === true).length,
         enriched: results.filter((row) => row.enriched === true).length,
         refreshed: results.filter((row) => row.refreshed === true).length,
+        push_sent: results.filter((row) => row.push_sent === true).length,
+        push_failed: results.filter((row) => row.push_error).length,
+        push_skipped: results.filter((row) => row.push_skipped).length,
         failed: results.filter((row) => row.error).length,
         batches,
         drained,

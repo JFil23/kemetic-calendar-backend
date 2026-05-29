@@ -152,6 +152,31 @@ function createMockClient(tables: Tables) {
   };
 }
 
+async function withCronSecret<T>(run: () => Promise<T>) {
+  const previousSecret = Deno.env.get("MAAT_CRON_SECRET");
+  Deno.env.set("MAAT_CRON_SECRET", "test-secret");
+  try {
+    return await run();
+  } finally {
+    if (previousSecret == null) {
+      Deno.env.delete("MAAT_CRON_SECRET");
+    } else {
+      Deno.env.set("MAAT_CRON_SECRET", previousSecret);
+    }
+  }
+}
+
+function cronRequest(body: Record<string, unknown>) {
+  return new Request("http://localhost/cron_maat_decan_opening", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-cron-secret": "test-secret",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 Deno.test("cron_maat_decan_opening creates one opening and expires stale rows", async () => {
   const tables: Tables = {
     profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
@@ -233,7 +258,7 @@ Deno.test("cron_maat_decan_opening creates one opening and expires stale rows", 
   );
   assertEquals(body.delivery.payload.profile_personalization_used, false);
   assertEquals(body.delivery.payload.month_short, "Thoth");
-  assertEquals(body.delivery.payload.decan_short_name, "tpy-ꜣ sbꜣw");
+  assertEquals(body.delivery.payload.decan_short_name, "tpy-ꜥ sbꜣw");
 
   const stale = tables.maat_guidance_deliveries.find((row) =>
     row.id === "stale-opening"
@@ -259,6 +284,173 @@ Deno.test("cron_maat_decan_opening creates one opening and expires stale rows", 
     tables.reflection_generations[0].source_snapshot.month_short,
     "Thoth",
   );
+});
+
+Deno.test("cron_maat_decan_opening sends one push for a new opening", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [],
+    maat_delivery_timing_events: [],
+  };
+  const pushCalls: Array<Record<string, any>> = [];
+
+  await withCronSecret(async () => {
+    const handler = createCronMaatDecanOpeningHandler({
+      client: createMockClient(tables),
+      now: () => new Date("2026-05-16T18:00:00.000Z"),
+      sendPush: async (params) => {
+        pushCalls.push(params);
+        return { ok: true, sent: 1, delivered: true };
+      },
+    });
+
+    const response = await handler(
+      cronRequest({
+        limit: 1,
+        batch_size: 1,
+        timezone: "America/Los_Angeles",
+        decan_start: "2026-05-16",
+        decan_end: "2026-05-25",
+        decan_name: "Thoth - measure",
+        decan_theme: "measure",
+        decan_context_key: "1-1",
+      }),
+    );
+    const body = await response.json();
+
+    assertEquals(response.status, 200);
+    assertEquals(body.created, 1);
+    assertEquals(body.push_sent, 1);
+    assertEquals(pushCalls.length, 1);
+    const delivery = tables.maat_guidance_deliveries[0];
+    assertEquals(delivery.push_sent_at, "2026-05-16T18:00:00.000Z");
+    assertEquals(delivery.push_error, null);
+    assertEquals(delivery.push_attempt_count, 1);
+    assertEquals(pushCalls[0].userId, userId);
+    assertEquals(pushCalls[0].title, "A new decan opens");
+    assertEquals(pushCalls[0].data.kind, "maat_guidance");
+    assertEquals(pushCalls[0].data.guidance_id, delivery.id);
+    assertEquals(pushCalls[0].data.delivery_id, delivery.id);
+    assertEquals(pushCalls[0].data.guidance_kind, "decan_context_opening");
+    assertEquals(
+      pushCalls[0].data.deep_link,
+      `/maat-guidance/${delivery.id}`,
+    );
+    assertEquals(
+      pushCalls[0].data.link,
+      `/maat-guidance/${delivery.id}`,
+    );
+    assertEquals(pushCalls[0].data.cta_kind, "flow_template");
+    assertEquals(pushCalls[0].data.cta_id, "the-decan-watch");
+    assertEquals(
+      pushCalls[0].data.delivery_key,
+      `maat_guidance:${delivery.id}`,
+    );
+  });
+});
+
+Deno.test("cron_maat_decan_opening does not resend when push_sent_at is set", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [{
+      id: "opening",
+      user_id: userId,
+      kind: "decan_opening",
+      decan_period_key: periodKey,
+      status: "pending",
+      priority: 10,
+      teaser_text: "Begin with measure.",
+      body_text: "Begin with measure.",
+      payload: {
+        compiled_output_package: {
+          package_version: "compiled_output_package_v1",
+          final_text: "Begin with measure.",
+          push_text: "Begin with measure.",
+          delivery_recommendation: "in_app_card",
+        },
+      },
+      cta_type: "flow_template",
+      cta_ref: "the-decan-watch",
+      push_sent_at: "2026-05-16T17:00:00.000Z",
+      push_attempt_count: 1,
+      created_at: "2026-05-16T12:00:00.000Z",
+    }],
+  };
+  let pushCount = 0;
+
+  await withCronSecret(async () => {
+    const handler = createCronMaatDecanOpeningHandler({
+      client: createMockClient(tables),
+      now: () => new Date("2026-05-16T18:00:00.000Z"),
+      sendPush: async () => {
+        pushCount += 1;
+        return { ok: true, sent: 1, delivered: true };
+      },
+    });
+
+    const response = await handler(
+      cronRequest({
+        limit: 1,
+        timezone: "America/Los_Angeles",
+        decan_start: "2026-05-16",
+        decan_end: "2026-05-25",
+        decan_name: "Thoth - measure",
+        decan_theme: "measure",
+        decan_context_key: "1-1",
+      }),
+    );
+    const body = await response.json();
+
+    assertEquals(response.status, 200);
+    assertEquals(pushCount, 0);
+    assertEquals(body.push_sent, 0);
+    assertEquals(body.push_skipped, 1);
+    assertEquals(tables.maat_guidance_deliveries[0].push_attempt_count, 1);
+  });
+});
+
+Deno.test("cron_maat_decan_opening records failed push attempts", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [],
+  };
+
+  await withCronSecret(async () => {
+    const handler = createCronMaatDecanOpeningHandler({
+      client: createMockClient(tables),
+      now: () => new Date("2026-05-16T18:00:00.000Z"),
+      sendPush: async () => ({
+        ok: false,
+        delivered: false,
+        error: "fcm_unavailable",
+      }),
+    });
+
+    const response = await handler(
+      cronRequest({
+        limit: 1,
+        timezone: "America/Los_Angeles",
+        decan_start: "2026-05-16",
+        decan_end: "2026-05-25",
+        decan_name: "Thoth - measure",
+        decan_theme: "measure",
+        decan_context_key: "1-1",
+      }),
+    );
+    const body = await response.json();
+    const delivery = tables.maat_guidance_deliveries[0];
+
+    assertEquals(response.status, 200);
+    assertEquals(body.push_sent, 0);
+    assertEquals(body.push_failed, 1);
+    assertEquals(delivery.push_sent_at, undefined);
+    assertEquals(delivery.push_error, "fcm_unavailable");
+    assertEquals(delivery.push_attempt_count, 1);
+    assertEquals(delivery.push_last_attempt_at, "2026-05-16T18:00:00.000Z");
+  });
 });
 
 Deno.test("cron_maat_decan_opening enriches generic pending opening with day card", async () => {
@@ -438,7 +630,7 @@ Deno.test("cron_maat_decan_opening refreshes stale generic pending opening shape
     "the-decan-watch",
   );
   assertEquals(opening.payload.output_compiler.surface, "opening");
-  assert(opening.body_text.includes("At sunrise"));
+  assert(opening.body_text.includes("Speak your intention"));
 });
 
 Deno.test("cron_maat_decan_opening can re-enrich opened stale opening when day card returns", async () => {
@@ -540,12 +732,11 @@ Deno.test("cron_maat_decan_opening pages through cron profile batches", async ()
     maat_delivery_timing_events: [],
   };
 
-  const previousSecret = Deno.env.get("MAAT_CRON_SECRET");
-  Deno.env.set("MAAT_CRON_SECRET", "test-secret");
-  try {
+  await withCronSecret(async () => {
     const handler = createCronMaatDecanOpeningHandler({
       client: createMockClient(tables),
       now: () => new Date("2026-05-16T18:00:00.000Z"),
+      sendPush: async () => ({ ok: true, sent: 1, delivered: true }),
     });
 
     const response = await handler(
@@ -590,12 +781,7 @@ Deno.test("cron_maat_decan_opening pages through cron profile batches", async ()
         "decan_context_opening",
       );
       assertEquals(delivery.payload.profile_personalization_used, false);
+      assertEquals(delivery.push_sent_at, "2026-05-16T18:00:00.000Z");
     }
-  } finally {
-    if (previousSecret == null) {
-      Deno.env.delete("MAAT_CRON_SECRET");
-    } else {
-      Deno.env.set("MAAT_CRON_SECRET", previousSecret);
-    }
-  }
+  });
 });

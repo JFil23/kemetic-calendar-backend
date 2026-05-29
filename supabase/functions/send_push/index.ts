@@ -3,14 +3,19 @@
 // Environment variables (secrets):
 //   PROJECT_URL or SUPABASE_URL
 //   SERVICE_ROLE_KEY or SUPABASE_SERVICE_ROLE_KEY
-//   FCM_PROJECT_ID
-//   FCM_SERVICE_ACCOUNT_JSON (full service account JSON)
+//   FCM_PROJECT_ID or FIREBASE_PROJECT_ID
+//   FCM_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_JSON (full service account JSON)
+//   or FCM_CLIENT_EMAIL/FIREBASE_CLIENT_EMAIL + FCM_PRIVATE_KEY/FIREBASE_PRIVATE_KEY
 // Optional:
 //   BATCH_SIZE (default 400)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
 import { SignJWT } from "https://deno.land/x/jose@v4.15.5/index.ts";
 import webpush from "https://esm.sh/web-push@3.6.7";
+import {
+  type FirebaseServiceAccount,
+  resolveFirebasePushConfig,
+} from "../_shared/firebase_push_config.ts";
 import { recordMaatDeliveryTimingEvent } from "../_shared/maat_delivery_timing.ts";
 import { resolveCompiledPackagePushText } from "../_shared/output_compiler.ts";
 
@@ -41,8 +46,6 @@ const SUPABASE_URL = Deno.env.get("PROJECT_URL") ??
   Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SERVICE_ROLE_KEY") ??
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const PROJECT_ID = Deno.env.get("FCM_PROJECT_ID") ?? "";
-const SA_JSON = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON") ?? "";
 const WEB_PUSH_PUBLIC_KEY = Deno.env.get("WEB_PUSH_PUBLIC_KEY") ?? "";
 const WEB_PUSH_PRIVATE_KEY = Deno.env.get("WEB_PUSH_PRIVATE_KEY") ?? "";
 const WEB_PUSH_SUBJECT = Deno.env.get("WEB_PUSH_SUBJECT") ??
@@ -78,12 +81,6 @@ function jsonResponse(
   });
 }
 
-type ServiceAccount = {
-  client_email: string;
-  private_key: string;
-  token_uri?: string;
-};
-
 async function importPrivateKey(pem: string): Promise<CryptoKey> {
   const pemBody = pem
     .replace(/-----BEGIN PRIVATE KEY-----/, "")
@@ -99,7 +96,9 @@ async function importPrivateKey(pem: string): Promise<CryptoKey> {
   );
 }
 
-async function getAccessToken(sa: ServiceAccount): Promise<string> {
+async function getAccessToken(
+  sa: FirebaseServiceAccount,
+): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     iss: sa.client_email,
@@ -531,6 +530,7 @@ async function sendToFCM(
   rows: PushTargetRow[],
   payload: SendRequest,
   accessToken: string,
+  projectId: string,
 ) {
   const results: PushSendResult[] = [];
   const normalizedData = normalizeData(enrichPushData(payload.data));
@@ -580,7 +580,7 @@ async function sendToFCM(
       },
     };
     const res = await fetch(
-      `https://fcm.googleapis.com/v1/projects/${PROJECT_ID}/messages:send`,
+      `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
       {
         method: "POST",
         headers: {
@@ -954,7 +954,25 @@ Deno.serve(async (req) => {
     let results: PushSendResult[] = [];
 
     if (fcmTargets.length) {
-      if (!PROJECT_ID || !SA_JSON) {
+      let firebasePushConfig: ReturnType<typeof resolveFirebasePushConfig>;
+      try {
+        firebasePushConfig = resolveFirebasePushConfig();
+      } catch (e) {
+        log("bad service account config", { error: String(e) });
+        return jsonResponse(req, {
+          error: "Invalid FCM service account environment",
+        }, {
+          status: 500,
+        });
+      }
+
+      const serviceAccount = firebasePushConfig.serviceAccount;
+      log("fcm config", {
+        authMode: firebasePushConfig.authMode,
+        projectIdSource: firebasePushConfig.projectIdSource,
+        serviceAccountSource: firebasePushConfig.serviceAccountSource,
+      });
+      if (!firebasePushConfig.projectId || !serviceAccount) {
         results = results.concat(
           fcmTargets.map((row) => ({
             ok: false,
@@ -964,22 +982,15 @@ Deno.serve(async (req) => {
           })),
         );
       } else {
-        let sa: ServiceAccount;
-        try {
-          sa = JSON.parse(SA_JSON) as ServiceAccount;
-        } catch (e) {
-          log("bad service account json", { error: String(e) });
-          return jsonResponse(req, {
-            error: "Invalid FCM_SERVICE_ACCOUNT_JSON",
-          }, {
-            status: 500,
-          });
-        }
-
-        const accessToken = await getAccessToken(sa);
+        const accessToken = await getAccessToken(serviceAccount);
         log("access token acquired");
         results = results.concat(
-          await sendToFCM(fcmTargets, body, accessToken),
+          await sendToFCM(
+            fcmTargets,
+            body,
+            accessToken,
+            firebasePushConfig.projectId,
+          ),
         );
       }
     }
