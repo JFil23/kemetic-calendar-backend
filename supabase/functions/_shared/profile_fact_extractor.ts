@@ -801,7 +801,8 @@ export async function fetchStoredMaatUserProfileFacts(
       .map(normalizeMaatUserProfileFact)
       .filter((fact): fact is MaatUserProfileFact => !!fact);
   } catch (err) {
-    console.log("maat_user_profile_facts fetch threw:", err?.message ?? err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.log("maat_user_profile_facts fetch threw:", message);
     return [];
   }
 }
@@ -839,6 +840,7 @@ export async function upsertMaatUserProfileFacts(
       );
     }
   } catch (err) {
-    console.log("maat_user_profile_facts upsert threw:", err?.message ?? err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.log("maat_user_profile_facts upsert threw:", message);
   }
 }

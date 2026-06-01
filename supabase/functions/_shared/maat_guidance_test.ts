@@ -68,7 +68,9 @@ Deno.test("pending planner badges become Ma'at ledger obligations", () => {
 
   const nutritionOnly = buildGuidanceSnapshot({
     window,
-    badges: badges.filter((badge) => badge.tags.includes("kind:nutrition")),
+    badges: badges.filter((badge) =>
+      badge.tags?.includes("kind:nutrition") === true
+    ),
   });
   assertEquals(nutritionOnly.source.ledger?.dominant_leak?.field, "provision");
   assertEquals(
@@ -186,7 +188,7 @@ Deno.test("opening guidance keeps scores hidden while naming one action", () => 
   assertEquals(compiledPackage.package_version, "compiled_output_package_v1");
   assertEquals(compiledPackage.final_text, draft.bodyText);
   assertEquals(compiledPackage.teaser_text, draft.teaserText);
-  assertEquals(compiledPackage.push_text?.length > 0, true);
+  assertEquals((compiledPackage.push_text?.length ?? 0) > 0, true);
   assertEquals(compiledPackage.cta_type, "flow_template");
   assertEquals(compiledPackage.cta_ref, "the-decan-watch");
   assertEquals(compiledPackage.destination?.ref, "the-decan-watch");
