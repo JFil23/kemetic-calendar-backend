@@ -1433,9 +1433,13 @@ export async function renderGuidanceDraftWithLlm(
     );
   }
 
-  const apiKey = options.apiKey ?? Deno.env.get("ANTHROPIC_API_KEY");
-  const model = options.model ?? Deno.env.get("ANTHROPIC_NUDGE_MODEL") ??
-    Deno.env.get("ANTHROPIC_MODEL") ?? DEFAULT_ANTHROPIC_NUDGE_MODEL;
+  const apiKey = options.renderer
+    ? options.apiKey
+    : options.apiKey ?? Deno.env.get("ANTHROPIC_API_KEY");
+  const model = options.renderer
+    ? options.model ?? DEFAULT_ANTHROPIC_NUDGE_MODEL
+    : options.model ?? Deno.env.get("ANTHROPIC_NUDGE_MODEL") ??
+      Deno.env.get("ANTHROPIC_MODEL") ?? DEFAULT_ANTHROPIC_NUDGE_MODEL;
   if (!options.renderer && !apiKey) {
     return annotateNudgeRenderer(
       draft,
