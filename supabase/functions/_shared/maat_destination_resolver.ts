@@ -79,6 +79,19 @@ export const MAAT_FLOW_TEMPLATES = {
   daysOutsideTheYear: "the-days-outside-the-year",
   theOpenHand: "the-open-hand",
   theDjed: "the-djed",
+  fairHearing: "the-fair-hearing",
+  houseOfLife: "the-house-of-life",
+  boundaryStone: "the-boundary-stone",
+  hotep: "hotep",
+  openMouth: "the-open-mouth",
+  livingRecord: "the-living-record",
+  hetHeru: "het-heru",
+  theShore: "the-shore",
+  theAutobiography: "the-autobiography",
+  firstArrangement: "the-first-arrangement",
+  livingPattern: "the-living-pattern",
+  trueName: "the-true-name",
+  livingText: "the-living-text",
 } as const;
 
 export const ALL_MAAT_FLOW_TEMPLATE_KEYS = Object.values(MAAT_FLOW_TEMPLATES);
@@ -290,7 +303,7 @@ function nodeForReflectionLens(
     justice: "maat",
     vulnerable_protection: "instruction_amenemope",
     offering_service: "maat",
-    harmony: "nile",
+    harmony: "hathor",
     worthiness: "maat",
     becoming: "djehuty",
     continuity: "djehuty",
@@ -415,6 +428,236 @@ function strongAgreementText(text: string) {
   ]);
 }
 
+function strongSpeechText(text: string) {
+  return includesAny(text, [
+    /\bopen mouth\b/,
+    /\bmouth\b/,
+    /\btongue\b/,
+    /\bspeech\b.*\b(record|heated|hasty|unsaid|careless|govern|utterance|truth)\b/,
+    /\bslander\b/,
+    /\bheated\b.*\bspeech\b/,
+    /\bhasty\b.*\bresponse\b/,
+    /\bimportant\b.*\bunsaid\b/,
+    /\bunsaid\b/,
+    /\bcareless\b.*\bword\b/,
+    /\bsay\b.*\btruth\b/,
+  ]);
+}
+
+function fairJudgmentText(text: string) {
+  return includesAny(text, [
+    /\bfair hearing\b/,
+    /\bpartial\b/,
+    /\bimpartial\b/,
+    /\bjudg\w*\b/,
+    /\bhear\w*\b.*\bfully\b/,
+    /\bpremature\b.*\bdecision\b/,
+    /\bdeferred\b.*\bdecision\b/,
+    /\bpetitioner\b/,
+  ]);
+}
+
+function boundaryStoneText(text: string) {
+  return includesAny(text, [
+    /\bboundar/,
+    /\bmarker\b/,
+    /\bstone\b/,
+    /\bexcess\b/,
+    /\bshare\b/,
+    /\bcredit\b/,
+    /\blabor\b/,
+    /\bresource\b/,
+    /\bforce\b/,
+    /\bproportion/,
+    /\bmore than (?:is )?due\b/,
+  ]);
+}
+
+function hotepText(text: string) {
+  return includesAny(text, [
+    /\bhotep\b/,
+    /\bcool\b.*\bheart\b/,
+    /\brest\b/,
+    /\bsleep\b/,
+    /\bstop\b/,
+    /\boverwork\b/,
+    /\bfear\b.*\btomorrow\b/,
+    /\boffering\b.*\bcomplete\b/,
+  ]);
+}
+
+function learningText(text: string) {
+  return includesAny(text, [
+    /\bhouse of life\b/,
+    /\bper ankh\b/,
+    /\bscrib\w*\b/,
+    /\blearn\w*\b/,
+    /\binstruction\b/,
+    /\bknowledge\b/,
+    /\bwrite\b.*\b(learn|knowledge|instruction|recite|transmit|scribe)\b/,
+    /\brecite\b/,
+    /\btransmit\b/,
+  ]);
+}
+
+function livingRecordText(text: string) {
+  return includesAny(text, [
+    /\bliving record\b/,
+    /\bdecan record\b/,
+    /\brecord[- ]keeping\b/,
+    /\bsets?\b.*\brecords?\b.*\border\b/,
+    /\blogbook\b/,
+    /\bannals\b/,
+    /\bmerer\b/,
+    /\bpalermo stone\b/,
+    /\bphysical record\b/,
+    /\bday card\b/,
+    /\bnode library\b/,
+    /\bflow studio\b/,
+    /\balignment grid\b/,
+    /\bma'?at guidance\b/,
+    /\bapp suite\b/,
+    /\bfull\b.*\bḥꜣw\b/,
+    /\bjournal\b.*\bfeed\b.*\bplanner\b/,
+  ]);
+}
+
+function hetHeruText(text: string) {
+  return includesAny(text, [
+    /\bhet[- ]heru\b/,
+    /\bḥwt[- ]ḥr\b/,
+    /\bhathor\b.*\b(joy|music|dance|beauty|delight|festival|sekh?met|eye)\b/,
+    /\b(joy|music|dance|beauty|delight|festival)\b.*\bhathor\b/,
+    /\bsekh?met\b/,
+    /\beye of ra\b/,
+    /\bred beer\b/,
+    /\bseven thousand jars\b/,
+    /\btekh\b/,
+    /\bfeast of drunkenness\b/,
+    /\bsistrum\b/,
+    /\bgolden one\b/,
+    /\bmistress of joy\b/,
+    /\bjoy\b/,
+    /\bdelight\b/,
+    /\bmusic\b/,
+    /\bdance\b/,
+    /\bbeauty\b/,
+    /\bfierce\b.*\b(force|heat|anger|rage)\b/,
+    /\bhot\b.*\b(force|anger|rage|grief)\b/,
+  ]);
+}
+
+function shoreText(text: string) {
+  return includesAny(text, [
+    /\bmoney\b/,
+    /\bexchange\b/,
+    /\bvalue\b/,
+    /\bprice\b/,
+    /\boffer\b/,
+    /\bsell\b|\bsale\b/,
+    /\bcontract\b/,
+    /\braise\b/,
+    /\bnegotiate\b/,
+    /\bbarter\b/,
+    /\bresource\b/,
+    /\bpayment\b/,
+    /\bbook sales\b/,
+    /\bbusiness\b/,
+    /\bclient\b/,
+    /\bwhat do i have to offer\b/,
+  ]);
+}
+
+function autobiographyText(text: string) {
+  return includesAny(text, [
+    /\blegacy\b/,
+    /\blife review\b/,
+    /\bwhat have i built\b/,
+    /\bpurpose\b/,
+    /\bcareer arc\b/,
+    /\bbirthday\b/,
+    /\byear review\b/,
+    /\bmy story\b/,
+    /\bremembered for\b/,
+    /\bwhat comes next\b/,
+    /\bunfinished work\b/,
+    /\baccomplishments\b/,
+  ]);
+}
+
+function firstArrangementText(text: string) {
+  return includesAny(text, [
+    /\bclutter\b/,
+    /\bspace\b/,
+    /\broom\b/,
+    /\boffice\b/,
+    /\bdesk\b/,
+    /\bcar\b/,
+    /\bstudio\b/,
+    /\bcan't focus\b/,
+    /\benvironment\b/,
+    /\bmess\b/,
+    /\borganize\b/,
+    /\bclean\b/,
+    /\bhome\b/,
+    /\bbedroom\b/,
+    /\bworkspace\b/,
+    /\bphysical reset\b/,
+  ]);
+}
+
+function livingPatternText(text: string) {
+  return includesAny(text, [
+    /\bnature\b/,
+    /\bobserve\b|\bobservation\b/,
+    /\bpattern\b/,
+    /\banimals?\b/,
+    /\bwater\b/,
+    /\bplants?\b/,
+    /\btree\b/,
+    /\bgarden\b/,
+    /\bnight sky\b/,
+    /\bmoon phase\b/,
+    /\bstars?\b.*\bobserv/,
+    /\bpatience\b/,
+    /\bnatural lesson\b/,
+    /\bcosmic event\b/,
+  ]);
+}
+
+function trueNameText(text: string) {
+  return includesAny(text, [
+    /\bidentity\b/,
+    /\bconfidence\b/,
+    /\bself[- ]?doubt\b/,
+    /\bfalse belief\b/,
+    /\bpeople like me\b/,
+    /\bnot enough\b/,
+    /\bi can't\b/,
+    /\bshame\b/,
+    /\bwho am i\b/,
+    /\bwhat is true about me\b/,
+    /\bact from truth\b/,
+  ]);
+}
+
+function livingTextText(text: string) {
+  return includesAny(text, [
+    /\blibrary\b/,
+    /\bnode\b/,
+    /\bentry\b/,
+    /\blearn\b/,
+    /\bstudy\b/,
+    /\bquestion\b/,
+    /\bi don't understand\b/,
+    /\bconnection\b/,
+    /\breflection\b/,
+    /\bsource\b/,
+    /\bwhat does this mean\b/,
+    /\badd insight\b/,
+  ]);
+}
+
 function strongWeighingText(text: string) {
   return includesAny(text, [
     /\bweigh\w*\b.*\btruth\b/,
@@ -442,11 +685,12 @@ function calendarNodeDestination(params: {
     params.calendarFrame?.arcSummary,
   ]);
   if (includesAny(text, [/\bwisdom\b/, /\blearn/, /\binstruction\b/])) {
-    return nodeDestination(
-      "instruction_amenemope",
-      "calendar_arc:wisdom_node",
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.houseOfLife,
+      "calendar_arc:house_of_life",
       "calendar_arc",
       0.74,
+      null,
       { signals: ["calendar_wisdom", "learning_language"] },
     );
   }
@@ -574,6 +818,187 @@ function highAlignmentFlowForReflection(params: {
         1,
         "profile_commitment",
       ],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.openMouth,
+    "open_mouth",
+    evidenceScore([
+      [
+        ["effective_speech", "truth", "witness"].includes(params.lens),
+        4,
+        "lens",
+      ],
+      [strongSpeechText(text), 4, "speech_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.fairHearing,
+    "fair_hearing",
+    evidenceScore([
+      [
+        ["justice", "vulnerable_protection", "truth", "witness"].includes(
+          params.lens,
+        ),
+        4,
+        "lens",
+      ],
+      [fairJudgmentText(text), 4, "judgment_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.boundaryStone,
+    "boundary_stone",
+    evidenceScore([
+      [
+        ["restraint", "self_mastery", "reciprocity", "measure"].includes(
+          params.lens,
+        ),
+        4,
+        "lens",
+      ],
+      [boundaryStoneText(text), 4, "boundary_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.hotep,
+    "hotep",
+    evidenceScore([
+      [
+        ["life_preservation", "restraint", "harmony"].includes(params.lens),
+        4,
+        "lens",
+      ],
+      [hotepText(text), 4, "rest_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.houseOfLife,
+    "house_of_life",
+    evidenceScore([
+      [["becoming", "continuity", "measure"].includes(params.lens), 4, "lens"],
+      [learningText(text), 4, "learning_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.livingRecord,
+    "living_record",
+    evidenceScore([
+      [
+        ["becoming", "continuity", "measure", "truth", "witness"].includes(
+          params.lens,
+        ),
+        4,
+        "lens",
+      ],
+      [livingRecordText(text), 4, "living_record_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.hetHeru,
+    "het_heru",
+    evidenceScore([
+      [
+        ["harmony", "life_preservation", "restraint", "self_mastery"].includes(
+          params.lens,
+        ),
+        4,
+        "lens",
+      ],
+      [hetHeruText(text), 4, "het_heru_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.theShore,
+    "shore",
+    evidenceScore([
+      [
+        ["measure", "reciprocity", "offering_service"].includes(params.lens),
+        4,
+        "lens",
+      ],
+      [shoreText(text), 5, "exchange_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.theAutobiography,
+    "autobiography",
+    evidenceScore([
+      [
+        ["continuity", "witness", "worthiness", "becoming"].includes(
+          params.lens,
+        ),
+        3,
+        "lens",
+      ],
+      [autobiographyText(text), 5, "life_review_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.firstArrangement,
+    "first_arrangement",
+    evidenceScore([
+      [
+        ["order", "repair_isfet", "self_mastery"].includes(params.lens),
+        3,
+        "lens",
+      ],
+      [firstArrangementText(text), 5, "space_order_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.livingPattern,
+    "living_pattern",
+    evidenceScore([
+      [
+        ["measure", "continuity", "becoming", "harmony"].includes(
+          params.lens,
+        ),
+        3,
+        "lens",
+      ],
+      [livingPatternText(text), 5, "nature_observation_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.trueName,
+    "true_name",
+    evidenceScore([
+      [
+        ["truth", "witness", "worthiness", "self_mastery"].includes(
+          params.lens,
+        ),
+        3,
+        "lens",
+      ],
+      [trueNameText(text), 5, "identity_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.livingText,
+    "living_text",
+    evidenceScore([
+      [
+        ["becoming", "continuity", "measure", "witness"].includes(
+          params.lens,
+        ),
+        3,
+        "lens",
+      ],
+      [livingTextText(text), 5, "library_contribution_language"],
     ]),
   );
 
@@ -818,31 +1243,80 @@ export function resolveMaatGuidanceDestination(params: {
       ctaCandidate(nodeFallback, 70),
     ], params.outcomeSignals);
   }
-  if (axis === "H" || axis === "R") {
+  if (axis === "R") {
     return chooseOutcomeWeightedDestination([
       ctaCandidate(
-        flowTemplate(MAAT_FLOW_TEMPLATES.eveningThresholdRite, `axis:${axis}`),
+        flowTemplate(MAAT_FLOW_TEMPLATES.boundaryStone, "axis:R"),
         100,
       ),
       ctaCandidate(
-        flowTemplate(MAAT_FLOW_TEMPLATES.theDjed, `axis:${axis}:structural`),
+        flowTemplate(MAAT_FLOW_TEMPLATES.theDjed, "axis:R:structural"),
         params.mode === "strength" ? 84 : 82,
       ),
       ctaCandidate(
-        flowTemplate(MAAT_FLOW_TEMPLATES.dawnHouseRite, `axis:${axis}:dawn`),
+        flowTemplate(
+          MAAT_FLOW_TEMPLATES.eveningThresholdRite,
+          "axis:R:cooldown",
+        ),
         76,
       ),
       ctaCandidate(nodeFallback, 70),
     ], params.outcomeSignals);
   }
-  if (axis === "M" || (params.mode === "strength" && axis === "T")) {
+  if (axis === "H") {
+    return chooseOutcomeWeightedDestination([
+      ctaCandidate(flowTemplate(MAAT_FLOW_TEMPLATES.hotep, "axis:H"), 100),
+      ctaCandidate(
+        flowTemplate(
+          MAAT_FLOW_TEMPLATES.eveningThresholdRite,
+          "axis:H:threshold",
+        ),
+        86,
+      ),
+      ctaCandidate(
+        flowTemplate(MAAT_FLOW_TEMPLATES.hetHeru, "axis:H:joy"),
+        params.mode === "strength" ? 88 : 84,
+      ),
+      ctaCandidate(
+        flowTemplate(MAAT_FLOW_TEMPLATES.theDjed, "axis:H:structural"),
+        params.mode === "strength" ? 84 : 82,
+      ),
+      ctaCandidate(
+        flowTemplate(MAAT_FLOW_TEMPLATES.dawnHouseRite, "axis:H:dawn"),
+        76,
+      ),
+      ctaCandidate(nodeFallback, 70),
+    ], params.outcomeSignals);
+  }
+  if (axis === "M") {
     return chooseOutcomeWeightedDestination([
       ctaCandidate(
-        flowTemplate(MAAT_FLOW_TEMPLATES.theWeighing, `axis:${axis}`),
+        flowTemplate(MAAT_FLOW_TEMPLATES.theWeighing, "axis:M"),
         100,
       ),
       ctaCandidate(
-        flowTemplate(MAAT_FLOW_TEMPLATES.theCourse, `axis:${axis}:measure`),
+        flowTemplate(MAAT_FLOW_TEMPLATES.theCourse, "axis:M:measure"),
+        82,
+      ),
+      ctaCandidate(nodeFallback, 70),
+    ], params.outcomeSignals);
+  }
+  if (params.mode === "strength" && axis === "T") {
+    return chooseOutcomeWeightedDestination([
+      ctaCandidate(
+        flowTemplate(MAAT_FLOW_TEMPLATES.houseOfLife, "axis:T:learning"),
+        90,
+      ),
+      ctaCandidate(
+        flowTemplate(MAAT_FLOW_TEMPLATES.livingRecord, "axis:T:living_record"),
+        88,
+      ),
+      ctaCandidate(
+        flowTemplate(MAAT_FLOW_TEMPLATES.theWeighing, "axis:T"),
+        85,
+      ),
+      ctaCandidate(
+        flowTemplate(MAAT_FLOW_TEMPLATES.theCourse, "axis:T:measure"),
         82,
       ),
       ctaCandidate(nodeFallback, 70),
@@ -882,11 +1356,19 @@ export function resolveMaatGuidanceDestination(params: {
   }
   if (axis === "J") {
     return chooseOutcomeWeightedDestination([
-      ctaCandidate(nodeFallback, 100),
+      ctaCandidate(
+        flowTemplate(MAAT_FLOW_TEMPLATES.fairHearing, "axis:J:fair_hearing"),
+        100,
+      ),
+      ctaCandidate(
+        flowTemplate(MAAT_FLOW_TEMPLATES.boundaryStone, "axis:J:due_measure"),
+        86,
+      ),
       ctaCandidate(
         flowTemplate(MAAT_FLOW_TEMPLATES.theOpenHand, "axis:J:justice"),
-        82,
+        78,
       ),
+      ctaCandidate(nodeFallback, 70),
     ], params.outcomeSignals);
   }
 
@@ -894,6 +1376,110 @@ export function resolveMaatGuidanceDestination(params: {
 }
 
 function calendarFlowFromText(text: string): MaatDestinationResolution | null {
+  if (shoreText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.theShore,
+      "calendar_arc:shore",
+      "calendar_arc",
+      0.9,
+    );
+  }
+  if (autobiographyText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.theAutobiography,
+      "calendar_arc:autobiography",
+      "calendar_arc",
+      0.9,
+    );
+  }
+  if (firstArrangementText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.firstArrangement,
+      "calendar_arc:first_arrangement",
+      "calendar_arc",
+      0.9,
+    );
+  }
+  if (trueNameText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.trueName,
+      "calendar_arc:true_name",
+      "calendar_arc",
+      0.9,
+    );
+  }
+  if (livingRecordText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.livingRecord,
+      "calendar_arc:living_record",
+      "calendar_arc",
+      0.9,
+    );
+  }
+  if (livingTextText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.livingText,
+      "calendar_arc:living_text",
+      "calendar_arc",
+      0.9,
+    );
+  }
+  if (hetHeruText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.hetHeru,
+      "calendar_arc:het_heru",
+      "calendar_arc",
+      0.9,
+    );
+  }
+  if (learningText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.houseOfLife,
+      "calendar_arc:house_of_life",
+      "calendar_arc",
+      0.9,
+    );
+  }
+  if (boundaryStoneText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.boundaryStone,
+      "calendar_arc:boundary_stone",
+      "calendar_arc",
+      0.88,
+    );
+  }
+  if (hotepText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.hotep,
+      "calendar_arc:hotep",
+      "calendar_arc",
+      0.88,
+    );
+  }
+  if (strongSpeechText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.openMouth,
+      "calendar_arc:open_mouth",
+      "calendar_arc",
+      0.88,
+    );
+  }
+  if (fairJudgmentText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.fairHearing,
+      "calendar_arc:fair_hearing",
+      "calendar_arc",
+      0.88,
+    );
+  }
+  if (livingPatternText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.livingPattern,
+      "calendar_arc:living_pattern",
+      "calendar_arc",
+      0.88,
+    );
+  }
   if (/\bmoon|lunar|whole eye|empty eye\b/i.test(text)) {
     return flowTemplate(
       MAAT_FLOW_TEMPLATES.moonReturn,
@@ -918,7 +1504,7 @@ function calendarFlowFromText(text: string): MaatDestinationResolution | null {
       0.9,
     );
   }
-  if (/\bdecan\b/i.test(text)) {
+  if (/\bdecan(?:al)?\b/i.test(text)) {
     return flowTemplate(
       MAAT_FLOW_TEMPLATES.decanWatch,
       "calendar_arc:decan_watch",
@@ -1074,7 +1660,7 @@ function destinationForLens(
     case "restraint":
     case "self_mastery":
       return flowTemplate(
-        MAAT_FLOW_TEMPLATES.theDjed,
+        MAAT_FLOW_TEMPLATES.boundaryStone,
         `${reasonPrefix}:${lens}`,
         "maat_lens",
         0.88,
@@ -1118,14 +1704,40 @@ function destinationForLens(
       );
     case "effective_speech":
       return flowTemplate(
-        MAAT_FLOW_TEMPLATES.theKeptWord,
+        MAAT_FLOW_TEMPLATES.openMouth,
         `${reasonPrefix}:${lens}`,
         "maat_lens",
         0.9,
       );
     case "justice":
-    case "offering_service":
+      return flowTemplate(
+        MAAT_FLOW_TEMPLATES.fairHearing,
+        `${reasonPrefix}:${lens}`,
+        "maat_lens",
+        0.88,
+        destination({
+          type: "node",
+          ref: "maat",
+          reason: `${reasonPrefix}:${lens}:node_fallback`,
+          source: "maat_lens",
+          confidence: 0.62,
+        }),
+      );
     case "harmony":
+      return flowTemplate(
+        MAAT_FLOW_TEMPLATES.hetHeru,
+        `${reasonPrefix}:${lens}`,
+        "maat_lens",
+        0.88,
+        destination({
+          type: "node",
+          ref: "hathor",
+          reason: `${reasonPrefix}:${lens}:node_fallback`,
+          source: "maat_lens",
+          confidence: 0.62,
+        }),
+      );
+    case "offering_service":
       return flowTemplate(
         MAAT_FLOW_TEMPLATES.theOpenHand,
         `${reasonPrefix}:${lens}`,

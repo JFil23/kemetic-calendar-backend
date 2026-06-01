@@ -167,8 +167,9 @@ Deno.test("opening guidance keeps scores hidden while naming one action", () => 
 
   assertEquals(draft.kind, "decan_opening");
   assertEquals(draft.ctaType, "flow_template");
-  assertEquals(draft.ctaRef, "the-decan-watch");
+  assertEquals(draft.ctaRef, "the-living-record");
   assertStringIncludes(draft.teaserText, "sets records in order");
+  assertStringIncludes(draft.teaserText, "Thoth - measure sets records");
   assertStringIncludes(draft.bodyText, "Today centers Record honestly");
   const compiledPackage = draft.payload.compiled_output_package as {
     package_version?: string;
@@ -190,8 +191,8 @@ Deno.test("opening guidance keeps scores hidden while naming one action", () => 
   assertEquals(compiledPackage.teaser_text, draft.teaserText);
   assertEquals((compiledPackage.push_text?.length ?? 0) > 0, true);
   assertEquals(compiledPackage.cta_type, "flow_template");
-  assertEquals(compiledPackage.cta_ref, "the-decan-watch");
-  assertEquals(compiledPackage.destination?.ref, "the-decan-watch");
+  assertEquals(compiledPackage.cta_ref, "the-living-record");
+  assertEquals(compiledPackage.destination?.ref, "the-living-record");
   assertEquals(compiledPackage.destination?.source, "calendar_arc");
   assertEquals(compiledPackage.compiler?.surface, "opening");
   assertEquals(compiledPackage.compiler?.status, "compiled");
@@ -865,9 +866,9 @@ Deno.test("guidance CTA resolver maps existing flow templates conservatively", (
   assertEquals(
     resolveGuidanceCta({ snapshot: justiceDrift, mode: "drift" }),
     {
-      ctaType: "node",
-      ctaRef: "maat",
-      reason: "axis:J:node_fallback",
+      ctaType: "flow_template",
+      ctaRef: "the-fair-hearing",
+      reason: "axis:J:fair_hearing",
     },
   );
 
@@ -946,6 +947,21 @@ Deno.test("guidance CTA resolver maps existing flow templates conservatively", (
   });
   assertEquals(cohesionCta.ctaRef === "the-tending", false);
   assertEquals(cohesionCta.ctaRef === "dawn-house-rite", false);
+
+  const restraintDrift = {
+    ...baseline,
+    leadAxis: "R" as const,
+    correctionAxes: ["R" as const],
+    hardGates: [],
+  };
+  assertEquals(
+    resolveGuidanceCta({ snapshot: restraintDrift, mode: "drift" }),
+    {
+      ctaType: "flow_template",
+      ctaRef: "the-boundary-stone",
+      reason: "axis:R",
+    },
+  );
 });
 
 Deno.test("CTA resolver uses outcome flags only as a conservative preference", () => {

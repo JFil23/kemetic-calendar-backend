@@ -170,15 +170,28 @@ Deno.test("destination resolver exposes every registered Ma'at flow template", (
     [
       "dawn-house-rite",
       "evening-threshold-rite",
+      "het-heru",
+      "hotep",
       "the-course",
+      "the-autobiography",
+      "the-boundary-stone",
       "the-days-outside-the-year",
       "the-decan-watch",
       "the-djed",
+      "the-fair-hearing",
+      "the-first-arrangement",
+      "the-house-of-life",
       "the-kept-word",
+      "the-living-pattern",
+      "the-living-record",
+      "the-living-text",
       "the-moon-return",
       "the-offering-table",
       "the-open-hand",
+      "the-open-mouth",
+      "the-shore",
       "the-tending",
+      "the-true-name",
       "the-wag",
       "the-weighing",
       "track-the-sky",
@@ -208,9 +221,30 @@ Deno.test("guidance destination keeps existing core axis mappings", () => {
     }).ctaRef,
     "the-tending",
   );
+  assertEquals(
+    resolveMaatGuidanceDestination({
+      snapshot: snapshot("J"),
+      mode: "drift",
+    }).ctaRef,
+    "the-fair-hearing",
+  );
+  assertEquals(
+    resolveMaatGuidanceDestination({
+      snapshot: snapshot("R"),
+      mode: "drift",
+    }).ctaRef,
+    "the-boundary-stone",
+  );
+  assertEquals(
+    resolveMaatGuidanceDestination({
+      snapshot: snapshot("H"),
+      mode: "drift",
+    }).ctaRef,
+    "hotep",
+  );
 });
 
-Deno.test("reflection destination defaults to a Library node for general wisdom and learning", () => {
+Deno.test("reflection destination defaults to House of Life for general wisdom and learning", () => {
   const destination = resolveReflectionDestination({
     calendarFrame: calendarFrame({
       decanTheme: "wisdom and learning",
@@ -219,8 +253,8 @@ Deno.test("reflection destination defaults to a Library node for general wisdom 
     }),
   });
 
-  assertEquals(destination.ctaType, "node");
-  assertEquals(destination.ctaRef, "instruction_amenemope");
+  assertEquals(destination.ctaType, "flow_template");
+  assertEquals(destination.ctaRef, "the-house-of-life");
   assertEquals(destination.source, "calendar_arc");
 });
 
@@ -282,6 +316,24 @@ Deno.test("reflection destination selects Kept Word only with strong agreement e
   assertArrayIncludes(keptWord.signals, [
     "lens:effective_speech",
     "agreement_language",
+  ]);
+});
+
+Deno.test("reflection destination separates Open Mouth speech from Kept Word agreements", () => {
+  const openMouth = resolveReflectionDestination({
+    judgment: judgment("effective_speech", {
+      centralMoralReading:
+        "The mouth is heated and an important truth has stayed unsaid.",
+      reflectionThesis:
+        "The next practice is governing the tongue before the utterance enters the world.",
+    }),
+  });
+
+  assertEquals(openMouth.ctaType, "flow_template");
+  assertEquals(openMouth.ctaRef, "the-open-mouth");
+  assertArrayIncludes(openMouth.signals, [
+    "lens:effective_speech",
+    "speech_language",
   ]);
 });
 
@@ -370,6 +422,104 @@ Deno.test("the same lens can choose different destinations from reflection evide
   assertEquals(tendingCare.ctaRef, "the-tending");
 });
 
+Deno.test("reflection destination selects Living Record for full-app record keeping", () => {
+  const destination = resolveReflectionDestination({
+    judgment: judgment("continuity", {
+      centralMoralReading:
+        "The decan needs a living record across the day card, node library, planner, journal, feed, alignment grid, and Flow Studio.",
+      reflectionThesis:
+        "Continuity should become a dated decan record rather than a loose intention.",
+    }),
+  });
+
+  assertEquals(destination.ctaType, "flow_template");
+  assertEquals(destination.ctaRef, "the-living-record");
+  assertEquals(destination.fallback?.ctaType, "node");
+  assertEquals(destination.fallback?.ctaRef, "djehuty");
+  assertArrayIncludes(destination.signals, [
+    "lens:continuity",
+    "living_record_language",
+  ]);
+});
+
+Deno.test("reflection destination selects Het-Heru for joy and transformed heat", () => {
+  const destination = resolveReflectionDestination({
+    judgment: judgment("harmony", {
+      centralMoralReading:
+        "A hot force has momentum, but the next movement is joy, music, beauty, and delight rather than suppression.",
+      reflectionThesis:
+        "The Sekhmet force needs red beer: abundance that transforms the field.",
+    }),
+  });
+
+  assertEquals(destination.ctaType, "flow_template");
+  assertEquals(destination.ctaRef, "het-heru");
+  assertEquals(destination.fallback?.ctaType, "node");
+  assertEquals(destination.fallback?.ctaRef, "hathor");
+  assertArrayIncludes(destination.signals, [
+    "lens:harmony",
+    "het_heru_language",
+  ]);
+});
+
+Deno.test("reflection destination selects the new Ma'at Flow suite from explicit signals", () => {
+  const cases = [
+    {
+      lens: "measure" as const,
+      text:
+        "Money, price, and exchange value are the real question in this client negotiation.",
+      ref: "the-shore",
+      signal: "exchange_language",
+    },
+    {
+      lens: "continuity" as const,
+      text:
+        "A birthday life review is raising legacy, accomplishments, and unfinished work.",
+      ref: "the-autobiography",
+      signal: "life_review_language",
+    },
+    {
+      lens: "order" as const,
+      text:
+        "The office desk and workspace clutter are blocking focus and need a physical reset.",
+      ref: "the-first-arrangement",
+      signal: "space_order_language",
+    },
+    {
+      lens: "becoming" as const,
+      text: "Nature observation and one plant pattern are teaching patience.",
+      ref: "the-living-pattern",
+      signal: "nature_observation_language",
+    },
+    {
+      lens: "truth" as const,
+      text:
+        "Identity, confidence, and a false belief about people like me need an accurate account.",
+      ref: "the-true-name",
+      signal: "identity_language",
+    },
+    {
+      lens: "becoming" as const,
+      text:
+        "The Library entry opened a question, a reflection, and a connection I should add as insight.",
+      ref: "the-living-text",
+      signal: "library_contribution_language",
+    },
+  ];
+
+  for (const item of cases) {
+    const destination = resolveReflectionDestination({
+      judgment: judgment(item.lens, {
+        centralMoralReading: item.text,
+        reflectionThesis: item.text,
+      }),
+    });
+    assertEquals(destination.ctaType, "flow_template");
+    assertEquals(destination.ctaRef, item.ref);
+    assertArrayIncludes(destination.signals, [item.signal]);
+  }
+});
+
 Deno.test("different reflection text changes the recommended Library node", () => {
   const learning = resolveReflectionDestination({
     calendarFrame: calendarFrame({
@@ -377,8 +527,8 @@ Deno.test("different reflection text changes the recommended Library node", () =
       decanDescription: "The period asks the user to learn from the record.",
     }),
   });
-  assertEquals(learning.ctaType, "node");
-  assertEquals(learning.ctaRef, "instruction_amenemope");
+  assertEquals(learning.ctaType, "flow_template");
+  assertEquals(learning.ctaRef, "the-house-of-life");
 
   const order = resolveReflectionDestination({
     calendarFrame: calendarFrame({
@@ -417,7 +567,7 @@ Deno.test("destination payload preserves explicit motivation metadata", () => {
   ]);
 });
 
-Deno.test("calendar destination can route sky, decan, moon, wag, boundary, dawn, and open hand contexts", () => {
+Deno.test("calendar destination can route sky, decan, moon, wag, boundary, dawn, and Ma'at flow contexts", () => {
   assertEquals(
     resolveCalendarDestination({ decanContext: "watch the sky and horizon" })
       .ctaRef,
@@ -425,6 +575,10 @@ Deno.test("calendar destination can route sky, decan, moon, wag, boundary, dawn,
   );
   assertEquals(
     resolveCalendarDestination({ decanName: "Hathor first decan sꜣḥ" }).ctaRef,
+    "the-decan-watch",
+  );
+  assertEquals(
+    resolveCalendarDestination({ decanContext: "decanal star rising" }).ctaRef,
     "the-decan-watch",
   );
   assertEquals(
@@ -449,6 +603,92 @@ Deno.test("calendar destination can route sky, decan, moon, wag, boundary, dawn,
     resolveCalendarDestination({ decanContext: "open hand generosity" })
       .ctaRef,
     "the-open-hand",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "house of life scribal learning",
+    })
+      .ctaRef,
+    "the-house-of-life",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "boundary stone and excess force",
+    })
+      .ctaRef,
+    "the-boundary-stone",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "hotep cool heart before sleep",
+    })
+      .ctaRef,
+    "hotep",
+  );
+  assertEquals(
+    resolveCalendarDestination({ decanContext: "open mouth heated speech" })
+      .ctaRef,
+    "the-open-mouth",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext:
+        "living record through the day card, node library, planner, journal, feed, and physical record",
+    }).ctaRef,
+    "the-living-record",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "Het-Heru red beer, music, beauty, and joy",
+    }).ctaRef,
+    "het-heru",
+  );
+  assertEquals(
+    resolveCalendarDestination({ decanContext: "fair hearing before judgment" })
+      .ctaRef,
+    "the-fair-hearing",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "client exchange value and contract negotiation",
+    })
+      .ctaRef,
+    "the-shore",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "legacy life review and unfinished work",
+    })
+      .ctaRef,
+    "the-autobiography",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "workspace clutter and physical reset",
+    })
+      .ctaRef,
+    "the-first-arrangement",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "nature observation of one plant pattern",
+    })
+      .ctaRef,
+    "the-living-pattern",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "identity and accurate account",
+    })
+      .ctaRef,
+    "the-true-name",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "Library entry reflection question and connection",
+    })
+      .ctaRef,
+    "the-living-text",
   );
 });
 
