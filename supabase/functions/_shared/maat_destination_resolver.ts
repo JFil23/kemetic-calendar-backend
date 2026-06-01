@@ -92,6 +92,10 @@ export const MAAT_FLOW_TEMPLATES = {
   livingPattern: "the-living-pattern",
   trueName: "the-true-name",
   livingText: "the-living-text",
+  clearing: "the-clearing",
+  wandering: "the-wandering",
+  khat: "the-khat",
+  oracle: "the-oracle",
 } as const;
 
 export const ALL_MAAT_FLOW_TEMPLATE_KEYS = Object.values(MAAT_FLOW_TEMPLATES);
@@ -658,6 +662,87 @@ function livingTextText(text: string) {
   ]);
 }
 
+function crisisSupportText(text: string) {
+  return includesAny(text, [
+    /\bsuicid/,
+    /\bself[- ]?harm\b/,
+    /\bhurt myself\b/,
+    /\bkill myself\b/,
+    /\bi do not want to live\b/,
+    /\bacute distress\b/,
+    /\bcrisis\b/,
+    /\bemergency\b/,
+  ]);
+}
+
+function clearingText(text: string) {
+  return includesAny(text, [
+    /\breactive\b/,
+    /\bangry\b/,
+    /\banger\b/,
+    /\bheat\b/,
+    /\bcalm down\b/,
+    /\brespond\b/,
+    /\bconflict\b/,
+    /\bspeech\b.*\b(reactive|heated|heat|conflict|reply|snapped)\b/,
+    /\b(reactive|heated|heat|conflict|reply|snapped)\b.*\bspeech\b/,
+    /\bpatience\b/,
+    /\btemper\b/,
+    /\bstillness\b/,
+    /\bbefore i reply\b/,
+    /\bi snapped\b/,
+    /\bi need space\b/,
+  ]);
+}
+
+function wanderingText(text: string) {
+  return includesAny(text, [
+    /\bgrief\b/,
+    /\bloss\b/,
+    /\bmourning\b/,
+    /\blost\b/,
+    /\bdied\b/,
+    /\bbreakup\b/,
+    /\bmissing\b/,
+    /\bcan['’]?t move on\b/,
+    /\bwhat remains\b/,
+    /\blove continues\b/,
+    /\bmemory\b.*\b(grief|loss|mourning|missing)\b/,
+    /\b(grief|loss|mourning|missing)\b.*\bmemory\b/,
+  ]);
+}
+
+function khatText(text: string) {
+  return includesAny(text, [
+    /\bbody\b/,
+    /\btired\b/,
+    /\bfatigue\b/,
+    /\bmovement\b/,
+    /\bpain\b/,
+    /\btension\b/,
+    /\bphysical\b/,
+    /\bexercise\b/,
+    /\bbody care\b/,
+    /\bbody\b.*\b(sleep|water|food|rest)\b/,
+    /\b(sleep|water|food|rest)\b.*\bbody\b/,
+  ]);
+}
+
+function oracleText(text: string) {
+  return includesAny(text, [
+    /\bdream\b/,
+    /\boracle\b/,
+    /\bvision\b/,
+    /\b(dream|sleep|night|oracle)\b.*\bquestion\b/,
+    /\bquestion\b.*\b(dream|sleep|night|oracle)\b/,
+    /\b(sign|symbol|guidance)\b.*\b(dream|sleep|night|waking)\b/,
+    /\b(dream|sleep|night|waking)\b.*\b(sign|symbol|guidance)\b/,
+    /\buncertain\b.*\b(dream|oracle|night)\b/,
+    /\b(dream|oracle|night)\b.*\buncertain\b/,
+    /\bwhat should i do\b/,
+  ]);
+}
+
 function strongWeighingText(text: string) {
   return includesAny(text, [
     /\bweigh\w*\b.*\btruth\b/,
@@ -802,6 +887,19 @@ function highAlignmentFlowForReflection(params: {
   );
 
   addCandidate(
+    MAAT_FLOW_TEMPLATES.khat,
+    "khat",
+    evidenceScore([
+      [
+        ["care", "life_preservation", "self_mastery"].includes(params.lens),
+        3,
+        "lens",
+      ],
+      [khatText(text), 5, "body_care_language"],
+    ]),
+  );
+
+  addCandidate(
     MAAT_FLOW_TEMPLATES.theKeptWord,
     "kept_word",
     evidenceScore([
@@ -831,6 +929,21 @@ function highAlignmentFlowForReflection(params: {
         "lens",
       ],
       [strongSpeechText(text), 4, "speech_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.clearing,
+    "clearing",
+    evidenceScore([
+      [
+        ["restraint", "self_mastery", "effective_speech", "harmony"].includes(
+          params.lens,
+        ),
+        3,
+        "lens",
+      ],
+      [clearingText(text), 5, "reactivity_language"],
     ]),
   );
 
@@ -917,6 +1030,21 @@ function highAlignmentFlowForReflection(params: {
   );
 
   addCandidate(
+    MAAT_FLOW_TEMPLATES.wandering,
+    "wandering",
+    evidenceScore([
+      [
+        ["harmony", "life_preservation", "witness", "continuity"].includes(
+          params.lens,
+        ) && !crisisSupportText(text),
+        3,
+        "lens",
+      ],
+      [wanderingText(text) && !crisisSupportText(text), 5, "grief_language"],
+    ]),
+  );
+
+  addCandidate(
     MAAT_FLOW_TEMPLATES.theShore,
     "shore",
     evidenceScore([
@@ -984,6 +1112,21 @@ function highAlignmentFlowForReflection(params: {
         "lens",
       ],
       [trueNameText(text), 5, "identity_language"],
+    ]),
+  );
+
+  addCandidate(
+    MAAT_FLOW_TEMPLATES.oracle,
+    "oracle",
+    evidenceScore([
+      [
+        ["becoming", "continuity", "witness", "measure"].includes(
+          params.lens,
+        ),
+        3,
+        "lens",
+      ],
+      [oracleText(text) && !crisisSupportText(text), 5, "oracle_language"],
     ]),
   );
 
@@ -1416,6 +1559,31 @@ function calendarFlowFromText(text: string): MaatDestinationResolution | null {
       0.9,
     );
   }
+  if (wanderingText(text) && crisisSupportText(text)) {
+    return nodeDestination(
+      "maat",
+      "calendar_arc:grief_support_boundary",
+      "calendar_arc",
+      0.72,
+      { signals: ["grief_language", "crisis_support_boundary"] },
+    );
+  }
+  if (wanderingText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.wandering,
+      "calendar_arc:wandering",
+      "calendar_arc",
+      0.9,
+    );
+  }
+  if (oracleText(text) && !crisisSupportText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.oracle,
+      "calendar_arc:oracle",
+      "calendar_arc",
+      0.9,
+    );
+  }
   if (livingTextText(text)) {
     return flowTemplate(
       MAAT_FLOW_TEMPLATES.livingText,
@@ -1448,6 +1616,14 @@ function calendarFlowFromText(text: string): MaatDestinationResolution | null {
       0.88,
     );
   }
+  if (khatText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.khat,
+      "calendar_arc:khat",
+      "calendar_arc",
+      0.88,
+    );
+  }
   if (hotepText(text)) {
     return flowTemplate(
       MAAT_FLOW_TEMPLATES.hotep,
@@ -1460,6 +1636,14 @@ function calendarFlowFromText(text: string): MaatDestinationResolution | null {
     return flowTemplate(
       MAAT_FLOW_TEMPLATES.openMouth,
       "calendar_arc:open_mouth",
+      "calendar_arc",
+      0.88,
+    );
+  }
+  if (clearingText(text)) {
+    return flowTemplate(
+      MAAT_FLOW_TEMPLATES.clearing,
+      "calendar_arc:clearing",
       "calendar_arc",
       0.88,
     );

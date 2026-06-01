@@ -172,6 +172,7 @@ Deno.test("destination resolver exposes every registered Ma'at flow template", (
       "evening-threshold-rite",
       "het-heru",
       "hotep",
+      "the-clearing",
       "the-course",
       "the-autobiography",
       "the-boundary-stone",
@@ -182,6 +183,7 @@ Deno.test("destination resolver exposes every registered Ma'at flow template", (
       "the-first-arrangement",
       "the-house-of-life",
       "the-kept-word",
+      "the-khat",
       "the-living-pattern",
       "the-living-record",
       "the-living-text",
@@ -189,9 +191,11 @@ Deno.test("destination resolver exposes every registered Ma'at flow template", (
       "the-offering-table",
       "the-open-hand",
       "the-open-mouth",
+      "the-oracle",
       "the-shore",
       "the-tending",
       "the-true-name",
+      "the-wandering",
       "the-wag",
       "the-weighing",
       "track-the-sky",
@@ -505,6 +509,34 @@ Deno.test("reflection destination selects the new Ma'at Flow suite from explicit
       ref: "the-living-text",
       signal: "library_contribution_language",
     },
+    {
+      lens: "self_mastery" as const,
+      text:
+        "I snapped in conflict and need space before I reply from reactive heat.",
+      ref: "the-clearing",
+      signal: "reactivity_language",
+    },
+    {
+      lens: "harmony" as const,
+      text:
+        "Grief and loss keep returning through memory; I am mourning what remains.",
+      ref: "the-wandering",
+      signal: "grief_language",
+    },
+    {
+      lens: "care" as const,
+      text:
+        "My body is tired, carrying tension, and needs water, sleep, rest, and movement.",
+      ref: "the-khat",
+      signal: "body_care_language",
+    },
+    {
+      lens: "becoming" as const,
+      text:
+        "A dream question before sleep may offer guidance through a symbol in the night.",
+      ref: "the-oracle",
+      signal: "oracle_language",
+    },
   ];
 
   for (const item of cases) {
@@ -518,6 +550,18 @@ Deno.test("reflection destination selects the new Ma'at Flow suite from explicit
     assertEquals(destination.ctaRef, item.ref);
     assertArrayIncludes(destination.signals, [item.signal]);
   }
+});
+
+Deno.test("grief crisis language does not route to The Wandering as a substitute for support", () => {
+  const destination = resolveReflectionDestination({
+    judgment: judgment("harmony", {
+      centralMoralReading:
+        "Grief and loss are acute distress and crisis tonight.",
+      reflectionThesis: "This needs support before a practice is suggested.",
+    }),
+  });
+
+  assert(destination.ctaRef !== "the-wandering");
 });
 
 Deno.test("different reflection text changes the recommended Library node", () => {
@@ -689,6 +733,34 @@ Deno.test("calendar destination can route sky, decan, moon, wag, boundary, dawn,
     })
       .ctaRef,
     "the-living-text",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "reactive heat in conflict before I reply",
+    })
+      .ctaRef,
+    "the-clearing",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "grief and loss with memory of what remains",
+    })
+      .ctaRef,
+    "the-wandering",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "body care through water, sleep, rest, and movement",
+    })
+      .ctaRef,
+    "the-khat",
+  );
+  assertEquals(
+    resolveCalendarDestination({
+      decanContext: "dream question before sleep and night symbol guidance",
+    })
+      .ctaRef,
+    "the-oracle",
   );
 });
 
