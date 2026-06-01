@@ -55,8 +55,9 @@ Deno.test("admin_content_preview generates an opening preview and logs an evalua
         decan_context_key: "3-1",
         day_card: {
           date: "2026-05-19",
-          maatPrinciple: "Step Back Onto the Earth",
-          decanDayAction: "Name what you just carried.",
+          maatPrinciple: "Feel the Ground Hold",
+          decanDayAction:
+            "Walk slowly through the structures of life and identify what has actually stabilized.",
         },
       }),
     },
@@ -71,7 +72,7 @@ Deno.test("admin_content_preview generates an opening preview and logs an evalua
   assertExists(payload.preview.generated_text);
   assertStringIncludes(
     payload.preview.generated_text,
-    "Today centers Step Back Onto the Earth",
+    "Today centers Feel the Ground Hold",
   );
   assertEquals(
     payload.preview.push_preview.render_diagnostics.status,
@@ -161,8 +162,9 @@ Deno.test("admin_content_preview seasons guidance without reciting activities", 
     decan_context_key: "3-1",
     day_card: {
       date: "2026-05-19",
-      maatPrinciple: "Step Back Onto the Earth",
-      decanDayAction: "Name what you just carried.",
+      maatPrinciple: "Feel the Ground Hold",
+      decanDayAction:
+        "Walk slowly through the structures of life and identify what has actually stabilized.",
     },
   };
 
@@ -195,8 +197,8 @@ Deno.test("admin_content_preview seasons guidance without reciting activities", 
   const openingText = String(opening.preview.generated_text).toLowerCase();
   const nudgeText = String(nudge.preview.generated_text).toLowerCase();
 
-  assertStringIncludes(openingText, "hathor");
-  assertStringIncludes(openingText, "step back onto the earth");
+  assertStringIncludes(openingText, "sꜣḥ");
+  assertStringIncludes(openingText, "feel the ground hold");
   assertEquals(openingText.includes("vitamin a"), false);
   assertEquals(openingText.includes("carrots"), false);
   assertEquals(nudgeText.includes("vitamin a"), false);

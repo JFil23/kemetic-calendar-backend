@@ -392,8 +392,8 @@ Deno.test("reflection calendar frame preserves the full decan arc", () => {
   assertEquals(frame?.seasonName, "Akhet");
   assertEquals(frame?.ceremonialDecanName, "Hathor's first decan sꜣḥ");
   assertEquals(frame?.dayCards.length, 10);
-  assertStringIncludes(frame?.arcSummary ?? "", "Step Back Onto the Earth");
-  assertStringIncludes(frame?.arcSummary ?? "", "Give Thanks for Safe Return");
+  assertStringIncludes(frame?.arcSummary ?? "", "Feel the Ground Hold");
+  assertStringIncludes(frame?.arcSummary ?? "", "Confirm Continuity");
 });
 
 Deno.test("reflection grader rejects a longer nudge without calendar alignment", () => {
