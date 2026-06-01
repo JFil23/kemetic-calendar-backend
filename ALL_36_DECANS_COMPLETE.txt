@@ -1,207 +1,652 @@
 ================================================================================
 ALL 36 DECANS - COMPLETE LIST
 ================================================================================
-(12 months × 3 decans each)
+(12 months x 3 decans each)
 
 ================================================================================
-MONTH 1 - THOTH (Djehuty)
+MONTH 1 - THOTH
 ================================================================================
 
-Decan 1 (Days 1-10):
-  Name: tpy-ꜣ sbꜣw ("Foremost of the Stars")
-  Description: This decan marks orientation. To the Kemite, tpy-ꜣ ("the foremost") does not mean dominance — it means what appears first and therefore sets direction. This decan represents the moment when attention is gathered and the field of time is surveyed. In practice: assessing conditions after uncertainty; checking measurements; establishing bearings before action. Thoth's role here is alignment, like the scribe drawing the first line: Where am I standing? What is true right now? Nothing is built yet. Nothing is corrected yet. This is the act of looking clearly before speaking. Living Principle: Order begins when attention is placed correctly.
+Decan 1 (Month 1, Days 1-10):
+  Name: tpy-ꜥ sbꜣw ("Foremost of the Stars")
+  Description: Orientation — Placing Attention Correctly
 
-Decan 2 (Days 11-20):
+The first decanal star to rise does not rule the night. It gives bearing. Its appearance at the eastern horizon tells the watcher where the sky has moved, where the year has entered, and what must be measured before any action begins.
+
+The flood is still high. No field boundary is visible. No road holds its former course. The world has returned to a condition where first sight matters more than it will at any other point in the cycle.
+
+Attention is not intervention. The ibis probes the waterline before moving. Djehuty's first form belongs here — beak at the water's edge, searching where the hidden will later be found. The Coffin Texts remember the beginning as solitude in the waters, before a place to stand had been established.
+
+— Coffin Texts, Spell 76
+
+A misplaced beginning carries its error forward through every correction that follows.
+
+Where attention is placed correctly, the year can be measured. Where it is scattered, every later reckoning begins from distortion.
+
+Decan 2 (Month 1, Days 11-20):
   Name: ḥry-ib sbꜣw ("Heart of the Stars")
-  Description: This decan marks integration. ḥry-ib ("that which is at the heart") signals internal coherence — observation becoming understanding. It governs reflection, internal calibration, and deciding what matters. In administrative and ritual life: checking accounts, refining plans, correcting imbalance before it spreads. Thoth keeps proportion so thought matches reality and intention matches capacity. Living Principle: Truth is not what appears — it is what holds together under examination.
+  Description: Integration — Bringing Observation into Coherence
 
-Decan 3 (Days 21-30):
+A single star does not guide. Stars guide by their relation to one another — to the horizon, to the season, to what rises before and after. The sky becomes useful because its points hold together.
+
+The flood still covers much of the land, but it is no longer unreadable. Currents reveal hidden edges. Birds return to particular places. Pattern begins to surface inside uncertainty. The work now moves inward.
+
+In Kemetic thought, the heart is not emotion alone. It is the chamber where what has been perceived is ordered before it is spoken or acted upon. The Memphite Theology describes creation through heart and tongue: the heart conceives, the tongue releases the word into form.
+
+— Memphite Theology
+
+But speech cannot come first. Before the year can be named, counted, or acted upon, what has been seen must hold together in the ib.
+
+Where observation is brought into the heart, judgment becomes possible. Where it is released too early, action speaks before truth has formed.
+
+Decan 3 (Month 1, Days 21-30):
   Name: sbꜣw ("The Stars")
-  Description: This decan marks expression into order. With no modifier, sbꜣw refers to the many points held in relation. Understanding is released into structure: schedules, records, agreements, commitments. Plans become instructions; decisions become actions; knowledge becomes responsibility. For the Kemite, the stars modeled systems that do not lie — many parts, one rhythm. Thoth records and binds so decisions are carried forward faithfully. Living Principle: Order is sustained when understanding is shared and upheld.
+  Description: Expression — Releasing Understanding into Shared Order
+
+Stars do not guide because they are isolated lights. They guide because their relation is known across time — the same courses holding, the same sequence readable by those who were taught to watch. What orients one watcher must be preserved for the next.
+
+As the flood begins to reveal the land again, memory alone is not enough. Boundaries must not be assumed. Routes must not be reopened without attention to what the water has changed. What the eye saw and the heart ordered must now be written, spoken, and carried into common use.
+
+Papyrus Chester Beatty IV preserves the principle plainly: writings keep names alive in the mouth of the reader long after stone has decayed and descendants have failed.
+
+— Papyrus Chester Beatty IV
+
+What remains in one mind can be lost with that mind. Record completes observation.
+
+Where understanding is released into shared form, Ma'at can be carried forward. Where it is held without expression, the pattern fragments and Isfet enters through forgetting.
+
 
 ================================================================================
 MONTH 2 - PAOPI
 ================================================================================
 
-Decan 1 (Days 1-10):
+Decan 4 (Month 2, Days 1-10):
   Name: ꜥḥꜣy ("The Riser")
-  Description: This decan marks initiation of motion. ꜥḥꜣy refers to rising, appearing, or stepping forward deliberately. It is when what was measured is put into motion: resuming labor, beginning transport, re-entering circulation after pause. To rise is to accept weight; nothing new is decided — what was set begins to travel. Living Principle: What you begin to move, you must be willing to carry.
+  Description: Initiation of Motion — What Was Set Begins to Move
 
-Decan 2 (Days 11-20):
+A decanal star becomes useful when it rises into view. Its appearance does not complete the night — it begins a watch. It tells the observer that a movement has entered its next position and the count must continue.
+
+The flood still covers much of the land, but the people are no longer held in pure waiting. Boats are loaded. Channels are trusted. Goods begin to cross between settlements. What Thoth measured is placed into motion.
+
+This is not haste. A thing that rises too quickly can fall. A boat pushed into the wrong current loses its course. A burden lifted before it is balanced spills what it was meant to preserve. The Pyramid Texts place ordered movement in the solar bark — the deceased joins the rowing of the imperishable powers not through urgency but through aligned purpose.
+
+— Pyramid Texts
+
+Where motion begins in measure, the path can open and sustain itself. Where motion begins without measure, the burden becomes disorder before the journey has truly started.
+
+Decan 5 (Month 2, Days 11-20):
   Name: ḥry-ib ꜥḥꜣy ("Heart of the Riser")
-  Description: This decan marks sustained effort. The focus shifts from starting to maintaining: Can this continue without distortion? It governs pacing, load-balancing, and rhythm in work and travel. Motion without regulation collapses; endurance is listening while moving. Living Principle: Motion remains righteous only when the heart stays awake.
+  Description: Sustained Effort — Motion That Remains Aligned
 
-Decan 3 (Days 21-30):
+The star has risen. Movement has begun. The question changes — no longer whether the path can open, but whether it can be maintained without distortion.
+
+The heart governs this phase. In Kemetic thought, the ib is the chamber of discernment. It holds direction while the body, the boat, the hand, and the record carry it forward. Movement without the heart becomes strain. Effort without inner regulation becomes force that forgets its own form.
+
+The Memphite Theology describes creation through heart and tongue: the heart conceives, the tongue releases the word into form.
+
+— Memphite Theology
+
+Paopi applies this to motion. The route must remain correctly conceived while cargo crosses water and messages travel distance. A load must be adjusted while moving. A crew must keep pace without breaking. What carried a correct beginning must carry it through to arrival.
+
+Where the heart governs motion, the burden reaches its place. Where motion outruns discernment, Ma'at is lost in the carrying.
+
+Decan 6 (Month 2, Days 21-30):
   Name: sbꜣ nfr ("The Beautiful Star")
-  Description: This decan marks successful continuity. sbꜣ nfr means rightness of form — movement that stays aligned. Routes are established, labor flows, exchange is reliable; systems prove they hold under use. The star is "beautiful" because it does not falter, letting vigilance ease without inviting chaos. Living Principle: Beauty is motion that no longer needs correction.
+  Description: Stability — Movement That No Longer Falters
+
+nfr is not surface beauty. It is rightness made visible — a star beautiful because it holds its place in relation, returns as expected, and can be trusted by those who know how to watch.
+
+Routes are no longer experimental. Boats know the channels. Carried goods reach their destinations. Offerings arrive without confusion. Records travel with the things they name. The motion begun in ꜥḥꜣy and regulated in ḥry-ib ꜥḥꜣy has become dependable.
+
+The Wadi el-Jarf Papyri show this order in practical form: dated movements, work crews, transport routes, deliveries, and officials named within the sequence of labor. Great work required not singular effort but repeated accuracy — each stage arriving where it was sent.
+
+— Wadi el-Jarf Papyri
+
+A carried order is beautiful when it reaches without spilling, speaks without distortion, and continues without strain.
+
+Where movement becomes stable, Ma'at travels through the world. Where it remains unstable, even right intention fails to arrive whole.
+
 
 ================================================================================
 MONTH 3 - HATHOR
 ================================================================================
 
-Decan 1 (Days 1-10):
+Decan 7 (Month 3, Days 1-10):
   Name: sꜣḥ ("Sah")
-  Description: This decan marks stability regained. sꜣḥ evokes endurance and renewed stability, symbolically linked to Asar: what has survived disruption and now stands recognizable. It is the moment when continuity is confirmed and fear of collapse recedes. In practice: recognizing what returned after loss; resuming steady labor; trusting order has taken hold. Hathor reassures: What has proven stable? Living Principle: Stability is the foundation that allows joy to exist.
+  Description: Stability Regained — What Endures Becomes Visible
 
-Decan 2 (Days 11-20):
+Sah moves through the night sky carrying the memory of restoration. In Kemetic star-lore, this constellation holds the form of what endured disruption and became stable again — not through denial of what broke, but through gathering and rejoining.
+
+The flood has withdrawn enough that the world shows its shape again. Paths hold underfoot. The field's edge is visible. What had been form has returned as form — not assumed, but confirmed by the foot that tests it.
+
+This first stability is not the full breath of harvest or festival. It is the release of tension when the ground proves reliable. The Pyramid Texts describe Heru gathering the limbs of Ausar and joining what had been separated so that nothing of him can be disturbed.
+
+— Pyramid Texts
+
+Stability is not the denial of disruption. It is form that has endured through it.
+
+Where stability is recognized correctly, joy can begin to rise. Where it is assumed too early, celebration rests on what has not yet been confirmed.
+
+Decan 8 (Month 3, Days 11-20):
   Name: ḥry-ib sꜣḥ ("Heart of Sah")
-  Description: This decan marks harmonization. The heart (ib) orders within what Sah establishes without. Stability is felt and shared through coordinated labor, restored social rhythm, and working in time rather than haste. Hathor asks: Are actions aligned with those around me? Living Principle: Balance is sustained through alignment with others.
+  Description: Harmonization — Stability Shared and Lived
 
-Decan 3 (Days 21-30):
+A star's usefulness is not only that it appears. It appears in relation — belonging to a pattern that more than one watcher can trust. The sky becomes guidance because its order can be shared across many eyes.
+
+So too with the land. The field holds. Movement is possible. But stability that remains isolated has not yet become harmony. Work must enter rhythm between people: boats timed, labor coordinated, offerings prepared, households returning to shared measure.
+
+The heart governs this phase. In Kemetic thought, the ib is what weighs relation before action becomes disorder. A community out of rhythm can damage a stable field. Hathor's music belongs here — not as entertainment but as the practice of relation held through timing. Hands, voices, and breath enter one pattern without losing their distinct parts.
+
+The Book of Coming Forth by Day places Hathor with Ra as a destination of the freed ba — welcome within the ordered path, not decoration at its edge.
+
+— Book of Coming Forth by Day
+
+Where the heart keeps rhythm, community strengthens Ma'at. Where rhythm breaks, even restored ground begins to strain.
+
+Decan 9 (Month 3, Days 21-30):
   Name: sbꜣ sꜣḥ ("Star of Sah")
-  Description: This decan marks expression. sbꜣ is what shines and orients by presence alone; here order no longer needs guarding — it can be shown and maintained through beauty. In practice: creative work and adornment; ritual joy without excess; reinforcing order through pleasure. Hathor asks: What deserves celebration so it remains whole? Living Principle: What is expressed with care preserves order.
+  Description: Expression — Order Made Visible Through Beauty
+
+A star guides by appearing in right relation. It does not argue for its order — it shows it. What has held inwardly now becomes visible outward.
+
+This is the expressive phase of Hathor's month. The land is no longer only recovering. Music can return without fleeing from duty. Garlands, fragrance, dance, and festival become proper because they express a stability already established — not a wish for one.
+
+But Hathor is also the Eye of Ra. The same power that delights can become destructive when it leaves right relation. At Dendera, the rites moved the goddess toward union with the solar disk through procession, sistrum, and light — joy as a rite of return, not as release from order.
+
+— Dendera Temple traditions
+
+What is stable can become graceful. What is graceful can be remembered. What is remembered strengthens the pattern that produced it.
+
+Where beauty expresses Ma'at, joy preserves order. Where expression escapes measure, delight moves toward the consuming heat of the Eye.
+
 
 ================================================================================
-MONTH 4 - KA-HER-KA
+MONTH 4 - KA-ḤER-KA
 ================================================================================
 
-Decan 1 (Days 1-10):
+Decan 10 (Month 4, Days 1-10):
   Name: msḥtjw ("The Foreleg")
-  Description: This decan marks renewed strength. To the Kemite, msḥtjw represents raw vitality restored after disruption — not aggression, but capacity. Energy re-enters body and land, no longer fragile, no longer tentative. In practice: returning physical strength; resuming demanding labor; testing endurance without excess. Ka-ḥer-Ka teaches doubling, not expansion. Like the foreleg anchoring the body before movement, it asks: Where has strength returned? What force can now be trusted again? Nothing is accelerated or pushed yet. This is the act of feeling power before applying it. Living Principle: Strength must be felt before it is used.
+  Description: Renewed Strength — Power Returning to the Body
 
-Decan 2 (Days 11-20):
+The Foreleg turns through the northern sky without setting. Unlike stars that rise and fall with the seasons, it holds its circuit above the horizon through the full year — one of the imperishable ones, fixed in the dark above the place where Kemet sleeps. Its strength is not in brightness. It is in constancy.
+
+The floodwaters have withdrawn. The black silt is visible at the field's edge. Strength has returned to the land, but it has not yet been spent. Seed waits. Tools have been lifted but not yet driven. The body of the year braces before committing its full weight.
+
+The Pyramid Texts describe Heru gathering the limbs of Ausar — joining what had been separated, making the restored body secure before power can act through it again. Restoration is not sudden display.
+
+— Pyramid Texts
+
+Where returned strength is recognized before it is spent, the next movement can hold its form. Where force is released before it is stable, renewal is weakened at its root.
+
+Decan 11 (Month 4, Days 11-20):
   Name: ḥry-ib msḥtjw ("Heart of the Foreleg")
-  Description: This decan marks control. Force without direction creates isfet; ḥry-ib msḥtjw is strength governed by awareness. In practice: pacing effort; balancing labor with rest; directing energy with intention. Ka-ḥer-Ka's resonance here is mastery: doubled vitality must be managed to avoid fracture. It asks: Is my strength aligned with my purpose? Nothing is exhausted yet. Nothing is depleted yet. This is the act of holding power steady before expression. Living Principle: Power becomes useful when it is governed.
+  Description: Control — Strength Brought Under Awareness
 
-Decan 3 (Days 21-30):
+The foreleg can brace, push, lift, or strike. Its value depends entirely on what governs it. Force by itself is not Ma'at. Force held in right relation becomes support.
+
+The heart is the regulator. Labor has returned to the field. Bodies regain rhythm after the long season of flood and waiting. The risk now is not weakness — it is the opposite. Overworking the soil, spending strength before the seedling is secure, forcing growth before its time: all of these turn vitality into damage.
+
+The Book of Coming Forth by Day preserves the concern that the heart not stand against the person in the hall of judgment. The heart knows what was done with strength.
+
+— Book of Coming Forth by Day
+
+Ka upon Ka requires governance. The first ka is life received. The second is life preserved through measure.
+
+Where strength is governed by the ib, force becomes useful. Where strength acts without discernment, Isfet begins as excess inside renewal.
+
+Decan 12 (Month 4, Days 21-30):
   Name: sbꜣ msḥtjw ("Star of the Foreleg")
-  Description: This decan marks applied force. sbꜣ signals what shines as a reliable guide; sbꜣ msḥtjw is strength put into motion to reshape the world without destabilizing it. In practice: sustained labor; building and repair; productive output without strain. Ka-ḥer-Ka completes its lesson: like the foreleg carrying the body forward after balance is secured, it asks: Where can effort now be applied without harm? Nothing is wasted. Nothing is forced. This is the act of using strength in service of continuity. Living Principle: Applied strength preserves balance when guided by restraint.
+  Description: Application — Strength Put Into Right Use
+
+A star becomes a guide when its appearance can be trusted. The foreleg becomes useful when its force can be placed without breaking what it supports. This decan is not about raw vitality. It is about strength made reliable enough to direct action.
+
+The seed is in the earth. The field has received its charge. Tools are at work. Canals are checked. Soil is turned where needed. Labor has found its steady rhythm — not dramatic, not urgent, but continuous.
+
+The work is not to prove strength. The work is to place it where continuity needs it. The Pyramid Texts present offerings to the ka so life may be sustained without interruption. That same logic governs the field — energy must feed the cycle, not consume it.
+
+— Pyramid Texts
+
+Ka-ḥer-Ka reaches its proper form when vitality becomes contribution.
+
+Where strength serves continuity, Ma'at takes root in the field. Where strength seeks display, the planted future is placed at risk.
+
 
 ================================================================================
 MONTH 5 - ŠEF-BEDET
 ================================================================================
 
-Decan 1 (Days 1-10):
+Decan 13 (Month 5, Days 1-10):
   Name: ḫnty-ḥr ("Foremost of the Sky")
-  Description: This decan marks attention to care. ḫnty-ḥr means precedence of concern — what must be tended first so life can continue without strain. Effort shifts from exertion to nourishment. In practice: checking early growth; stabilizing irrigation and supply; tending what is fragile but promising. Šef-Bedet asks: What requires attention before it can flourish? Nothing is harvested or secured yet. This is noticing needs before responding. Living Principle: Care begins with correct attention.
+  Description: Attention — Seeing What Must Be Tended First
 
-Decan 2 (Days 11-20):
+The star that rises foremost in a watch does not complete the night. It directs it. Its first appearance tells the watcher where the sky has moved and what must be noticed before the next action begins.
+
+Peret has opened. The green growth is present in the field but not yet secure. A small imbalance at this stage — water pooling unevenly, a root weakening beneath a surface that still looks sound — becomes a larger loss later. The field can fail quietly, without drama, before any visible sign appears.
+
+The work is therefore not intervention first. It is seeing first.
+
+Renenutet's cobra form belongs here. The cobra watches before it acts. It knows the full situation before it moves. Her guardianship of the granary begins with attention — the eye that recognizes threat before the threat becomes loss.
+
+The Hymn to Hapy praises the flood for making nourishment possible. But what the flood made possible must now be seen clearly.
+
+— Hymn to Hapy
+
+Where fragile growth is seen early, care can arrive in measure. Where need is noticed only after damage appears, nourishment becomes repair instead of preservation.
+
+Decan 14 (Month 5, Days 11-20):
   Name: ḥry-ib ḫnty-ḥr ("Heart of the Foremost")
-  Description: This decan marks sustained nurturing. Nourishment without intention is wasteful; ḥry-ib ḫnty-ḥr is care guided by understanding — the heart directing how resources are given and preserved. In practice: distributing labor evenly; feeding without excess; maintaining balance in supply. Šef-Bedet asks: Am I sustaining life, or merely consuming effort? Nothing is rushed; nothing is depleted. This is giving steadily without imbalance. Living Principle: Sustenance preserves order when given with restraint.
+  Description: Sustained Nurturing — Care Directed with Understanding
 
-Decan 3 (Days 21-30):
+Attention has found what needs tending. Now response must be measured. The heart decides how nourishment moves — where water is needed, where labor should be placed, where restraint matters more than addition.
+
+In Kemetic thought, the ib is the chamber of proportion. It does not only feel need. It weighs response against what the whole system can bear.
+
+Too little care abandons life. Too much smothers it. Giving without measure can exhaust the giver, damage the root, or empty what must be preserved for later. The Pyramid Texts show this through offering — bread and beer are not vague abundance. They are named, directed, and placed so the ka receives without being overwhelmed and without being starved.
+
+— Pyramid Texts
+
+Renenutet nourishes, but she also guards what is stored. She does not give from an inexhaustible source. She gives from a measured one.
+
+Where care is directed by the heart, life is sustained without depletion. Where care loses proportion, even nourishment becomes disorder.
+
+Decan 15 (Month 5, Days 21-30):
   Name: sbꜣ ḫnty-ḥr ("Star of the Foremost")
-  Description: This decan marks trust in growth. sbꜣ indicates what can be relied on without constant supervision; sbꜣ ḫnty-ḥr is nourishment that has taken hold and can proceed under its own rhythm. In practice: easing vigilance; trusting established routines; allowing growth to continue naturally. Šef-Bedet asks: What can I allow to grow without control? Nothing is forced; nothing is withheld. This is supporting life by stepping back. Living Principle: Trust is the final act of care.
+  Description: Trust — Allowing Growth to Continue
+
+A star guides by consistency — not by constant adjustment, but by holding its place reliably through the watch. Care reaches the same completion when it becomes steady enough to trust.
+
+The early weakness has been seen. Water has been balanced. Labor has been placed where it was needed. The seedling no longer requires constant correction. Growth has found its own rhythm.
+
+This is not neglect. It is the final form of proper nourishment.
+
+A field interfered with too heavily can be damaged by the hand that meant to help it. A child overguarded can be kept from developing the strength it will need. Renenutet's work is visible here as guarded confidence — she does not leave the granary, but she no longer needs to intervene in every movement of the grain.
+
+Where care has been measured correctly, growth proceeds without strain. Where control continues past its proper time, care becomes interference and Ma'at is weakened by excess.
+
 
 ================================================================================
 MONTH 6 - REKH-WER
 ================================================================================
 
-Decan 1 (Days 1-10):
+Decan 16 (Month 6, Days 1-10):
   Name: knmw ("Khnum")
-  Description: This decan marks formation through knowledge. knmw signifies shaping with understanding — informed craft, not force. Awareness begins to give form to what has been nourished, moving from growth to refinement. In practice: shaping materials deliberately; learning correct technique; beginning instruction and apprenticeship. Rekh-Wer asks: What must be understood before it can be shaped? Nothing is perfected or finalized yet. This is learning before refining. Living Principle: Understanding gives form to effort.
+  Description: Formation — Shaping Through Understanding
 
-Decan 2 (Days 11-20):
+Khnum shapes life before it can act. On his potter's wheel, body and ka are formed together — the vessel and its vital force made simultaneously, neither preceding the other. His shaping is not assembly. It is the application of understanding to material that has not yet found its form.
+
+The fields of Peret are growing steadily. The early crisis has passed. What remains is refinement: tools repaired, boundaries measured, records updated, apprentices taught the method behind the action they have been imitating.
+
+Water softens clay. The wheel turns. Pressure applied too quickly collapses the wall. Pressure withheld too long leaves formlessness where structure was needed. Khnum's craft requires knowledge held in the hand — knowing where resistance is, where softness is, and what the vessel needs to become before the hands release it.
+
+Where knowledge gives form to effort, the work can hold. Where force shapes without understanding, what is made carries failure inside it.
+
+Decan 17 (Month 6, Days 11-20):
   Name: ḥry-ib knmw ("Heart of Khnum")
-  Description: This decan marks discernment. Knowledge without judgment leads to imbalance; ḥry-ib knmw applies awareness inwardly — knowing how, when, and why to shape. In practice: correcting technique; refining methods; teaching through example. Rekh-Wer asks: Is my knowledge used with care and proportion? Nothing is rushed or wasted. This is guiding skill with restraint. Living Principle: Skill becomes wisdom when directed by intention.
+  Description: Discernment — Guiding Knowledge with Judgment
 
-Decan 3 (Days 21-30):
+The first form has appeared on the wheel. It is not finished. This is the stage where pressure must be judged rather than merely applied. The hand must know where to press, where to ease, and when to stop — three different knowledges, all required at once.
+
+The heart governs the craft.
+
+In Kemetic thought, the ib is the chamber where what has been seen is weighed before the hand moves again. Technique without discernment becomes strain. The Memphite Theology describes creation through heart and tongue: the heart conceives before the tongue releases the word into form.
+
+— Memphite Theology
+
+Khnum gives the same principle a material body. A vessel is shaped before it can hold. A body is formed before it can breathe. The apprentice who begins to see the error before it hardens has entered the heart of the craft.
+
+Where knowledge is governed by the ib, skill becomes trustworthy. Where knowledge moves without judgment, it creates disorder with precision.
+
+Decan 18 (Month 6, Days 21-30):
   Name: sbꜣ knmw ("Star of Khnum")
-  Description: This decan marks competence made reliable. sbꜣ indicates what now guides others; sbꜣ knmw is stabilized knowledge — dependable, repeatable skill. In practice: consistent workmanship; teaching others; applying knowledge without hesitation. Rekh-Wer asks: What understanding can be trusted to lead? Nothing is improvised; nothing is uncertain. This is working from mastered knowledge. Living Principle: True knowledge guides steadily.
+  Description: Competence — Knowledge That Can Be Trusted
+
+A star becomes a guide because it appears where it should. It does not explain its reliability — it demonstrates it. The same is true of competence.
+
+What was first shaped through understanding and refined through discernment has become dependable. The hand no longer strains to remember every correction. The work holds its pattern. A vessel forms correctly. A boundary is measured without confusion. A student becomes capable of carrying the method forward without the teacher present.
+
+This is the fulfillment of Rekh-Wer. Knowledge has become useful beyond the one who first held it.
+
+Papyrus Chester Beatty IV praises writings because they keep names alive in the mouth of the reader across generations. Competence works the same way — a method correctly transmitted can instruct a hand that was not present at its formation.
+
+— Papyrus Chester Beatty IV
+
+Competence is not display. It is repeatable right action.
+
+Where knowledge can be trusted, it becomes inheritance. Where skill cannot be repeated, the next cycle must begin from uncertainty.
+
 
 ================================================================================
 MONTH 7 - REKH-NEDJES
 ================================================================================
 
-Decan 1 (Days 1-10):
+Decan 19 (Month 7, Days 1-10):
   Name: špsswt ("The Noble Ones")
-  Description: This decan marks tested understanding. špsswt is refinement under pressure — knowledge leaving the training space and entering lived reality. In practice: applying learned skill in real conditions; encountering resistance or limitation; discovering gaps in understanding. Rekh-Nedjes asks: What holds when conditions are no longer ideal? Nothing is hidden or excused. This is meeting reality without illusion. Living Principle: Wisdom is proven through use.
+  Description: Trial — Knowledge Entering the Field
 
-Decan 2 (Days 11-20):
+A star earns the designation noble by returning to its place. Its nobility is not rank conferred from outside — it is reliability demonstrated through time. The stars named špsswt are the ones who have held their position long enough to be trusted by those who watch.
+
+The late fields of Peret test the same question. The crop faces increasing heat. The tool meets harder ground. The body carries fatigue into work that has lost its newness. Method must now hold under the conditions that were absent when it was first formed.
+
+Knowledge that has not been tested can still be imagination. The Contendings of Heru and Set preserve this at the level of divine precedent — a rightful claim was genuine, but it required exposure to opposition before the assembly could recognize it as the foundation for what must continue.
+
+— Contendings of Heru and Set
+
+Where knowledge remains aligned under first strain, it can mature into what the noble ones name. Where difficulty causes immediate abandonment, the earlier formation was not yet stable.
+
+Decan 20 (Month 7, Days 11-20):
   Name: ḥry-ib špsswt ("Heart of the Noble Ones")
-  Description: This decan marks adaptation. Refinement requires adjustment, not rigidity; ḥry-ib špsswt is inner recalibration — the heart learning from strain and correcting course without collapse. In practice: modifying technique; strengthening weak areas; practicing patience under effort. Rekh-Nedjes asks: What must change so balance can be preserved? Nothing is abandoned or forced. This is refining without breaking. Living Principle: Endurance grows through adjustment.
+  Description: Adaptation — Refining Without Breaking
 
-Decan 3 (Days 21-30):
+The trial has revealed the limits of the method. The question is no longer whether difficulty exists. It does. The question is whether the heart can correct the course without collapsing what it was holding.
+
+Adaptation is not surrender. It is Ma'at preserved through recalibration.
+
+In the Contendings, Heru does not win by force alone. The dispute continues through argument, humiliation, renewed counsel, and repeated judgment. Aset's protection keeps the claim from becoming reckless appetite. Djehuty's measure keeps the tribunal from dissolving into chaos. The claim endures because what governs it remains aligned even when method requires adjustment.
+
+— Contendings of Heru and Set
+
+A pace may need to slow. A tool may need reshaping. A judgment may need more evidence before it can stand. The heart holds direction while method changes.
+
+Where adjustment preserves measure, pressure becomes instruction. Where adjustment is refused, strain becomes fracture.
+
+Decan 21 (Month 7, Days 21-30):
   Name: sbꜣ špsswt ("Star of the Noble Ones")
-  Description: This decan marks quiet competence. sbꜣ signals reliability recognized through consistency; sbꜣ špsswt is knowledge that endured testing and now operates calmly, without display. In practice: steady work without novelty; maintaining what has been learned; performing duties without seeking recognition. Rekh-Nedjes asks: What can now be done correctly without effortful attention? Nothing is celebrated or concluded. This is holding competence without strain. Living Principle: True mastery is quiet.
+  Description: Quiet Competence — Mastery Without Display
+
+A star does not guide by announcing itself loudly. It guides by returning to its place. Its authority is consistency — trusted because it has held its position through time and disturbance alike.
+
+The hand now works cleanly. The field is tended without excess. The record is kept without distortion. What required careful attention and active correction no longer needs display. The method has passed through pressure and settled into itself.
+
+The Instruction of Amenemope values the quiet person over the heated one — not because quietness is merely pleasant, but because the quiet person cannot be easily pulled out of measure. When conditions change, the cool one holds.
+
+— Instruction of Amenemope
+
+This is what knowledge looks like after it has earned its designation.
+
+Where competence remains steady, Ma'at is preserved without noise. Where skill still needs display, it has not yet become fully stable.
+
 
 ================================================================================
 MONTH 8 - RENWET
 ================================================================================
 
-Decan 1 (Days 1-10):
+Decan 22 (Month 8, Days 1-10):
   Name: ꜥpdw ("The Birds")
-  Description: This decan marks return and gathering. ꜥpdw signals movement toward abundance — early signs that effort begins to answer itself. Birds return when grain strengthens; their presence confirms nourishment has taken hold. In practice: early signs of yield; organizing storage and distribution; preparing for increase without excess. Renwet asks: What signals that balance is returning? Nothing is claimed or consumed yet. This is recognizing promise before reward. Living Principle: Return begins with recognition.
+  Description: Return — The First Signs of Answer
 
-Decan 2 (Days 11-20):
+Birds gather where food appears. Their movement is not random to the careful watcher — it reveals where grain, water, and life have begun to concentrate. When the birds return in numbers, the land is answering.
+
+The early harvest has begun. First grain is cut. First yields are carried in from the outer fields. The cycle has entered its returning phase, but the return is not yet settled. What has arrived represents the beginning of abundance, not its full measure.
+
+This is confirmation, not completion.
+
+Renenutet is present as promise held under attention. Her nourishment has begun to show itself, but it has not yet become secure. The Hymn to Hapy praises the flood because it makes grain and fills storehouses — but first return must be read with the same care that governed the planting.
+
+— Hymn to Hapy
+
+Where return is observed with clarity, distribution can be measured. Where first gain becomes excitement without measure, disorder enters before the storehouse is full.
+
+Decan 23 (Month 8, Days 11-20):
   Name: ḥry-ib ꜥpdw ("Heart of the Birds")
-  Description: This decan marks discernment in abundance. Increase without judgment leads to loss; ḥry-ib ꜥpdw is inner regulation during growth — the heart guiding how return is received and shared. In practice: deciding fair distribution; balancing enjoyment with responsibility; remembering communal obligation. Renwet asks: How should what returns be honored and sustained? Nothing is hoarded or wasted. This is receiving without imbalance. Living Principle: Abundance must be governed by gratitude.
+  Description: Distribution — Receiving in Right Measure
 
-Decan 3 (Days 21-30):
+The return has moved past confirmation into abundance. Grain travels from field to basket, from basket to threshing floor, from threshing floor toward the granary. The question is no longer whether the field has answered. The question is how the answer will be received.
+
+The heart governs this phase.
+
+Abundance tests the ib differently than scarcity. When there is little, restraint is forced. When there is much, restraint must be chosen. Renenutet provides, but she also watches. Grain gathered without measure can become Isfet even after it has been given by Ma'at.
+
+The offering formula gives the proper pattern: provision named, directed, and placed in relation. What reaches the ka does so because it was not merely possessed — it was offered.
+
+— Offering Formula
+
+The first share belongs to relation: netjeru, ancestors, household, those who labored, the vulnerable, and the seed that must carry the next cycle forward.
+
+Where receiving is governed by the heart, plenty becomes continuity. Where receiving loses measure, harvest becomes appetite.
+
+Decan 24 (Month 8, Days 21-30):
   Name: sbꜣ ꜥpdw ("Star of the Birds")
-  Description: This decan marks reward stabilized. sbꜣ indicates what can be trusted to continue; sbꜣ ꜥpdw is abundance settled into order — return that no longer threatens balance. In practice: enjoyment without excess; honoring gods and ancestors; securing what has been gained. Renwet asks: What return can be sustained without fear? Nothing is rushed or grasped. This is resting within earned return. Living Principle: Reward endures when held in balance.
+  Description: Stability — Reward That Can Be Sustained
+
+A star becomes useful when its place can be trusted. Return becomes useful when it can be sustained. The first grain has been gathered, shares have been measured, and the movement between field, granary, household, and temple begins to find its steady rhythm.
+
+This is rest, but not abandonment.
+
+Harvest reaches stability only when it can carry the future. Grain must remain. Seed must be protected. Offerings must continue. The household must be fed without emptying what later months will need.
+
+Renenutet's full presence belongs here — not only the force that brings nourishment into view, but the guardian of nourishment after it has arrived. Her cobra nature watches the granary because gathered abundance remains vulnerable: to waste, to careless celebration, to consumption that mistakes the full storehouse for an inexhaustible one.
+
+The offering formula prays for provision named and directed for the ka — not as a single gesture but as enduring relation.
+
+— Offering Formula
+
+Where reward is held in balance, abundance becomes peace. Where it is grasped without measure, plenty becomes the beginning of future lack.
+
 
 ================================================================================
 MONTH 9 - HNSW
 ================================================================================
 
-Decan 1 (Days 1-10):
+Decan 25 (Month 9, Days 1-10):
   Name: ẖry ꜥrt ("The One Beneath ꜥrt")
-  Description: This decan marks departure and first passage. ẖry ("beneath/under") signals movement through constraint — travel beginning under heat, under load, under necessity. In practice: starting journeys early; moving goods and duties while conditions press down; accepting that motion is required even when comfort is not available. Hnsw teaches that Maʿat is kept by correct passage, not perfect conditions. Nothing is gained yet. Nothing is concluded yet. This is the act of stepping onto the path and committing to cross. Living Principle: The journey begins when you move despite constraint.
+  Description: Departure — Entering the Path Under Constraint
 
-Decan 2 (Days 11-20):
+This star rises below the ascending one — positioned beneath what is moving upward, carrying the weight of the journey before the road has opened into ease.
+
+Shemu is not a gentle season for travel. The sun presses down. The road is exposed. Loads are already waiting at the dock and the granary door. The journey does not begin when conditions are favorable. It begins because what must move cannot wait for comfort.
+
+Khonsu crosses the night not by removing the darkness but by moving through it with measure. The bark carries Ma'at at its prow not to smooth the water but to ensure the direction is right before the first stroke.
+
+The Book of Coming Forth by Day places Ma'at at the head of the great bark — leading, not following what happens to be convenient.
+
+— Book of Coming Forth by Day
+
+Where Ma'at leads the path, constraint becomes discipline. Where movement begins without her, the journey carries disorder from its first step.
+
+Decan 26 (Month 9, Days 11-20):
   Name: rmn ḥry sꜣḥ ("Shoulder Above Sah")
-  Description: This decan marks sustained carriage. rmn ("shoulder") is the body's bearing-point — the place where weight is carried without drama. ḥry ("above") indicates elevation through discipline: the load is held higher, cleaner, and more controlled. In practice: pacing work; protecting the body; keeping routes orderly; carrying responsibility without spilling into chaos. Hnsw asks: Can the burden be carried with dignity? Nothing is rushed. Nothing is forced. This is holding the weight in right proportion. Living Principle: Endurance is disciplined carriage.
+  Description: Endurance — Carrying with Discipline
 
-Decan 3 (Days 21-30):
+The shoulder above Sah is the bearing point held high — weight taken on and carried over distance. Sah carries the memory of what endured disruption and became stable again. The shoulder placed above it bears what the journey requires, supported by a foundation that has already been tested.
+
+The departure has been made. Now the question is whether the load can be carried without distortion across the full distance.
+
+Heat remains. The route does not shorten because the body tires. A load carried with improper distribution injures the carrier and damages what was meant to arrive whole. Endurance here is not stubbornness — it is proportion held over time. Ra completes his course because the bark maintains direction through each hour. Khonsu crosses the full arc of the night because the lunar measure keeps its rhythm.
+
+The Wadi el-Jarf Papyri show this in the practical record: crews, routes, deliveries, and counted days — great work sustained because each stage arrived where it was sent.
+
+— Wadi el-Jarf Papyri
+
+Where endurance is measured, movement remains sustainable. Where endurance becomes blind force, the path damages what it was meant to carry.
+
+Decan 27 (Month 9, Days 21-30):
   Name: rmn ẖry sꜣḥ ("Shoulder Beneath Sah")
-  Description: This decan marks regulated descent and recovery. ẖry ("beneath") returns the theme of constraint: the shoulder lowers under strain, and wisdom is knowing when to reduce output to preserve continuity. In practice: ending labor before exhaustion; moving into shade; storing and securing what was carried; letting the body settle so the path can be walked again. Hnsw completes its lesson: rhythm is protection. Nothing is abandoned, but effort is contained. This is the act of finishing the passage without collapse. Living Principle: A path is righteous if you can survive it repeatedly.
+  Description: Recovery — Right Measure in Descent
+
+What is lifted must be set down. What has traveled must be secured. What has endured must recover before endurance becomes collapse.
+
+The shoulder beneath Sah is the bearing point released — weight lowered in order, the load placed correctly rather than dropped from exhaustion.
+
+This is not the end of movement. It is the completion of one movement so that the next can begin without carrying the damage of the last.
+
+Ra enters the west without ceasing to be Ra. The descent is not defeat — it is the next required phase of the cycle. Khonsu wanes without losing his course. Lessening that happens in right time belongs to Ma'at as fully as the full phase does.
+
+The Instruction of Amenemope warns against the heated person — against force that does not know when to stop, against effort that refuses its own completion.
+
+— Instruction of Amenemope
+
+Where recovery is honored, endurance can continue in the next stage. Where reduction is refused, strength breaks and the journey turns against what it was carrying.
+
 
 ================================================================================
 MONTH 10 - ḤENTI-ḤET
 ================================================================================
 
-Decan 1 (Days 1-10):
+Decan 28 (Month 10, Days 1-10):
   Name: ḥr-sꜣḥ ("Heru upon Sah")
-  Description: This decan marks vigilance under pressure. Authority stands on endurance: Heru upheld by restored order (Sah/Asar). In practice: rising early to avoid excess heat; guarding what has been secured; maintaining discipline as fatigue increases. Ḥenti-ḥet asks: What must be protected through awareness, not force? Nothing is challenged or seized yet. This is holding position without escalation. Living Principle: Authority endures through vigilance.
+  Description: Vigilance — Authority Held Under Pressure
 
-Decan 2 (Days 11-20):
+Heru stands upon Sah. His authority is not the authority of unchallenged force — it is authority recognized after contest, after the restoration of Ausar, after the claim was tested before the full assembly and found to be what it said it was. Sah carries the stellar form of that restoration: endurance proven, the disrupted body gathered and made whole.
+
+Authority standing on a proven foundation is watchful, not aggressive.
+
+The storehouses are full. The heat is at its peak. Grain gathered can still be wasted, misallocated, or consumed without measure. Power after abundance carries its own temptation — the throne secured may begin to feel like possession rather than stewardship.
+
+The Contendings of Heru and Set preserve the question beneath the decan: whether rule belongs to force or to rightful order maintained under pressure.
+
+— Contendings of Heru and Set
+
+Where Heru stands upon Sah, power watches in service to continuity. Where authority forgets its foundation, protection becomes domination.
+
+Decan 29 (Month 10, Days 11-20):
   Name: ḥry-ib ḥr-sꜣḥ ("Heart of Heru upon Sah")
-  Description: This decan marks restraint. Intensity without regulation fractures; here the heart governs power, choosing when not to act. In practice: conserving strength; reducing unnecessary labor; cooling body and mind. Ḥenti-ḥet asks: Where must effort pause to prevent loss? Nothing is exhausted or burned away. This is withholding force to preserve life. Living Principle: Restraint completes strength.
+  Description: Restraint — Power Drawn Back Into the Heart
 
-Decan 3 (Days 21-30):
+The heart now asks what force is actually required — and answers: less than what the hand wants to give.
+
+This is the decan of cooling.
+
+In Kemetic thought, the ib is the chamber of discernment. It receives the pressure of heat, desire, and the momentum of sustained effort, then determines whether continued action would preserve Ma'at or begin to consume what it built. The harvest has been secured. The stores are counted. What served the year's work cannot simply continue as if the work were not done.
+
+The Instruction of Amenemope warns against the heated person — against speech and action that continue past the measure of what the moment actually requires.
+
+— Instruction of Amenemope
+
+Heru's authority is strongest when it does not become Set's appetite. The throne is kept by judgment, not by constant exertion. Power that knows how to refrain has reached a higher order than power that only acts.
+
+Where restraint governs strength, what has been preserved remains available. Where action continues past measure, the hand damages what it meant to protect.
+
+Decan 30 (Month 10, Days 21-30):
   Name: sbꜣ ḥr-sꜣḥ ("Star of Heru upon Sah")
-  Description: This decan marks offering and release. Power guides by example, returning strength to maintain harmony. In practice: offering water and sustenance; releasing excess stores; allowing rest to restore balance. Ḥenti-ḥet asks: What must be offered back so order remains intact? Nothing is hoarded or clung to. This is preserving Maʿat through release. Living Principle: What is given back keeps the world whole.
+  Description: Release — Offering That Restores the Whole
+
+A star guides by appearing in its proper place. Heru guides when rightful power becomes recognizable through action that restores relation. The star of Heru upon Sah is that recognition made visible — authority completing itself through release.
+
+What has been held must not be kept past its time.
+
+Water is given. Food is shared. Offerings are placed before the netjeru and the ka. Grain reaches those who labored for it. The excess that would otherwise harden inside the storehouse is returned to circulation before it becomes weight.
+
+The hand opens not because value has disappeared, but because value becomes Ma'at only when it reaches its proper relation. The offering formula gives this structure in ritual form: provision named, directed, and placed for the ka.
+
+— Offering Formula
+
+Heru's victory does not end in hoarding the throne. It restores the order through which life can continue.
+
+Where release is measured, offering restores the whole. Where what should be returned is kept, abundance begins to decay inside the hand that holds it.
+
 
 ================================================================================
-MONTH 11 - PA-IPI (IPT-ḤMT)
+MONTH 11 - PA-IPI
 ================================================================================
 
-Decan 1 (Days 1-10):
+Decan 31 (Month 11, Days 1-10):
   Name: sbꜣ nfr ("The Beautiful Star")
-  Description: This decan marks remembrance. sbꜣ nfr signifies what remains worthy of regard — beauty proven through endurance, not novelty. In practice: recalling what sustained the household; honoring ancestors and elders; reviewing stores, tools, and records. Ipt-ḥmt asks: What deserves remembrance because it endured? Nothing is judged or discarded yet. This is looking back without disruption. Living Principle: Remembrance preserves continuity.
+  Description: Remembrance — What Endures Is Recognized
 
-Decan 2 (Days 11-20):
+nfr is rightness that holds through time. A star is beautiful because it returns to its place without argument or display — its reliability is what the watcher has learned to trust.
+
+The year has nearly completed its arc. Before anything is transmitted, it must be recognized. What proved true under use? What held its form through the long heat of Shemu? What name deserves to be spoken because the life behind it served what it was meant to serve?
+
+This is not the decan of correction. It is the decan of clear seeing — before the hand reaches to transmit, the eye must confirm what actually endured.
+
+The Book of Coming Forth by Day names the sacred work at Abdju as the raising of the earth — not the building of something new, but the reappearance of what had gone below and proven it could return.
+
+— Book of Coming Forth by Day
+
+Where endurance is recognized correctly, the future receives a trustworthy guide. Where memory is neglected, the next cycle approaches renewal without its foundation.
+
+Decan 32 (Month 11, Days 11-20):
   Name: ḥry-ib sbꜣ nfr ("Heart of the Beautiful Star")
-  Description: This decan marks integration. Memory without understanding is weight; here the heart absorbs what was remembered, choosing what to carry forward and what to release. In practice: reconciling success and failure; repairing what still has use; teaching younger generations through example. Ipt-ḥmt asks: What memory strengthens balance rather than burdens it? Nothing is finalized or erased yet. This is holding memory with proportion. Living Principle: Memory must be carried with discernment.
+  Description: Integration — Memory Brought Into the Heart
 
-Decan 3 (Days 21-30):
-  Name: tpy-ꜣ spdt ("Foremost of Sopdet")
-  Description: This decan marks orientation toward renewal. tpy-ꜣ spdt is the first signal of return — awareness that the cycle will begin again. In practice: preparing for closure; cleansing spaces and tools; orienting attention toward what comes next. Ipt-ḥmt asks: What must be set in order so renewal can arrive cleanly? Nothing is begun or concluded yet. This is standing at the threshold without crossing. Living Principle: Preparation allows renewal to arrive whole.
+Memory alone is not enough.
+
+Everything that remains from the year cannot be carried forward in the same way. Some things endure because they are aligned. Some persist because they have not yet been corrected. The heart must weigh the difference.
+
+A tool may be repaired because it still serves. A practice may be released because it strains the household without giving return. A name may be restored because it has been quietly neglected. A method may be kept because it proved itself under the pressure that reveals what is real.
+
+Papyrus Chester Beatty IV teaches that writings preserve names in the mouth of the reader after stone has failed. But the writing must first choose what to preserve.
+
+— Papyrus Chester Beatty IV
+
+Where memory is brought into the heart and weighed, inheritance becomes clear. Where memory is carried without discernment, the past becomes weight instead of guidance.
+
+Decan 33 (Month 11, Days 21-30):
+  Name: sbꜣ sbꜣ nfr ("Star of the Beautiful Star")
+  Description: Continuity — What Is Carried Forward
+
+The star of the beautiful star is the most stable point of what has already proven itself — the concentrated form of endurance made ready to travel forward.
+
+What has been recognized has entered the heart. What the heart has weighed has been selected. Now it must pass.
+
+Names must be spoken so the ka can receive. Measures must be handed to the next hand that will need them. Methods must be demonstrated so the apprentice can carry them into seasons that have not yet arrived. Obligations must be named so the household knows what it owes and what it holds in trust.
+
+The offering formula gives the ritual structure: provision named, directed, and placed for the ka — not as a private act, but as the formal transmission of what sustains relation.
+
+— Offering Formula
+
+Continuity is not clinging. It is correct passage. What has served Ma'at is carried forward. What would disorder the next cycle is not enthroned as inheritance.
+
+Where continuity is maintained, the chain remains alive. Where transmission breaks, names fade, offerings lose direction, and the year approaches renewal without its memory.
+
 
 ================================================================================
-MONTH 12 - MESUT-RA (MSWT-Rꜥ)
+MONTH 12 - MESUT-RA
 ================================================================================
 
-Decan 1 (Days 1-10):
-  Name: msḥtjw ḫt ("The Sacred Foreleg")
-  Description: Withdrawal into potential. Strength no longer in motion but gathered inward; power resting in sacred suspension — not exhausted, not active, held intact as outward labor ceases and inner readiness begins. In practice: ending major work; securing tools and stores; allowing the body and land to rest. Mswt-Rꜥ teaches containment: like the foreleg supporting the body even at rest, it asks what strength must now be preserved rather than spent. Nothing is initiated or released yet — holding capacity without expression. Living Principle: Rest preserves what effort has built.
+Decan 34 (Month 12, Days 1-10):
+  Name: msḥtjw ḫt ("The Crocodiles of the Offering")
+  Description: Emergence — Strength Gathering in Stillness
 
-Decan 2 (Days 11-20):
-  Name: ḥry-ib msḥtjw ḫt ("Heart of the Sacred Foreleg")
-  Description: Stillness with awareness. Rest without consciousness dissolves order; this is attentive stillness — the heart alert while action pauses, preparation without movement. In practice: reflection on the completed cycle; quiet ritual and prayer; internal reckoning without judgment. Mswt-Rꜥ emphasizes vigilance: just as the heart continues its rhythm in sleep, it asks what must be kept in awareness while all else rests. Nothing is resolved or undone yet — remaining present within stillness. Living Principle: Stillness must remain conscious.
+The crocodile belongs to both water and land. It moves between surface and depth without announcement. Its power is present long before it is displayed — the stillness above water is not absence of force but force concentrated in waiting.
 
-Decan 3 (Days 21-30):
-  Name: sbꜣ msḥtjw ḫt ("Star of the Sacred Foreleg")
-  Description: Threshold readiness. sbꜣ signifies guidance visible even in darkness; readiness held at the edge — order intact, awaiting release into renewal. In practice: sealing the year; extinguishing ritual lamps; preparing for the days beyond time. Mswt-Rꜥ completes its lesson: like a guiding star fixed before dawn, it asks what is ready to pass into rebirth without force. Nothing is pushed forward or held back — standing whole at the threshold. Living Principle: Readiness allows renewal without rupture.
+The year is almost complete. The next cycle has not yet opened. What is forming belongs to the hidden place and must not be drawn out before it is ready.
+
+Mesut-Ra carries the birth of Ra, but birth begins before appearance. The Book of Coming Forth by Day names the solar power as the one whose birth comes from the House of Death — not from the place of visibility and plenty, but from the darkness where completion and formation share the same space.
+
+— Book of Coming Forth by Day
+
+Where hidden strength is allowed to gather without interference, emergence can come whole. Where emergence is forced before the passage has completed, what is born carries the incompleteness inside it.
+
+Decan 35 (Month 12, Days 11-20):
+  Name: ḥry-ib msḥtjw ḫt ("Heart of the Crocodiles of the Offering")
+  Description: Attentive Stillness — The Heart Awake in Silence
+
+The first decan held power in stillness. This one guards that stillness from within.
+
+Stillness is not sleep. Rest without awareness becomes drift. Silence without attention becomes negligence. The heart must remain awake while the hands refrain from action — holding what cannot yet be acted upon without losing vigilance over what must be protected through the interval.
+
+The Amduat shows that Ra's nightly passage through the Duat is not empty darkness. Each of the twelve hours holds its own sequence: beings, gates, specific transformations that must occur in order. Renewal depends on the full passage, which depends on correct attention given to each stage.
+
+— Amduat
+
+Mesut-Ra requires the same from the year's final watch. Purification performed. Records closed. Offerings completed. What is disordered must be addressed before the threshold opens.
+
+Where stillness remains awake, order is preserved between cycles. Where the heart loses attention, the threshold becomes vulnerable to what should have been released.
+
+Decan 36 (Month 12, Days 21-30):
+  Name: sbꜣ msḥtjw ḫt ("Star of the Crocodiles of the Offering")
+  Description: Threshold — Readiness Before Rebirth
+
+A star before dawn does not create the sun. It announces that the night has reached its final measure — that the passage has completed enough that emergence is near, though not yet present.
+
+This is the last decan of the year. Not the last action — the last readiness.
+
+The old year has nothing more to prove. The records are closed. The offerings have been placed. The altars have been cleared. The lamps are low. What remained unresolved has either been addressed or must be acknowledged as carried forward as debt rather than inheritance.
+
+Nut holds the sun inside her. Khepri holds the becoming inside the dark. Ra will be born, but not by force — only when the full passage of the Duat has reached its completion and the proper moment of emergence arrives.
+
+The Book of Coming Forth by Day names him as the one who comes forth from dusk and whose birth is from the House of Death.
+
+— Book of Coming Forth by Day
+
+Readiness is complete when nothing more needs to be added.
+
+Where the threshold is kept intact, rebirth can arrive under Ma'at. Where it is disturbed, the new cycle begins before the old one has truly finished.
 
 ================================================================================
 SUMMARY
 ================================================================================
-Total: 36 decans (12 months × 3 decans)
-All decan names in the `decans` map now match the `_decanInfo` descriptions.
+Total: 36 decans (12 months x 3 decans)
+All decan names match DecanMetadata and descriptions match _decanInfo.
 ================================================================================
-
-
-
-
