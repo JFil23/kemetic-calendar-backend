@@ -57,7 +57,7 @@ Deno.test("buildMaatDimensionSnapshot affirms high measure and follow-through", 
 
 Deno.test("buildMaatDimensionSnapshot hard-gates false records without exposing punishment logic", () => {
   const snapshot = buildMaatDimensionSnapshot({
-    decanName: "Thoth — tpy-ꜣ sbꜣw",
+    decanName: "Thoth — tpy-ꜥ sbꜣw",
     decanTheme: "orientation",
     decanContext: {
       detailDescription: "Truth and recordkeeping set direction.",

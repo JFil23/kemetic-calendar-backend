@@ -149,6 +149,7 @@ export type ControlledOutputPlan = {
   meaning?: ControlledMeaningLayer;
   context: {
     decanName?: string | null;
+    decanShortName?: string | null;
     decanTheme?: string | null;
     contextSentence?: string | null;
     dayLine?: string | null;
@@ -943,13 +944,9 @@ function renderControlledOutput(
 
 function renderTeaser(plan: ControlledOutputPlan): string {
   const action = stripTerminalPunctuation(plan.primaryAction);
-  const openingFrame = stripTerminalPunctuation(plan.context.contextSentence) ||
-    (plan.context.decanName
-      ? `${plan.context.decanName} opens`
-      : "This decan opens");
   const meaning = meaningLayer(plan);
   const raw = plan.kind === "decan_opening"
-    ? `${openingFrame}: ${action}.`
+    ? `${openingTeaserFrame(plan)}: ${action}.`
     : plan.kind === "drift_nudge"
     ? driftTeaser(meaning)
     : sentence(`Good. ${capitalize(meaning.humanLabel)} is holding`);
@@ -968,8 +965,9 @@ function renderBody(plan: ControlledOutputPlan): string {
 }
 
 function renderOpeningBody(plan: ControlledOutputPlan): string {
-  const opening = plan.context.decanName
-    ? `${plan.context.decanName} opens the threshold.`
+  const decanName = openingDecanName(plan);
+  const opening = decanName
+    ? `${decanName} opens the threshold.`
     : "This decan opens the threshold.";
   return paragraphs([
     opening,
@@ -981,6 +979,40 @@ function renderOpeningBody(plan: ControlledOutputPlan): string {
       stripTerminalPunctuation(plan.primaryAction)
     }. Keep the mark small, truthful, and visible enough to carry through the day.`,
   ]);
+}
+
+function openingTeaserFrame(plan: ControlledOutputPlan): string {
+  const decanName = openingDecanName(plan);
+  const context = stripTerminalPunctuation(plan.context.contextSentence ?? "");
+  if (!decanName) return context || "This decan opens";
+  if (!context) return `${decanName} opens`;
+
+  const namedContext = replaceThisDecanReference(context, decanName);
+  if (namedContext !== context) return namedContext;
+
+  const contextTitle = context.split(/\s+—\s+/)[0]?.trim() ?? "";
+  if (contextTitle && contextTitle.length <= 48) {
+    return `${decanName} marks ${contextTitle.toLowerCase()}`;
+  }
+
+  return `${decanName}: ${context}`;
+}
+
+function openingDecanName(plan: ControlledOutputPlan): string {
+  return cleanPhrase(plan.context.decanShortName) ||
+    shortDecanName(plan.context.decanName);
+}
+
+function shortDecanName(value: string | null | undefined): string {
+  const text = cleanPhrase(value);
+  if (!text) return "";
+  const emDash = text.lastIndexOf("—");
+  const withoutMonth = emDash >= 0 ? text.slice(emDash + 1).trim() : text;
+  return withoutMonth.replace(/\s*\([^)]*\)\s*$/g, "").trim();
+}
+
+function replaceThisDecanReference(text: string, decanName: string): string {
+  return text.replace(/\b[Tt]his decan\b/, decanName);
 }
 
 function renderDriftBody(plan: ControlledOutputPlan): string {

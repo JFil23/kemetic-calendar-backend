@@ -1622,6 +1622,7 @@ export function buildDecanOpeningDraft(params: {
     },
     context: {
       decanName: params.window.decanName,
+      decanShortName: params.decanContext?.shortName ?? null,
       decanTheme: params.window.decanTheme ?? null,
       contextSentence: contextSentence || null,
       dayLine: dayLine || null,

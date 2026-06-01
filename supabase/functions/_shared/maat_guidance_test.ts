@@ -196,8 +196,44 @@ Deno.test("opening guidance keeps scores hidden while naming one action", () => 
   assertEquals(compiledPackage.compiler?.renderer, "controlled_output");
   assertEquals(compiledPackage.compiler?.fallback_used, false);
   assertEquals(draft.teaserText.includes("Today's card names"), false);
+  assertEquals(draft.teaserText.includes("This decan"), false);
   assertEquals(draft.teaserText.includes("score"), false);
   assertEquals(draft.teaserText.includes("isfet"), false);
+});
+
+Deno.test("opening guidance teaser uses short decan name for titled contexts", () => {
+  const snapshot = buildGuidanceSnapshot({
+    window: {
+      ...window,
+      decanName: 'Hathor — ḥry-ib sꜣḥ ("Heart of Sah")',
+      decanContextKey: "3-2",
+    },
+    decanContext: {
+      detailDescription: "Harmonization — Stability Shared and Lived.",
+    },
+    badges: [],
+  });
+  const draft = buildDecanOpeningDraft({
+    window: {
+      ...window,
+      decanName: 'Hathor — ḥry-ib sꜣḥ ("Heart of Sah")',
+      decanContextKey: "3-2",
+    },
+    decanContext: {
+      shortName: "ḥry-ib sꜣḥ",
+      detailDescription: "Harmonization — Stability Shared and Lived.",
+    },
+    dayCard: {
+      date: "2026-05-29",
+      maatPrinciple: "Name the Partnership",
+      decanDayAction: "Say clearly who you build with",
+    },
+    snapshot,
+  });
+
+  assertStringIncludes(draft.teaserText, "ḥry-ib sꜣḥ marks harmonization");
+  assertEquals(draft.teaserText.includes("This decan"), false);
+  assertStringIncludes(draft.bodyText, "ḥry-ib sꜣḥ opens the threshold");
 });
 
 Deno.test("guidance drafts season from memory without reciting activities", () => {
