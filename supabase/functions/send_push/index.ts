@@ -350,6 +350,46 @@ function buildAppTargetUrl(data?: Record<string, unknown>) {
     return `/?${params.toString()}`;
   }
 
+  if (kind === "shared_calendar_item_added") {
+    const params = new URLSearchParams({
+      push_kind: "shared_calendar_item_added",
+    });
+    const passthroughValue = (value: unknown) => {
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        return trimmed.length ? trimmed : null;
+      }
+      if (typeof value === "number" || typeof value === "boolean") {
+        return String(value);
+      }
+      return null;
+    };
+    const passthroughKeys = [
+      "calendar_id",
+      "item_id",
+      "item_type",
+      "client_event_id",
+      "event_id",
+      "flow_id",
+      "note_id",
+      "reminder_id",
+      "task_id",
+      "k_year",
+      "k_month",
+      "k_day",
+    ];
+    for (const key of passthroughKeys) {
+      const camelKey = key.replace(
+        /_([a-z])/g,
+        (_match, letter: string) => String(letter).toUpperCase(),
+      );
+      const value = passthroughValue(data?.[key]) ??
+        passthroughValue(data?.[camelKey]);
+      if (value) params.set(key, value);
+    }
+    return `/?${params.toString()}`;
+  }
+
   if (
     kind === "flow_like" ||
     kind === "flow_comment" ||
