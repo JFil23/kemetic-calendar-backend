@@ -94,12 +94,16 @@ else
 fi
 echo ""
 
-# Ensure the Year-1 banner exists once:
-echo "Checking for Year-1 banner in kemetic_day_info.dart..."
+# Ensure day-card data stays year-agnostic:
+echo "Checking for year-agnostic day-card invariant in kemetic_day_info.dart..."
 if grep -R "KEMETIC YEAR 1 ONLY - HARDCODED DATES" mobile/lib/widgets/kemetic_day_info.dart -n 2>/dev/null > /dev/null; then
-  echo "✓ Year-1 banner found"
+  echo "✗ Obsolete Year-1-only day-card banner found in mobile/lib/widgets/kemetic_day_info.dart"
+  ISSUES=$((ISSUES + 1))
+elif grep -R "Day cards are keyed by Kemetic month/day/decan and reused every year" mobile/lib/widgets/kemetic_day_info.dart -n 2>/dev/null > /dev/null \
+    && grep -R "Gregorian labels in the UI come from \\[KemeticDayData.calculateGregorianDate\\]" mobile/lib/widgets/kemetic_day_info.dart -n 2>/dev/null > /dev/null; then
+  echo "✓ Year-agnostic day-card invariant found"
 else
-  echo "✗ Year-1 banner missing from mobile/lib/widgets/kemetic_day_info.dart"
+  echo "✗ Year-agnostic day-card invariant missing from mobile/lib/widgets/kemetic_day_info.dart"
   ISSUES=$((ISSUES + 1))
 fi
 echo ""

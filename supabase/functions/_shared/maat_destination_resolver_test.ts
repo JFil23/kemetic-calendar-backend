@@ -626,6 +626,20 @@ Deno.test("calendar destination can route sky, decan, moon, wag, boundary, dawn,
     "the-decan-watch",
   );
   assertEquals(
+    resolveCalendarDestination({
+      decanName: "Thoth - measure",
+      decanTheme: "measure",
+      decanContext:
+        "The first decanal star rises while no field boundary is visible. The ibis probes the waterline before moving.",
+      dayCard: {
+        decanDayTheme: "Genesis of Speech",
+        decanDayAction: "Speak your intention for the year clearly.",
+        decanDayReflection: "What truth am I willing to build upon?",
+      },
+    }).ctaRef,
+    "the-decan-watch",
+  );
+  assertEquals(
     resolveCalendarDestination({ decanContext: "the moon return" }).ctaRef,
     "the-moon-return",
   );

@@ -437,7 +437,7 @@ function strongSpeechText(text: string) {
     /\bopen mouth\b/,
     /\bmouth\b/,
     /\btongue\b/,
-    /\bspeech\b.*\b(record|heated|hasty|unsaid|careless|govern|utterance|truth)\b/,
+    /\bspeech\b.*\b(record|heated|hasty|unsaid|careless|govern|utterance)\b/,
     /\bslander\b/,
     /\bheated\b.*\bspeech\b/,
     /\bhasty\b.*\bresponse\b/,
@@ -462,7 +462,10 @@ function fairJudgmentText(text: string) {
 }
 
 function boundaryStoneText(text: string) {
-  return includesAny(text, [
+  const scopedText = text
+    .replace(/\bfield boundar\w*\b/gi, "")
+    .replace(/\byear boundar\w*\b/gi, "");
+  return includesAny(scopedText, [
     /\bboundar/,
     /\bmarker\b/,
     /\bstone\b/,
@@ -614,9 +617,9 @@ function livingPatternText(text: string) {
   return includesAny(text, [
     /\bnature\b/,
     /\bobserve\b|\bobservation\b/,
-    /\bpattern\b/,
+    /\bnatural\b.*\bpattern\b/,
+    /\bpattern\b.*\bnatural\b/,
     /\banimals?\b/,
-    /\bwater\b/,
     /\bplants?\b/,
     /\btree\b/,
     /\bgarden\b/,
