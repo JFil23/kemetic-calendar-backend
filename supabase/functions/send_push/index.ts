@@ -18,6 +18,7 @@ import {
 } from "../_shared/firebase_push_config.ts";
 import { recordMaatDeliveryTimingEvent } from "../_shared/maat_delivery_timing.ts";
 import { resolveCompiledPackagePushText } from "../_shared/output_compiler.ts";
+import { authorizeUserJwtDmPush } from "./user_jwt_dm_auth.ts";
 
 type SendRequest = {
   userIds?: string[];
@@ -141,6 +142,30 @@ async function fetchTokens(userIds: string[]): Promise<PushTargetRow[]> {
     return data as any[];
   } catch (e) {
     throw new Error(`push_tokens fetch failed: ${serializeError(e)}`);
+  }
+}
+
+async function lookupDmShareForPushAuth(shareId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("flow_shares")
+      .select(
+        "id, sender_id, recipient_id, channel, status, deleted_at, payload_json",
+      )
+      .eq("id", shareId)
+      .maybeSingle();
+    if (error) throw error;
+    return data as {
+      id: string;
+      sender_id: string | null;
+      recipient_id: string | null;
+      channel?: string | null;
+      status?: string | null;
+      deleted_at?: string | null;
+      payload_json?: Record<string, unknown> | null;
+    } | null;
+  } catch (e) {
+    throw new Error(`flow_shares auth lookup failed: ${serializeError(e)}`);
   }
 }
 
@@ -781,17 +806,6 @@ Deno.serve(async (req) => {
       const { data: userRes, error } = await supabase.auth.getUser(authHeader);
       if (!error && userRes?.user?.id) {
         requesterUid = userRes.user.id;
-        const senderId = typeof body.data === "object" && body.data !== null
-          ? (body.data as Record<string, unknown>)["sender_id"] as
-            | string
-            | undefined
-          : undefined;
-        if (senderId && senderId !== requesterUid) {
-          log("sender_mismatch", { senderId, requesterUid });
-          return jsonResponse(req, { error: "Unauthorized" }, {
-            status: 401,
-          });
-        }
         authMode = "user_jwt";
       }
     }
@@ -823,6 +837,36 @@ Deno.serve(async (req) => {
         return jsonResponse(req, { error: "Too many deviceIds" }, {
           status: 400,
         });
+      }
+
+      const dmPushAuth = await authorizeUserJwtDmPush({
+        requesterUid,
+        userIds: body.userIds,
+        data: body.data,
+        lookupShare: lookupDmShareForPushAuth,
+      });
+      if (!dmPushAuth.ok) {
+        log("dm_push_authorization_failed", {
+          requesterUid,
+          ...dmPushAuth.log,
+        });
+        return jsonResponse(req, { error: dmPushAuth.error }, {
+          status: dmPushAuth.status,
+        });
+      }
+
+      if (!dmPushAuth.applies) {
+        const senderId = typeof body.data === "object" && body.data !== null
+          ? (body.data as Record<string, unknown>)["sender_id"] as
+            | string
+            | undefined
+          : undefined;
+        if (senderId && senderId !== requesterUid) {
+          log("sender_mismatch", { senderId, requesterUid });
+          return jsonResponse(req, { error: "Unauthorized" }, {
+            status: 401,
+          });
+        }
       }
     }
 
