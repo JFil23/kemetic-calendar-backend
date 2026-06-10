@@ -343,10 +343,185 @@ Deno.test("cron_maat_decan_opening sends one push for a new opening", async () =
     );
     assertEquals(pushCalls[0].data.cta_kind, "flow_template");
     assertEquals(pushCalls[0].data.cta_id, "the-decan-watch");
+    const nodeRef = pushCalls[0].data.node_ref;
+    assert(typeof nodeRef === "string" && nodeRef.length > 0);
+    assertEquals(pushCalls[0].data.node_deep_link, `/nodes/${nodeRef}`);
+    assert(typeof pushCalls[0].data.node_title === "string");
+    assertEquals(pushCalls[0].data.node_source, "destination.fallback");
     assertEquals(
       pushCalls[0].data.delivery_key,
       `maat_guidance:${delivery.id}`,
     );
+  });
+});
+
+Deno.test("cron_maat_decan_opening make-good sends current pending opening without prior push", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_delivery_timing_events: [],
+    maat_guidance_deliveries: [{
+      id: "opening",
+      user_id: userId,
+      kind: "decan_opening",
+      decan_period_key: periodKey,
+      status: "pending",
+      priority: 10,
+      teaser_text: "Begin with measure.",
+      body_text: "Begin with measure.",
+      payload: {
+        lead_axis: "M",
+        day_card_date: "2026-05-16",
+        node_ref: "maat",
+        output_control: { policy_version: "output_control_v1" },
+        notification_track: "decan_context_opening",
+        content_source: "calendar_month_decan_day1_context",
+        profile_personalization_used: false,
+        compiled_output_package: {
+          package_version: "compiled_output_package_v1",
+          final_text: "Begin with measure.",
+          push_text: "Begin with measure.",
+          fallback_used: false,
+          not_quality_proof: false,
+          delivery_recommendation: "push",
+          destination: {
+            type: "flow_template",
+            ref: "the-decan-watch",
+            label: "Open suggested flow",
+            fallback: {
+              ctaType: "node",
+              ctaRef: "maat",
+              ctaLabel: "Read the guiding node",
+            },
+          },
+        },
+      },
+      cta_type: "flow_template",
+      cta_ref: "the-decan-watch",
+      push_sent_at: null,
+      push_attempt_count: 0,
+      created_at: "2026-05-16T12:00:00.000Z",
+    }],
+  };
+  const pushCalls: Array<Record<string, any>> = [];
+
+  await withCronSecret(async () => {
+    const handler = createCronMaatDecanOpeningHandler({
+      client: createMockClient(tables),
+      now: () => new Date("2026-05-16T18:00:00.000Z"),
+      sendPush: async (params) => {
+        pushCalls.push(params);
+        return { ok: true, sent: 1, delivered: true };
+      },
+    });
+
+    const response = await handler(
+      cronRequest({
+        limit: 1,
+        timezone: "America/Los_Angeles",
+        decan_start: "2026-05-16",
+        decan_end: "2026-05-25",
+        decan_name: "Thoth - measure",
+        decan_theme: "measure",
+        decan_context_key: "1-1",
+      }),
+    );
+    const body = await response.json();
+
+    assertEquals(response.status, 200);
+    assertEquals(body.push_sent, 1);
+    assertEquals(pushCalls.length, 1);
+    assertEquals(tables.reflection_generations.length, 0);
+    assertEquals(
+      tables.maat_guidance_deliveries[0].push_sent_at,
+      "2026-05-16T18:00:00.000Z",
+    );
+    assertEquals(tables.maat_guidance_deliveries[0].push_attempt_count, 1);
+    assertEquals(pushCalls[0].data.node_ref, "maat");
+    assertEquals(pushCalls[0].data.node_deep_link, "/nodes/maat");
+    assertEquals(pushCalls[0].data.node_title, "Ma'at");
+    assertEquals(pushCalls[0].data.node_source, "destination.fallback");
+    const sent = tables.maat_delivery_timing_events.find((row) =>
+      row.delivery_status === "sent"
+    );
+    assertEquals(sent?.metadata.os_push_sent, true);
+  });
+});
+
+Deno.test("cron_maat_decan_opening make-good skips non-pending non-shown openings", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [{
+      id: "opening",
+      user_id: userId,
+      kind: "decan_opening",
+      decan_period_key: periodKey,
+      status: "queued",
+      priority: 10,
+      teaser_text: "Begin with measure.",
+      body_text: "Begin with measure.",
+      payload: {
+        lead_axis: "M",
+        day_card_date: "2026-05-16",
+        node_ref: "maat",
+        output_control: { policy_version: "output_control_v1" },
+        notification_track: "decan_context_opening",
+        content_source: "calendar_month_decan_day1_context",
+        profile_personalization_used: false,
+        compiled_output_package: {
+          package_version: "compiled_output_package_v1",
+          final_text: "Begin with measure.",
+          push_text: "Begin with measure.",
+          fallback_used: false,
+          not_quality_proof: false,
+          delivery_recommendation: "push",
+          destination: {
+            type: "flow_template",
+            ref: "the-decan-watch",
+            fallback: { ctaType: "node", ctaRef: "maat" },
+          },
+        },
+      },
+      cta_type: "flow_template",
+      cta_ref: "the-decan-watch",
+      push_sent_at: null,
+      push_attempt_count: 0,
+      created_at: "2026-05-16T12:00:00.000Z",
+    }],
+  };
+  let pushCount = 0;
+
+  await withCronSecret(async () => {
+    const handler = createCronMaatDecanOpeningHandler({
+      client: createMockClient(tables),
+      now: () => new Date("2026-05-16T18:00:00.000Z"),
+      sendPush: async () => {
+        pushCount += 1;
+        return { ok: true, sent: 1, delivered: true };
+      },
+    });
+
+    const response = await handler(
+      cronRequest({
+        limit: 1,
+        timezone: "America/Los_Angeles",
+        decan_start: "2026-05-16",
+        decan_end: "2026-05-25",
+        decan_name: "Thoth - measure",
+        decan_theme: "measure",
+        decan_context_key: "1-1",
+      }),
+    );
+    const body = await response.json();
+
+    assertEquals(response.status, 200);
+    assertEquals(pushCount, 0);
+    assertEquals(body.push_sent, 0);
+    assertEquals(body.push_skipped, 1);
+    assertEquals(body.results[0].push_skipped, "status_queued");
+    assertEquals(tables.maat_guidance_deliveries[0].push_attempt_count, 0);
+    assertEquals(tables.maat_guidance_deliveries[0].push_sent_at, null);
   });
 });
 
@@ -415,6 +590,7 @@ Deno.test("cron_maat_decan_opening records failed push attempts", async () => {
   const tables: Tables = {
     profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
     reflection_generations: [],
+    maat_delivery_timing_events: [],
     maat_guidance_deliveries: [],
   };
 
@@ -450,6 +626,10 @@ Deno.test("cron_maat_decan_opening records failed push attempts", async () => {
     assertEquals(delivery.push_error, "fcm_unavailable");
     assertEquals(delivery.push_attempt_count, 1);
     assertEquals(delivery.push_last_attempt_at, "2026-05-16T18:00:00.000Z");
+    const failed = tables.maat_delivery_timing_events.find((row) =>
+      row.delivery_status === "failed"
+    );
+    assertEquals(failed?.error_code, "fcm_unavailable");
   });
 });
 

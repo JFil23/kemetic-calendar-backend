@@ -25,6 +25,10 @@ import {
   recordMaatDeliveryTimingEvent,
 } from "../_shared/maat_delivery_timing.ts";
 import { resolveCompiledPackagePushText } from "../_shared/output_compiler.ts";
+import {
+  canonicalLibraryNodePayload,
+  resolveCanonicalLibraryNode,
+} from "../_shared/canonical_library_node.ts";
 
 type SupabaseClientLike = {
   auth: {
@@ -361,6 +365,9 @@ async function sendOpeningPushIfEligible(params: {
   const delivery = params.delivery;
   const deliveryId = cleanString(delivery.id);
   if (!deliveryId) return { push_skipped: "missing_delivery_id" };
+  if (cleanString(delivery.kind) !== "decan_opening") {
+    return { push_skipped: "wrong_kind" };
+  }
   if (timestampString(delivery.push_sent_at)) {
     return { push_skipped: "already_sent" };
   }
@@ -373,6 +380,9 @@ async function sendOpeningPushIfEligible(params: {
     status === "expired"
   ) {
     return { push_skipped: `status_${status}` };
+  }
+  if (status !== "pending" && status !== "shown") {
+    return { push_skipped: `status_${status || "missing"}` };
   }
 
   const attemptCount = boundedAttemptCount(delivery.push_attempt_count);
@@ -415,6 +425,11 @@ async function sendOpeningPushIfEligible(params: {
     : isRecord(payload.destination)
     ? payload.destination
     : null;
+  const canonicalNode = resolveCanonicalLibraryNode({
+    destination,
+    payload,
+    leadAxis: payload.lead_axis,
+  });
   const deepLink = `/maat-guidance/${encodeURIComponent(deliveryId)}`;
   const body = pushResolution.text ||
     cleanString(delivery.teaser_text) ||
@@ -439,6 +454,7 @@ async function sendOpeningPushIfEligible(params: {
         cta_id: ctaId || null,
         cta_type: ctaKind || null,
         cta_ref: ctaId || null,
+        ...canonicalLibraryNodePayload(canonicalNode),
         ...(destination ? { destination } : {}),
         ...(compiledPackage
           ? { compiled_output_package: compiledPackage }
@@ -499,11 +515,24 @@ async function recordOpeningDeliveryOutcome(params: {
   const delivery = params.result.delivery;
   const deliveryId = typeof delivery.id === "string" ? delivery.id : "";
   if (!deliveryId) return;
-  const status = delivery.status === "archive_only" ? "skipped" : "sent";
   const deliveryPayload = isRecord(delivery.payload) ? delivery.payload : {};
   const pushResolution = resolveCompiledPackagePushText({
     payload: deliveryPayload,
   });
+  const status = delivery.status === "archive_only" ||
+      typeof params.result.push_skipped === "string" ||
+      pushResolution.blocked
+    ? "skipped"
+    : typeof params.result.push_error === "string"
+    ? "failed"
+    : params.result.push_sent === true
+    ? "sent"
+    : "skipped";
+  const skipReason = delivery.status === "archive_only"
+    ? "archive_only"
+    : params.result.push_skipped ?? (pushResolution.blocked
+      ? pushResolution.reason ?? pushResolution.source
+      : null);
   const notificationTrack =
     typeof deliveryPayload.notification_track === "string"
       ? deliveryPayload.notification_track
@@ -553,7 +582,8 @@ async function recordOpeningDeliveryOutcome(params: {
     ...baseEvent,
     deliveredAt: params.deliveredAt,
     deliveryStatus: status,
-    skipReason: status === "skipped" ? "archive_only" : null,
+    skipReason,
+    errorCode: status === "failed" ? params.result.push_error ?? null : null,
   });
 }
 
@@ -993,9 +1023,11 @@ export function createCronMaatDecanOpeningHandler(options?: {
               ...result,
               ...pushOutcome,
             };
+            const deliveryChanged = cronResult.created === true ||
+              cronResult.enriched === true ||
+              cronResult.refreshed === true;
             if (
-              cronResult.created === true || cronResult.enriched === true ||
-              cronResult.refreshed === true ||
+              deliveryChanged ||
               cronResult.push_sent === true ||
               typeof cronResult.push_error === "string"
             ) {

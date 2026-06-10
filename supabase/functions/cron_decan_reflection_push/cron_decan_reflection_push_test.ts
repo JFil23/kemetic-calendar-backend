@@ -262,8 +262,22 @@ function createMockClient(
                   fallback_used: false,
                   not_quality_proof: false,
                   delivery_recommendation: "push",
+                  cta_type: "flow_template",
+                  cta_ref: "the-tending",
+                  destination: {
+                    type: "flow_template",
+                    ref: "the-tending",
+                    label: "Open suggested flow",
+                    fallback: {
+                      ctaType: "node",
+                      ctaRef: "instruction_amenemope",
+                      ctaLabel: "Read the guiding node",
+                    },
+                  },
                 },
               },
+              anchor_nodes: ["renenutet"],
+              lead_axis: "M",
             },
             error: null,
           });
@@ -389,6 +403,63 @@ Deno.test("cron_decan_reflection_push drains due batches and keeps no-token rows
     stats.pushBodies[0].data.compiled_output_package.package_version,
     "compiled_output_package_v1",
   );
+  assertEquals(stats.pushBodies[0].data.node_ref, "instruction_amenemope");
+  assertEquals(
+    stats.pushBodies[0].data.node_deep_link,
+    "/nodes/instruction_amenemope",
+  );
+  assertEquals(
+    stats.pushBodies[0].data.node_title,
+    "Instruction of Amenemope",
+  );
+  assertEquals(stats.pushBodies[0].data.node_source, "destination.fallback");
+});
+
+Deno.test("cron_decan_reflection_push uses graph anchor for canonical node when destination has no node fallback", async () => {
+  const tables: Tables = {
+    profiles: [],
+    decan_reflection_schedule: [scheduleRow("schedule-1", "user-1")],
+    decan_reflections: [],
+  };
+  const { client, stats } = createMockClient(tables, {
+    reflectionData: {
+      reflection: "A generated decan reflection.",
+      badgeCount: 2,
+      outputControl: {
+        compiledOutputPackage: {
+          package_version: "compiled_output_package_v1",
+          final_text: "A generated decan reflection.",
+          push_text: "Compiled reflection push.",
+          fallback_used: false,
+          not_quality_proof: false,
+          delivery_recommendation: "push",
+          destination: {
+            type: "flow_template",
+            ref: "the-course",
+            label: "Open suggested flow",
+          },
+        },
+      },
+      anchor_nodes: ["isfet", "renenutet"],
+      lead_axis: "M",
+    },
+  });
+  const handler = createCronDecanReflectionPushHandler({
+    client,
+    config: baseConfig,
+    now: () => new Date(nowIso),
+  });
+
+  const response = await handler(
+    cronRequest({ "x-cron-secret": "cron-secret" }),
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(stats.pushBodies.length, 1);
+  assertEquals(stats.pushBodies[0].data.node_ref, "renenutet");
+  assertEquals(stats.pushBodies[0].data.node_deep_link, "/nodes/renenutet");
+  assertEquals(stats.pushBodies[0].data.node_title, "Renenutet");
+  assertEquals(stats.pushBodies[0].data.node_source, "graph.anchor");
 });
 
 Deno.test("cron_decan_reflection_push blocks fallback-quality compiled push text", async () => {

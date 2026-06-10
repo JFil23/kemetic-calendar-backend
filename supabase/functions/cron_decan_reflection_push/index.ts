@@ -13,6 +13,10 @@ import {
   compiledOutputPackageFromPayload,
   resolveCompiledPackagePushText,
 } from "../_shared/output_compiler.ts";
+import {
+  canonicalLibraryNodePayload,
+  resolveCanonicalLibraryNode,
+} from "../_shared/canonical_library_node.ts";
 
 type ScheduleRow = {
   id: string;
@@ -46,6 +50,8 @@ type ReflectionResult = {
   badgeCount: number;
   outputControl: Record<string, unknown> | null;
   compiledOutputPackage: Record<string, unknown> | null;
+  anchorNodes: string[];
+  leadAxis: string | null;
 };
 
 type SendPushResponse = {
@@ -102,6 +108,17 @@ type ProcessOutcome =
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  const result: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const clean = item.trim();
+    if (clean) result.push(clean);
+  }
+  return result;
 }
 
 function scheduleDeliveryKey(row: ScheduleRow) {
@@ -440,6 +457,8 @@ async function generateReflection(
     reflection?: string;
     badgeCount?: number;
     outputControl?: Record<string, unknown> | null;
+    anchor_nodes?: unknown;
+    lead_axis?: unknown;
   };
   const outputControl = isRecord(body.outputControl)
     ? body.outputControl
@@ -449,6 +468,10 @@ async function generateReflection(
     badgeCount: body.badgeCount ?? 0,
     outputControl,
     compiledOutputPackage: compiledOutputPackageFromPayload(outputControl),
+    anchorNodes: stringArray(body.anchor_nodes),
+    leadAxis: typeof body.lead_axis === "string" && body.lead_axis.trim()
+      ? body.lead_axis.trim()
+      : null,
   };
 }
 
@@ -541,6 +564,8 @@ async function sendPush(
   decanName: string,
   reflection: string,
   compiledOutputPackage: Record<string, unknown> | null,
+  anchorNodes: string[],
+  leadAxis: string | null,
 ): Promise<SendPushResponse> {
   if (!config.internalFunctionKey) {
     throw new Error("INTERNAL_FUNCTION_KEY not configured");
@@ -577,6 +602,11 @@ async function sendPush(
       !Array.isArray(compiledOutputPackage.destination)
     ? compiledOutputPackage.destination as Record<string, unknown>
     : null;
+  const canonicalNode = resolveCanonicalLibraryNode({
+    destination,
+    anchorNodes,
+    leadAxis,
+  });
   const { data, error } = await client.functions.invoke("send_push", {
     body: {
       userIds: [userId],
@@ -588,6 +618,7 @@ async function sendPush(
         push_source: pushResolution.source,
         ...(ctaType ? { cta_type: ctaType } : {}),
         ...(ctaRef ? { cta_ref: ctaRef } : {}),
+        ...canonicalLibraryNodePayload(canonicalNode),
         ...(destination ? { destination } : {}),
         ...(compiledOutputPackage
           ? { compiled_output_package: compiledOutputPackage }
@@ -698,16 +729,21 @@ async function processScheduleRow(
       fallbackDecanLabel(row.decan_context_key) ||
       `Decan starting ${row.decan_start}`;
     const decanTheme = row.decan_theme?.trim() || null;
-    const { reflection, badgeCount, compiledOutputPackage } =
-      await generateReflection(
-        client,
-        row.user_id,
-        decanName,
-        decanTheme,
-        row.decan_context_key,
-        row.decan_start,
-        row.decan_end,
-      );
+    const {
+      reflection,
+      badgeCount,
+      compiledOutputPackage,
+      anchorNodes,
+      leadAxis,
+    } = await generateReflection(
+      client,
+      row.user_id,
+      decanName,
+      decanTheme,
+      row.decan_context_key,
+      row.decan_start,
+      row.decan_end,
+    );
 
     const reflectionId = await storeReflection(
       client,
@@ -727,6 +763,8 @@ async function processScheduleRow(
       decanName,
       reflection,
       compiledOutputPackage,
+      anchorNodes,
+      leadAxis,
     );
     if (pushResult.sent <= 0) {
       if (

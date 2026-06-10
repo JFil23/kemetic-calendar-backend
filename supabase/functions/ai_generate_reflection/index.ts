@@ -4735,6 +4735,8 @@ serve(async (req) => {
           branch: "decan",
           reflection_id: reflectionId,
           reflection_generation_id: reflectionGenerationId,
+          anchor_nodes: decisionMatrix?.anchorNodes ?? [],
+          lead_axis: maatSnapshot.leadAxis,
           knowledgeGraphUsed: useKnowledgeGraph && !!reflectionProfile,
           decisionMatrixUsed: useDecisionMatrix && !!decisionMatrix,
           outputControl: {
