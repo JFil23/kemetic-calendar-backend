@@ -327,6 +327,27 @@ async function lookupFlowPostCommentForPushAuth(commentId: string) {
   }
 }
 
+async function lookupFlowPostCommentsByBodyForPushAuth(params: {
+  flowPostId: string;
+  userId: string;
+  body: string;
+}) {
+  try {
+    const { data, error } = await supabase
+      .from("flow_post_comments")
+      .select("id, flow_post_id, user_id, parent_comment_id")
+      .eq("flow_post_id", params.flowPostId)
+      .eq("user_id", params.userId)
+      .eq("body", params.body);
+    if (error) throw error;
+    return (data ?? []) as FlowPostCommentRow[];
+  } catch (e) {
+    throw new Error(
+      `flow_post_comments body auth lookup failed: ${serializeError(e)}`,
+    );
+  }
+}
+
 async function lookupFlowPostCommentLikeForPushAuth(params: {
   commentId: string;
   userId: string;
@@ -1034,6 +1055,7 @@ Deno.serve(async (req) => {
         userIds: body.userIds,
         deviceIds: body.deviceIds,
         data: body.data,
+        notificationBody: body.notification?.body ?? null,
         lookups: {
           lookupShare: lookupDmShareForPushAuth,
           lookupEventShare: lookupEventShareForPushAuth,
@@ -1043,6 +1065,7 @@ Deno.serve(async (req) => {
           lookupFlowPost: lookupFlowPostForPushAuth,
           lookupFlowPostLike: lookupFlowPostLikeForPushAuth,
           lookupFlowPostComment: lookupFlowPostCommentForPushAuth,
+          lookupFlowPostCommentsByBody: lookupFlowPostCommentsByBodyForPushAuth,
           lookupFlowPostCommentLike: lookupFlowPostCommentLikeForPushAuth,
           lookupActiveDeviceIds: lookupActiveDeviceIdsForPushAuth,
         },

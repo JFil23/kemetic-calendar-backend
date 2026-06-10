@@ -85,6 +85,11 @@ export type UserJwtPushAuthorizationLookups = {
   lookupFlowPostComment: (
     commentId: string,
   ) => Promise<FlowPostCommentRow | null>;
+  lookupFlowPostCommentsByBody: (params: {
+    flowPostId: string;
+    userId: string;
+    body: string;
+  }) => Promise<FlowPostCommentRow[]>;
   lookupFlowPostCommentLike: (params: {
     commentId: string;
     userId: string;
@@ -745,6 +750,7 @@ async function authorizeFlowSocialPush(params: {
   requesterUid: string | null;
   userIds?: string[];
   data: Record<string, unknown>;
+  notificationBody?: string | null;
   kind:
     | "flow_like"
     | "flow_comment"
@@ -758,6 +764,11 @@ async function authorizeFlowSocialPush(params: {
   lookupFlowPostComment: (
     commentId: string,
   ) => Promise<FlowPostCommentRow | null>;
+  lookupFlowPostCommentsByBody: (params: {
+    flowPostId: string;
+    userId: string;
+    body: string;
+  }) => Promise<FlowPostCommentRow[]>;
   lookupFlowPostCommentLike: (params: {
     commentId: string;
     userId: string;
@@ -818,17 +829,45 @@ async function authorizeFlowSocialPush(params: {
   }
 
   const commentId = commentIdFromData(params.data);
-  if (!commentId) {
-    return denied(
-      400,
-      "Flow social push comment_id required",
-      "missing_comment_id",
-    );
+  let comment: FlowPostCommentRow | null = null;
+  if (commentId) {
+    comment = await params.lookupFlowPostComment(commentId);
+  } else {
+    const oldClientRecipient = normalizedStringArray(params.userIds)[0];
+    const body = typeof params.notificationBody === "string"
+      ? params.notificationBody.trim()
+      : "";
+    if (!body || !oldClientRecipient) {
+      return denied(
+        400,
+        "Flow social push comment_id required",
+        "missing_comment_id",
+      );
+    }
+    const candidateUserId = params.kind === "flow_comment_like"
+      ? oldClientRecipient
+      : requesterUid;
+    const candidates = await params.lookupFlowPostCommentsByBody({
+      flowPostId,
+      userId: candidateUserId,
+      body,
+    });
+    if (candidates.length !== 1) {
+      return denied(
+        403,
+        "Flow social push not authorized",
+        "ambiguous_comment_row",
+        {
+          flowPostId,
+          candidateCount: candidates.length,
+        },
+      );
+    }
+    comment = candidates[0];
   }
-  const comment = await params.lookupFlowPostComment(commentId);
   if (
     !comment ||
-    comment.user_id !== requesterUid && params.kind !== "flow_comment_like" ||
+    (comment.user_id !== requesterUid && params.kind !== "flow_comment_like") ||
     comment.flow_post_id !== flowPostId
   ) {
     return denied(
@@ -889,15 +928,28 @@ async function authorizeFlowSocialPush(params: {
     return { ok: true, kind: "flow_comment_reply" };
   }
 
+  if (comment.user_id === requesterUid) {
+    return denied(
+      403,
+      "Flow social push not authorized",
+      "recipient_includes_actor",
+      {
+        commentId: comment.id,
+      },
+    );
+  }
   if (
-    !await params.lookupFlowPostCommentLike({ commentId, userId: requesterUid })
+    !await params.lookupFlowPostCommentLike({
+      commentId: comment.id,
+      userId: requesterUid,
+    })
   ) {
     return denied(
       403,
       "Flow social push not authorized",
       "comment_like_row_not_found",
       {
-        commentId,
+        commentId: comment.id,
       },
     );
   }
@@ -915,6 +967,7 @@ export async function authorizeUserJwtPush(params: {
   userIds?: string[];
   deviceIds?: string[];
   data?: Record<string, unknown>;
+  notificationBody?: string | null;
   lookups: UserJwtPushAuthorizationLookups;
 }): Promise<UserJwtPushAuthorizationResult> {
   const dmPushAuth = await authorizeUserJwtDmPush({
@@ -998,10 +1051,13 @@ export async function authorizeUserJwtPush(params: {
         requesterUid: params.requesterUid,
         userIds: params.userIds,
         data,
+        notificationBody: params.notificationBody,
         kind,
         lookupFlowPost: params.lookups.lookupFlowPost,
         lookupFlowPostLike: params.lookups.lookupFlowPostLike,
         lookupFlowPostComment: params.lookups.lookupFlowPostComment,
+        lookupFlowPostCommentsByBody:
+          params.lookups.lookupFlowPostCommentsByBody,
         lookupFlowPostCommentLike: params.lookups.lookupFlowPostCommentLike,
       });
     default:

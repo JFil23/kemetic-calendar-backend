@@ -158,6 +158,20 @@ function makeLookups(
       Promise.resolve(flowPostId === "post-1" && userId === "user-a"),
     lookupFlowPostComment: (commentId) =>
       Promise.resolve(comments.get(commentId) ?? null),
+    lookupFlowPostCommentsByBody: ({ flowPostId, userId, body }) =>
+      Promise.resolve(
+        Array.from(comments.values()).filter((comment) =>
+          comment.flow_post_id === flowPostId &&
+          comment.user_id === userId &&
+          (
+            comment.id === "comment-parent"
+              ? body === "Parent body"
+              : comment.id === "comment-reply"
+              ? body === "Reply body"
+              : body === "Comment body"
+          )
+        ),
+      ),
     lookupFlowPostCommentLike: ({ commentId, userId }) =>
       Promise.resolve(commentId === "comment-parent" && userId === "user-a"),
     lookupActiveDeviceIds: ({ requesterUid, deviceIds }) =>
@@ -538,6 +552,42 @@ Deno.test("valid user-JWT flow_comment push is comment-row-backed", async () => 
   assertAllowed(result, "flow_comment");
 });
 
+Deno.test("old-client flow_comment push is row-backed by unique comment body", async () => {
+  const result = await authorizeUserJwtPush({
+    requesterUid: "user-a",
+    userIds: ["user-b"],
+    notificationBody: "Comment body",
+    data: {
+      type: "flow_comment",
+      flow_post_id: "post-1",
+    },
+    lookups: makeLookups(),
+  });
+
+  assertAllowed(result, "flow_comment");
+});
+
+Deno.test("old-client flow_comment push rejects ambiguous body matches", async () => {
+  const result = await authorizeUserJwtPush({
+    requesterUid: "user-a",
+    userIds: ["user-b"],
+    notificationBody: "same",
+    data: {
+      type: "flow_comment",
+      flow_post_id: "post-1",
+    },
+    lookups: makeLookups({
+      lookupFlowPostCommentsByBody: () =>
+        Promise.resolve([
+          flowComment,
+          { ...flowComment, id: "comment-duplicate" },
+        ]),
+    }),
+  });
+
+  assertDenied(result, 403, "ambiguous_comment_row");
+});
+
 Deno.test("valid user-JWT flow_comment_reply push is parent-comment-backed", async () => {
   const result = await authorizeUserJwtPush({
     requesterUid: "user-a",
@@ -547,6 +597,21 @@ Deno.test("valid user-JWT flow_comment_reply push is parent-comment-backed", asy
       flow_post_id: "post-1",
       comment_id: "comment-reply",
       parent_comment_id: "comment-parent",
+    },
+    lookups: makeLookups(),
+  });
+
+  assertAllowed(result, "flow_comment_reply");
+});
+
+Deno.test("old-client flow_comment_reply push is row-backed by unique reply body", async () => {
+  const result = await authorizeUserJwtPush({
+    requesterUid: "user-a",
+    userIds: ["user-c"],
+    notificationBody: "Reply body",
+    data: {
+      type: "flow_comment_reply",
+      flow_post_id: "post-1",
     },
     lookups: makeLookups(),
   });
@@ -596,6 +661,42 @@ Deno.test("valid user-JWT flow_comment_like push is comment-like-row-backed", as
   });
 
   assertAllowed(result, "flow_comment_like");
+});
+
+Deno.test("old-client flow_comment_like push is row-backed by unique liked comment body", async () => {
+  const result = await authorizeUserJwtPush({
+    requesterUid: "user-a",
+    userIds: ["user-c"],
+    notificationBody: "Parent body",
+    data: {
+      type: "flow_comment_like",
+      flow_post_id: "post-1",
+    },
+    lookups: makeLookups(),
+  });
+
+  assertAllowed(result, "flow_comment_like");
+});
+
+Deno.test("old-client flow_comment_like rejects ambiguous liked comment body", async () => {
+  const result = await authorizeUserJwtPush({
+    requesterUid: "user-a",
+    userIds: ["user-c"],
+    notificationBody: "same",
+    data: {
+      type: "flow_comment_like",
+      flow_post_id: "post-1",
+    },
+    lookups: makeLookups({
+      lookupFlowPostCommentsByBody: () =>
+        Promise.resolve([
+          parentComment,
+          { ...parentComment, id: "comment-parent-duplicate" },
+        ]),
+    }),
+  });
+
+  assertDenied(result, 403, "ambiguous_comment_row");
 });
 
 Deno.test("flow_comment push without comment_id fails closed", async () => {
