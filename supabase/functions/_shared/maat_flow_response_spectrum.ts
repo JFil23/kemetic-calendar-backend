@@ -206,6 +206,15 @@ export type SelectedLensSeed = LensSeed & {
   doNotSay: string[];
 };
 
+export type MaatFlowInterpretiveEmphasis = {
+  dominantTier: CanonicalCompletionTier | null;
+  lastExplicitTier: CanonicalCompletionTier | null;
+  reflectionTier: CanonicalCompletionTier | null;
+  orientationTier: CanonicalCompletionTier | null;
+  alignmentTier: CanonicalCompletionTier | null;
+  reason: string;
+};
+
 export type MaatFlowDecanPatternSynthesis = {
   decanId: string;
   flowSignals: FlowSignal[];
@@ -225,6 +234,7 @@ export type MaatFlowDecanPatternSynthesis = {
     orientation?: SelectedLensSeed;
     alignment?: SelectedLensSeed;
   };
+  interpretiveEmphasis: MaatFlowInterpretiveEmphasis;
   confidence: "low" | "medium" | "high";
   fallbackReason?: string;
 };
@@ -908,6 +918,63 @@ function lastTier(signals: FlowSignal[]) {
   return last?.canonicalTier ?? null;
 }
 
+function lastExplicitTier(signals: FlowSignal[]) {
+  const last = signals
+    .filter((signal) => signal.source === "completion" && signal.reliable)
+    .sort((a, b) =>
+      signalSortDate(a).localeCompare(signalSortDate(b)) ||
+      a.flowKey.localeCompare(b.flowKey) ||
+      a.status.localeCompare(b.status)
+    )
+    .at(-1);
+  return last?.canonicalTier ?? null;
+}
+
+function interpretiveEmphasisForSignals(
+  signals: FlowSignal[],
+  dominant: CanonicalCompletionTier | null,
+): MaatFlowInterpretiveEmphasis {
+  const explicitLast = lastExplicitTier(signals);
+  if (!dominant) {
+    return {
+      dominantTier: null,
+      lastExplicitTier: explicitLast,
+      reflectionTier: null,
+      orientationTier: null,
+      alignmentTier: null,
+      reason: "no_current_decan_flow_signal",
+    };
+  }
+  if (!explicitLast) {
+    return {
+      dominantTier: dominant,
+      lastExplicitTier: null,
+      reflectionTier: dominant,
+      orientationTier: dominant,
+      alignmentTier: dominant,
+      reason: "no_explicit_completion_signal",
+    };
+  }
+  if (explicitLast === dominant) {
+    return {
+      dominantTier: dominant,
+      lastExplicitTier: explicitLast,
+      reflectionTier: dominant,
+      orientationTier: dominant,
+      alignmentTier: dominant,
+      reason: "dominant_and_recent_explicit_tier_aligned",
+    };
+  }
+  return {
+    dominantTier: dominant,
+    lastExplicitTier: explicitLast,
+    reflectionTier: explicitLast,
+    orientationTier: dominant,
+    alignmentTier: explicitLast,
+    reason: `dominant_${dominant}_but_recent_${explicitLast}`,
+  };
+}
+
 function primaryFlowForTier(
   signals: FlowSignal[],
   tier: CanonicalCompletionTier | null,
@@ -1206,43 +1273,72 @@ export function synthesizeMaatFlowDecanPattern(params: {
     a.status.localeCompare(b.status)
   );
   const dominant = dominantTier(flowSignals);
-  const primaryFlow = primaryFlowForTier(flowSignals, dominant);
+  const interpretiveEmphasis = interpretiveEmphasisForSignals(
+    flowSignals,
+    dominant,
+  );
+  const reflectionFlow = primaryFlowForTier(
+    flowSignals,
+    interpretiveEmphasis.reflectionTier,
+  );
+  const orientationFlow = primaryFlowForTier(
+    flowSignals,
+    interpretiveEmphasis.orientationTier,
+  );
+  const alignmentFlow = primaryFlowForTier(
+    flowSignals,
+    interpretiveEmphasis.alignmentTier,
+  );
   const themeSignals = themeSignalsFromFlowSignals(flowSignals);
-  const primaryThemeSignal = primaryThemeSignalForTier(flowSignals, dominant);
+  const dominantThemeSignal = primaryThemeSignalForTier(flowSignals, dominant);
+  const tensionPrimaryThemeSignal = primaryThemeSignalForTier(
+    flowSignals,
+    interpretiveEmphasis.reflectionTier,
+  );
   const confidence = confidenceForSignals(flowSignals);
   const fallbackReason = fallbackReasonForSignals(flowSignals);
   const canSelectTension = confidence !== "low";
   const themeTemplate = canSelectTension
     ? selectThemeRelationshipTemplate({
-      primarySignal: primaryThemeSignal,
+      primarySignal: tensionPrimaryThemeSignal,
       themeSignals,
     })
     : null;
   const fallbackFlowTemplate = canSelectTension && !themeTemplate
     ? selectTensionTemplate({
-      primaryFlow,
-      primaryTier: dominant,
+      primaryFlow: reflectionFlow,
+      primaryTier: interpretiveEmphasis.reflectionTier,
     })
     : null;
-  const selectedSeeds = primaryFlow && dominant
-    ? {
-      reflection: selectedSeed({
-        lensType: "reflection",
-        flowKey: primaryFlow,
-        tier: dominant,
-      }),
-      orientation: selectedSeed({
-        lensType: "orientation",
-        flowKey: primaryFlow,
-        tier: dominant,
-      }),
-      alignment: selectedSeed({
-        lensType: "alignment",
-        flowKey: primaryFlow,
-        tier: dominant,
-      }),
-    }
-    : {};
+  const selectedSeeds = {
+    ...(reflectionFlow && interpretiveEmphasis.reflectionTier
+      ? {
+        reflection: selectedSeed({
+          lensType: "reflection",
+          flowKey: reflectionFlow,
+          tier: interpretiveEmphasis.reflectionTier,
+        }),
+      }
+      : {}),
+    ...(orientationFlow && interpretiveEmphasis.orientationTier
+      ? {
+        orientation: selectedSeed({
+          lensType: "orientation",
+          flowKey: orientationFlow,
+          tier: interpretiveEmphasis.orientationTier,
+        }),
+      }
+      : {}),
+    ...(alignmentFlow && interpretiveEmphasis.alignmentTier
+      ? {
+        alignment: selectedSeed({
+          lensType: "alignment",
+          flowKey: alignmentFlow,
+          tier: interpretiveEmphasis.alignmentTier,
+        }),
+      }
+      : {}),
+  };
   return {
     decanId: params.decanId,
     flowSignals,
@@ -1258,8 +1354,8 @@ export function synthesizeMaatFlowDecanPattern(params: {
         .map((signal) => signal.flowKey),
     ),
     dominantTier: dominant,
-    dominantTheme: primaryThemeSignal?.theme ?? null,
-    dominantThemeMode: primaryThemeSignal?.mode ?? null,
+    dominantTheme: dominantThemeSignal?.theme ?? null,
+    dominantThemeMode: dominantThemeSignal?.mode ?? null,
     lastTier: lastTier(flowSignals),
     centralTension: themeTemplate?.tension ?? fallbackFlowTemplate?.tension ??
       null,
@@ -1268,6 +1364,7 @@ export function synthesizeMaatFlowDecanPattern(params: {
       null,
     selectedFlowTensionTemplateId: fallbackFlowTemplate?.id ?? null,
     selectedSeeds,
+    interpretiveEmphasis,
     confidence,
     ...(fallbackReason ? { fallbackReason } : {}),
   };

@@ -48,6 +48,12 @@ function badgeFor(status: string) {
   })[0];
 }
 
+function badgeForOn(status: string, completedOn: string) {
+  return buildMaatFlowCompletionEvidenceBadges({
+    completions: [completion(status, completedOn)],
+  })[0];
+}
+
 Deno.test("The Weighing manifest uses the discovered repo flow key and title", async () => {
   const sourceUrl = new URL(
     "../../../mobile/lib/features/calendar/the_weighing_flow.dart",
@@ -177,6 +183,14 @@ Deno.test("scheduled but uncompleted Weighing becomes unobserved, not skipped", 
   assertEquals(synthesis.centralTension, null);
   assertEquals(synthesis.selectedTensionTemplateId, null);
   assertEquals(synthesis.selectedSeeds.reflection?.tier, "unobserved");
+  assertEquals(synthesis.interpretiveEmphasis, {
+    dominantTier: "unobserved",
+    lastExplicitTier: null,
+    reflectionTier: "unobserved",
+    orientationTier: "unobserved",
+    alignmentTier: "unobserved",
+    reason: "no_explicit_completion_signal",
+  });
 });
 
 Deno.test("The Weighing observed, partial, and skipped resolve canonical tiers", () => {
@@ -240,6 +254,8 @@ Deno.test("unobserved Weighing emits accountability absent with neutral absence"
     synthesis.fallbackReason,
     "only_unobserved_scheduled_flow_signal",
   );
+  assertEquals(synthesis.interpretiveEmphasis.lastExplicitTier, null);
+  assertEquals(synthesis.interpretiveEmphasis.reflectionTier, "unobserved");
 });
 
 Deno.test("same medium-confidence decan pattern deterministically selects authored solo tension text", () => {
@@ -297,6 +313,113 @@ Deno.test("partial solo tension uses cleaned non-diagnostic wording", () => {
   assertEquals(
     synthesis.centralTension?.includes("being held back"),
     false,
+  );
+});
+
+Deno.test("observed plus partial splits response-kind tiers and aligns tension to reflection", () => {
+  const synthesis = synthesizeMaatFlowDecanPattern({
+    ...decan,
+    completionEvidence: [
+      badgeForOn("observed", "2026-05-18"),
+      badgeForOn("observed_partly", "2026-05-19"),
+    ],
+  });
+
+  assertEquals(synthesis.confidence, "medium");
+  assertEquals(synthesis.dominantTier, "observed");
+  assertEquals(synthesis.lastTier, "partial");
+  assertEquals(synthesis.interpretiveEmphasis, {
+    dominantTier: "observed",
+    lastExplicitTier: "partial",
+    reflectionTier: "partial",
+    orientationTier: "observed",
+    alignmentTier: "partial",
+    reason: "dominant_observed_but_recent_partial",
+  });
+  assertEquals(synthesis.selectedSeeds.reflection?.tier, "partial");
+  assertEquals(
+    synthesis.selectedSeeds.reflection?.seed,
+    "The sitting was entered but not completed. The scale was approached; the full account was not placed.",
+  );
+  assertEquals(synthesis.selectedSeeds.orientation?.tier, "observed");
+  assertEquals(
+    synthesis.selectedSeeds.orientation?.seed,
+    "The balance holds when the measure continues.",
+  );
+  assertEquals(synthesis.selectedSeeds.alignment?.tier, "partial");
+  assertEquals(
+    synthesis.selectedSeeds.alignment?.seed,
+    "Return to the sitting and place the one thing that was not yet named.",
+  );
+  assertEquals(
+    synthesis.centralTension,
+    "The scale was approached and the account opened, but not all of it reached the scale.",
+  );
+  assertEquals(synthesis.selectedTensionTemplateId, "weighing-partial-solo");
+  assertEquals(
+    synthesis.selectedFlowTensionTemplateId,
+    "weighing-partial-solo",
+  );
+});
+
+Deno.test("partial plus skipped reflects latest set-aside tier while orienting from partial", () => {
+  const synthesis = synthesizeMaatFlowDecanPattern({
+    ...decan,
+    completionEvidence: [
+      badgeForOn("observed_partly", "2026-05-18"),
+      badgeForOn("skipped", "2026-05-19"),
+    ],
+  });
+
+  assertEquals(synthesis.confidence, "medium");
+  assertEquals(synthesis.dominantTier, "partial");
+  assertEquals(synthesis.lastTier, "skipped_explicit");
+  assertEquals(synthesis.interpretiveEmphasis, {
+    dominantTier: "partial",
+    lastExplicitTier: "skipped_explicit",
+    reflectionTier: "skipped_explicit",
+    orientationTier: "partial",
+    alignmentTier: "skipped_explicit",
+    reason: "dominant_partial_but_recent_skipped_explicit",
+  });
+  assertEquals(synthesis.selectedSeeds.reflection?.tier, "skipped_explicit");
+  assertEquals(
+    synthesis.selectedSeeds.reflection?.seed,
+    "The sitting was available and set aside. The decan moved without the account being opened.",
+  );
+  assertEquals(synthesis.selectedSeeds.orientation?.tier, "partial");
+  assertEquals(
+    synthesis.selectedSeeds.orientation?.seed,
+    "The incomplete measure is still a measure - what remains can be placed without starting again.",
+  );
+  assertEquals(synthesis.selectedSeeds.alignment?.tier, "skipped_explicit");
+  assertEquals(
+    synthesis.selectedSeeds.alignment?.seed,
+    "Sit for two minutes, name one true thing about this decan, and set it down without elaboration.",
+  );
+  assertEquals(
+    synthesis.centralTension,
+    "The sitting was available. The account was not opened. The gap between what happened and what has been named continues to hold whatever was not yet ready to be weighed.",
+  );
+  assertEquals(synthesis.selectedTensionTemplateId, "weighing-skipped-solo");
+  assertEquals(
+    synthesis.selectedFlowTensionTemplateId,
+    "weighing-skipped-solo",
+  );
+  assert(
+    synthesis.selectedSeeds.reflection?.doNotSay.includes(
+      "you failed to sit",
+    ),
+  );
+  assert(
+    synthesis.selectedSeeds.orientation?.doNotSay.includes(
+      "you didn't finish",
+    ),
+  );
+  assert(
+    synthesis.selectedSeeds.alignment?.doNotSay.includes(
+      "you failed to sit",
+    ),
   );
 });
 
@@ -407,6 +530,97 @@ Deno.test("theme relationship templates load with Eloquent Peasant image only in
   );
 });
 
+Deno.test("theme relationship templates require a true second source before solo fallback", () => {
+  const solo = synthesizeMaatFlowDecanPattern({
+    ...decan,
+    completionEvidence: [
+      badgeForOn("observed", "2026-05-18"),
+      badgeForOn("observed", "2026-05-19"),
+    ],
+  });
+  assertEquals(solo.selectedThemeRelationshipTemplateId, null);
+  assertEquals(solo.selectedFlowTensionTemplateId, "weighing-observed-solo");
+
+  const probeKey = "body-carrying-probe";
+  const weighingSpectrum = MAAT_FLOW_RESPONSE_SPECTRUM[THE_WEIGHING_FLOW_KEY];
+  MAAT_FLOW_RESPONSE_SPECTRUM[probeKey] = {
+    flowKey: probeKey,
+    flowTitle: "Body Carrying Probe",
+    interpretiveSpine: "Temporary fixture for source-guard coverage.",
+    primaryTheme: "embodiment",
+    supportingConcepts: [],
+    tiers: {
+      observed: {
+        meaning: "Probe observed.",
+        inferenceMode: "affirming",
+        evidenceWeight: 1,
+        theme: "embodiment",
+        themeMode: "held",
+        lenses: weighingSpectrum.tiers.observed.lenses,
+        doNotSay: [],
+      },
+      partial: {
+        meaning: "Probe partial.",
+        inferenceMode: "corrective",
+        evidenceWeight: 0.7,
+        theme: "embodiment",
+        themeMode: "absent",
+        lenses: weighingSpectrum.tiers.partial.lenses,
+        doNotSay: [],
+      },
+      skipped_explicit: {
+        meaning: "Probe skipped.",
+        inferenceMode: "restorative",
+        evidenceWeight: 0.4,
+        theme: "embodiment",
+        themeMode: "set_aside",
+        lenses: weighingSpectrum.tiers.skipped_explicit.lenses,
+        doNotSay: [],
+      },
+      unobserved: {
+        meaning: "Probe unobserved.",
+        inferenceMode: "neutral",
+        evidenceWeight: 0.2,
+        theme: "embodiment",
+        themeMode: "absent",
+        lenses: weighingSpectrum.tiers.unobserved.lenses,
+        doNotSay: [],
+      },
+    },
+  };
+
+  try {
+    const twoSource = synthesizeMaatFlowDecanPattern({
+      ...decan,
+      completionEvidence: [
+        {
+          flowKey: probeKey,
+          flowTitle: "Body Carrying Probe",
+          eventTitle: "Carry the Account",
+          status: "observed_partly",
+          completedOn: "2026-05-18",
+          completedAt: "2026-05-18T17:00:00.000Z",
+          clientEventId: "body-carrying-probe-1",
+          metadata: { status: "observed_partly", flow_key: probeKey },
+        },
+        badgeForOn("observed", "2026-05-19"),
+      ],
+    });
+
+    assertEquals(
+      twoSource.selectedThemeRelationshipTemplateId,
+      "accountability-embodiment-any",
+    );
+    assertEquals(
+      twoSource.selectedTensionTemplateId,
+      "accountability-embodiment-any",
+    );
+    assertEquals(twoSource.selectedFlowTensionTemplateId, null);
+  } finally {
+    delete MAAT_FLOW_RESPONSE_SPECTRUM[probeKey];
+  }
+});
+
 Deno.test("one explicit completion is low confidence and does not select strong tension", () => {
   const synthesis = synthesizeMaatFlowDecanPattern({
     ...decan,
@@ -420,6 +634,14 @@ Deno.test("one explicit completion is low confidence and does not select strong 
   assertEquals(synthesis.selectedFlowTensionTemplateId, null);
   assertEquals(synthesis.selectedTensionTemplateId, null);
   assertExists(synthesis.selectedSeeds.reflection);
+  assertEquals(synthesis.interpretiveEmphasis, {
+    dominantTier: "observed",
+    lastExplicitTier: "observed",
+    reflectionTier: "observed",
+    orientationTier: "observed",
+    alignmentTier: "observed",
+    reason: "dominant_and_recent_explicit_tier_aligned",
+  });
 });
 
 Deno.test("low-confidence synthesis returns fallback reason instead of overclaiming", () => {
