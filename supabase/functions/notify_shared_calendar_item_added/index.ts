@@ -661,9 +661,12 @@ function createSupabaseFanoutStore(options: {
     },
     sendPush: async (params) => {
       if (!params.userIds.length) return { sent: 0, failed: 0 };
+      if (!options.internalFunctionKey) {
+        throw new Error("INTERNAL_FUNCTION_KEY not configured");
+      }
       const sent = { count: 0 };
       const failed = { count: 0 };
-      const batchSize = options.internalFunctionKey ? 400 : 5;
+      const batchSize = 400;
       for (let i = 0; i < params.userIds.length; i += batchSize) {
         const batch = params.userIds.slice(i, i + batchSize);
         try {
@@ -673,9 +676,7 @@ function createSupabaseFanoutStore(options: {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                ...(options.internalFunctionKey
-                  ? { "x-internal-key": options.internalFunctionKey }
-                  : { Authorization: `Bearer ${params.accessToken}` }),
+                "x-internal-key": options.internalFunctionKey,
               },
               body: JSON.stringify({
                 userIds: batch,

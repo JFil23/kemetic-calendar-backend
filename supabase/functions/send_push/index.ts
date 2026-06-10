@@ -18,7 +18,14 @@ import {
 } from "../_shared/firebase_push_config.ts";
 import { recordMaatDeliveryTimingEvent } from "../_shared/maat_delivery_timing.ts";
 import { resolveCompiledPackagePushText } from "../_shared/output_compiler.ts";
-import { authorizeUserJwtDmPush } from "./user_jwt_dm_auth.ts";
+import {
+  authorizeUserJwtPush,
+  type EventShareRow,
+  type FlowPostCommentRow,
+  type FlowPostRow,
+  type SharedCalendarMemberRow,
+  type SharedCalendarRow,
+} from "./user_jwt_push_auth.ts";
 
 type SendRequest = {
   userIds?: string[];
@@ -166,6 +173,177 @@ async function lookupDmShareForPushAuth(shareId: string) {
     } | null;
   } catch (e) {
     throw new Error(`flow_shares auth lookup failed: ${serializeError(e)}`);
+  }
+}
+
+async function lookupActiveDeviceIdsForPushAuth(params: {
+  requesterUid: string;
+  deviceIds: string[];
+}) {
+  const requestedDeviceIds = params.deviceIds
+    .map((deviceId) => deviceId.trim())
+    .filter((deviceId) => deviceId.length > 0);
+  if (!requestedDeviceIds.length) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from("push_tokens")
+      .select("device_id")
+      .eq("user_id", params.requesterUid)
+      .eq("is_active", true)
+      .in("device_id", requestedDeviceIds);
+    if (error) throw error;
+    return (data ?? [])
+      .map((row: { device_id?: unknown }) =>
+        typeof row.device_id === "string" ? row.device_id : ""
+      )
+      .filter((deviceId) => deviceId.length > 0);
+  } catch (e) {
+    throw new Error(
+      `push_tokens device auth lookup failed: ${serializeError(e)}`,
+    );
+  }
+}
+
+async function lookupEventShareForPushAuth(shareId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("event_shares")
+      .select(
+        "id, event_id, sender_id, recipient_id, channel, status, deleted_at, payload_json, response_status",
+      )
+      .eq("id", shareId)
+      .maybeSingle();
+    if (error) throw error;
+    return data as EventShareRow | null;
+  } catch (e) {
+    throw new Error(`event_shares auth lookup failed: ${serializeError(e)}`);
+  }
+}
+
+async function lookupSharedCalendarForPushAuth(calendarId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("shared_calendars")
+      .select("id, owner_id, is_personal, deleted_at")
+      .eq("id", calendarId)
+      .maybeSingle();
+    if (error) throw error;
+    return data as SharedCalendarRow | null;
+  } catch (e) {
+    throw new Error(
+      `shared_calendars auth lookup failed: ${serializeError(e)}`,
+    );
+  }
+}
+
+async function lookupSharedCalendarMembersForPushAuth(params: {
+  calendarId: string;
+  userIds: string[];
+}) {
+  const userIds = params.userIds
+    .map((userId) => userId.trim())
+    .filter((userId) => userId.length > 0);
+  if (!userIds.length) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from("shared_calendar_members")
+      .select("calendar_id, user_id, role, status, invited_by")
+      .eq("calendar_id", params.calendarId)
+      .in("user_id", userIds);
+    if (error) throw error;
+    return (data ?? []) as SharedCalendarMemberRow[];
+  } catch (e) {
+    throw new Error(
+      `shared_calendar_members auth lookup failed: ${serializeError(e)}`,
+    );
+  }
+}
+
+async function lookupFollowForPushAuth(params: {
+  followerId: string;
+  followeeId: string;
+}) {
+  try {
+    const { data, error } = await supabase
+      .from("follows")
+      .select("follower_id")
+      .eq("follower_id", params.followerId)
+      .eq("followee_id", params.followeeId)
+      .maybeSingle();
+    if (error) throw error;
+    return Boolean(data);
+  } catch (e) {
+    throw new Error(`follows auth lookup failed: ${serializeError(e)}`);
+  }
+}
+
+async function lookupFlowPostForPushAuth(flowPostId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("flow_posts")
+      .select("id, user_id")
+      .eq("id", flowPostId)
+      .maybeSingle();
+    if (error) throw error;
+    return data as FlowPostRow | null;
+  } catch (e) {
+    throw new Error(`flow_posts auth lookup failed: ${serializeError(e)}`);
+  }
+}
+
+async function lookupFlowPostLikeForPushAuth(params: {
+  flowPostId: string;
+  userId: string;
+}) {
+  try {
+    const { data, error } = await supabase
+      .from("flow_post_likes")
+      .select("id")
+      .eq("flow_post_id", params.flowPostId)
+      .eq("user_id", params.userId)
+      .maybeSingle();
+    if (error) throw error;
+    return Boolean(data);
+  } catch (e) {
+    throw new Error(`flow_post_likes auth lookup failed: ${serializeError(e)}`);
+  }
+}
+
+async function lookupFlowPostCommentForPushAuth(commentId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("flow_post_comments")
+      .select("id, flow_post_id, user_id, parent_comment_id")
+      .eq("id", commentId)
+      .maybeSingle();
+    if (error) throw error;
+    return data as FlowPostCommentRow | null;
+  } catch (e) {
+    throw new Error(
+      `flow_post_comments auth lookup failed: ${serializeError(e)}`,
+    );
+  }
+}
+
+async function lookupFlowPostCommentLikeForPushAuth(params: {
+  commentId: string;
+  userId: string;
+}) {
+  try {
+    const { data, error } = await supabase
+      .from("flow_post_comment_likes")
+      .select("id")
+      .eq("comment_id", params.commentId)
+      .eq("user_id", params.userId)
+      .maybeSingle();
+    if (error) throw error;
+    return Boolean(data);
+  } catch (e) {
+    throw new Error(
+      `flow_post_comment_likes auth lookup failed: ${serializeError(e)}`,
+    );
   }
 }
 
@@ -823,6 +1001,18 @@ Deno.serve(async (req) => {
     }
 
     if (authMode === "user_jwt") {
+      if (!Array.isArray(body.userIds)) {
+        return jsonResponse(req, { error: "userIds required for user_jwt" }, {
+          status: 400,
+        });
+      }
+      if (
+        body.deviceIds !== undefined && !Array.isArray(body.deviceIds)
+      ) {
+        return jsonResponse(req, { error: "deviceIds must be an array" }, {
+          status: 400,
+        });
+      }
       if (!body.userIds?.length) {
         return jsonResponse(req, { error: "userIds required for user_jwt" }, {
           status: 400,
@@ -839,34 +1029,32 @@ Deno.serve(async (req) => {
         });
       }
 
-      const dmPushAuth = await authorizeUserJwtDmPush({
+      const pushAuth = await authorizeUserJwtPush({
         requesterUid,
         userIds: body.userIds,
+        deviceIds: body.deviceIds,
         data: body.data,
-        lookupShare: lookupDmShareForPushAuth,
+        lookups: {
+          lookupShare: lookupDmShareForPushAuth,
+          lookupEventShare: lookupEventShareForPushAuth,
+          lookupSharedCalendar: lookupSharedCalendarForPushAuth,
+          lookupSharedCalendarMembers: lookupSharedCalendarMembersForPushAuth,
+          lookupFollow: lookupFollowForPushAuth,
+          lookupFlowPost: lookupFlowPostForPushAuth,
+          lookupFlowPostLike: lookupFlowPostLikeForPushAuth,
+          lookupFlowPostComment: lookupFlowPostCommentForPushAuth,
+          lookupFlowPostCommentLike: lookupFlowPostCommentLikeForPushAuth,
+          lookupActiveDeviceIds: lookupActiveDeviceIdsForPushAuth,
+        },
       });
-      if (!dmPushAuth.ok) {
-        log("dm_push_authorization_failed", {
+      if (pushAuth.ok === false) {
+        log("user_jwt_push_authorization_failed", {
           requesterUid,
-          ...dmPushAuth.log,
+          ...pushAuth.log,
         });
-        return jsonResponse(req, { error: dmPushAuth.error }, {
-          status: dmPushAuth.status,
+        return jsonResponse(req, { error: pushAuth.error }, {
+          status: pushAuth.status,
         });
-      }
-
-      if (!dmPushAuth.applies) {
-        const senderId = typeof body.data === "object" && body.data !== null
-          ? (body.data as Record<string, unknown>)["sender_id"] as
-            | string
-            | undefined
-          : undefined;
-        if (senderId && senderId !== requesterUid) {
-          log("sender_mismatch", { senderId, requesterUid });
-          return jsonResponse(req, { error: "Unauthorized" }, {
-            status: 401,
-          });
-        }
       }
     }
 
