@@ -47,6 +47,16 @@ import {
   resolveGraphAxisPriors,
   resolveGuidanceMaturity,
 } from "../_shared/maat_guidance.ts";
+import {
+  buildMaatFlowCompletionEvidenceBadges,
+  fetchMaatFlowCompletionEvidenceBadges,
+  type MaatFlowCompletionRow,
+} from "../_shared/guidance_evidence.ts";
+import {
+  type MaatFlowScheduledEventInput,
+  THE_WEIGHING_FLOW_KEY,
+  THE_WEIGHING_FLOW_TITLE,
+} from "../_shared/maat_flow_response_spectrum.ts";
 import { recordMaatRestorationSuggested } from "../_shared/maat_ledger.ts";
 import { resolveCompiledPackagePushText } from "../_shared/output_compiler.ts";
 import { buildUserMemoryBrief } from "../_shared/user_memory_brief.ts";
@@ -130,6 +140,25 @@ type ContentLabDeps = HandlerDeps & {
 
 const ACTIVE_GUIDANCE_STATUSES = new Set(["pending", "shown", "opened"]);
 
+type MaatFlowFixture =
+  | "observed_only"
+  | "partial_only"
+  | "skipped_only"
+  | "skipped_explicit_only"
+  | "unobserved_only"
+  | "observed_plus_partial"
+  | "partial_plus_skipped";
+
+const MAAT_FLOW_FIXTURES = new Set<MaatFlowFixture>([
+  "observed_only",
+  "partial_only",
+  "skipped_only",
+  "skipped_explicit_only",
+  "unobserved_only",
+  "observed_plus_partial",
+  "partial_plus_skipped",
+]);
+
 type NutritionItemRow = Record<string, unknown> & {
   id?: string | null;
   user_id?: string | null;
@@ -167,6 +196,11 @@ function normalizeText(value: unknown) {
 function parseArtifact(value: unknown): Artifact {
   const artifact = normalizeText(value) as Artifact;
   return ARTIFACTS.has(artifact) ? artifact : "decan_reflection";
+}
+
+function parseMaatFlowFixture(value: unknown): MaatFlowFixture | null {
+  const fixture = normalizeText(value) as MaatFlowFixture;
+  return MAAT_FLOW_FIXTURES.has(fixture) ? fixture : null;
 }
 
 function dateOnly(value: unknown) {
@@ -298,6 +332,7 @@ function badgeFromRow(row: Record<string, unknown>): GuidanceBadgeRow {
     occurred_on: dateOnly(row.occurred_on) || dateOnly(row.greg_date),
     flow_id: typeof row.flow_id === "number" ? row.flow_id : null,
     event_id: normalizeText(row.event_id) || null,
+    metadata: isRecord(row.metadata) ? row.metadata : null,
   };
 }
 
@@ -422,11 +457,17 @@ async function collectEvidence(
   userId: string,
   window: GuidanceWindow,
 ) {
-  const [storedRows, journalRows, todoRows, nutritionRows] = await Promise.all([
+  const [
+    storedRows,
+    journalRows,
+    todoRows,
+    nutritionRows,
+    flowCompletionBadges,
+  ] = await Promise.all([
     safeSelect<Record<string, unknown>>(
       client,
       "journal_badges",
-      "user_id,title,details,tags,occurred_on,flow_id,event_id",
+      "user_id,title,details,tags,occurred_on,flow_id,event_id,metadata",
     ),
     safeSelect<Record<string, unknown>>(
       client,
@@ -443,9 +484,26 @@ async function collectEvidence(
       "nutrition_items",
       "id,user_id,nutrient,source,purpose,mode,days_of_week,decan_days,repeat,enabled,created_at",
     ),
+    fetchMaatFlowCompletionEvidenceBadges({
+      client,
+      userId,
+      start: window.start,
+      end: window.end,
+    }).catch((error) => {
+      const message = normalizeText(
+        error instanceof Error ? error.message : String(error),
+      );
+      if (!message.includes("is not a function")) {
+        console.error(
+          "admin content flow completion evidence failed",
+          serializeError(error),
+        );
+      }
+      return [] as GuidanceBadgeRow[];
+    }),
   ]);
 
-  const badges: GuidanceBadgeRow[] = [];
+  const badges: GuidanceBadgeRow[] = [...flowCompletionBadges];
 
   for (const row of storedRows) {
     if (
@@ -509,6 +567,114 @@ async function collectEvidence(
   );
 
   return dedupeBadges(badges);
+}
+
+function weighingFixtureCompletion(params: {
+  id: number;
+  status: "observed" | "observed_partly" | "skipped";
+  completedOn: string;
+}): MaatFlowCompletionRow {
+  return {
+    id: params.id,
+    client_event_id: `admin-fixture-weighing-${params.id}`,
+    flow_id: 42,
+    completed_on: params.completedOn,
+    completed_at: `${params.completedOn}T17:00:00.000Z`,
+    source: "admin_preview_fixture",
+    metadata: {
+      status: params.status,
+      flow_key: THE_WEIGHING_FLOW_KEY,
+      flow_title: THE_WEIGHING_FLOW_TITLE,
+      event_title: "Open the Material Ledger",
+      completed_on: params.completedOn,
+    },
+  };
+}
+
+function maatFlowFixtureBadges(
+  fixture: MaatFlowFixture | null,
+  window: GuidanceWindow,
+): GuidanceBadgeRow[] {
+  if (!fixture || fixture === "unobserved_only") return [];
+  const dayOne = window.start;
+  const dayTwo = addDays(window.start, 1);
+  const completions: MaatFlowCompletionRow[] = [];
+  if (fixture === "observed_only") {
+    completions.push(weighingFixtureCompletion({
+      id: 1,
+      status: "observed",
+      completedOn: dayOne,
+    }));
+  } else if (fixture === "partial_only") {
+    completions.push(weighingFixtureCompletion({
+      id: 1,
+      status: "observed_partly",
+      completedOn: dayOne,
+    }));
+  } else if (
+    fixture === "skipped_only" || fixture === "skipped_explicit_only"
+  ) {
+    completions.push(weighingFixtureCompletion({
+      id: 1,
+      status: "skipped",
+      completedOn: dayOne,
+    }));
+  } else if (fixture === "observed_plus_partial") {
+    completions.push(
+      weighingFixtureCompletion({
+        id: 1,
+        status: "observed",
+        completedOn: dayOne,
+      }),
+      weighingFixtureCompletion({
+        id: 2,
+        status: "observed_partly",
+        completedOn: dayTwo,
+      }),
+    );
+  } else if (fixture === "partial_plus_skipped") {
+    completions.push(
+      weighingFixtureCompletion({
+        id: 1,
+        status: "observed_partly",
+        completedOn: dayOne,
+      }),
+      weighingFixtureCompletion({
+        id: 2,
+        status: "skipped",
+        completedOn: dayTwo,
+      }),
+    );
+  }
+
+  return buildMaatFlowCompletionEvidenceBadges({ completions });
+}
+
+function maatFlowFixtureScheduledEvents(
+  fixture: MaatFlowFixture | null,
+  window: GuidanceWindow,
+): MaatFlowScheduledEventInput[] {
+  if (fixture !== "unobserved_only") return [];
+  return [{
+    flowKey: THE_WEIGHING_FLOW_KEY,
+    flowTitle: THE_WEIGHING_FLOW_TITLE,
+    eventTitle: "Open the Material Ledger",
+    scheduledOn: window.start,
+    startsAt: `${window.start}T17:00:00.000Z`,
+    clientEventId: "admin-fixture-weighing-unobserved",
+    behaviorPayload: {
+      flow_key: THE_WEIGHING_FLOW_KEY,
+    },
+  }];
+}
+
+function flowBadgeMetadata(badges: GuidanceBadgeRow[]) {
+  return badges
+    .map((badge) => badge.metadata)
+    .filter(isRecord)
+    .filter((metadata) =>
+      normalizeText(metadata.flow_key) || normalizeText(metadata.canonical_tier)
+    );
 }
 
 function evidenceLines(badges: GuidanceBadgeRow[], limit = 16) {
@@ -1236,6 +1402,14 @@ function reflectionRenderDiagnostics(params: {
   const offeringRender = isRecord(plan?.offeringRender)
     ? plan.offeringRender
     : null;
+  const maatFlowPattern = isRecord(outputControl?.maatFlowDecanPattern)
+    ? outputControl.maatFlowDecanPattern
+    : isRecord(outputControl?.maat_flow_decan_pattern)
+    ? outputControl.maat_flow_decan_pattern
+    : null;
+  const interpretiveEmphasis = isRecord(maatFlowPattern?.interpretiveEmphasis)
+    ? maatFlowPattern.interpretiveEmphasis
+    : null;
   const compilerStatus = normalizeText(compiler?.status);
   const pushResolution = resolveCompiledPackagePushText({
     payload: outputControl,
@@ -1259,6 +1433,14 @@ function reflectionRenderDiagnostics(params: {
     example_available: Boolean(offeringRender?.exampleReflection),
     diagnosis: normalizeText(offeringRender?.diagnosis) || null,
     concrete_action: normalizeText(offeringRender?.concreteAction) || null,
+    maat_flow_dominant_tier: normalizeText(maatFlowPattern?.dominantTier) ||
+      null,
+    maat_flow_reflection_tier: normalizeText(
+      interpretiveEmphasis?.reflectionTier,
+    ) || null,
+    maat_flow_template_id: normalizeText(
+      maatFlowPattern?.selectedTensionTemplateId,
+    ) || null,
     push_source: pushResolution.source,
     push_blocked: pushResolution.blocked,
     push_block_reason: pushResolution.reason,
@@ -1440,7 +1622,16 @@ async function generatePreview(
     body,
   );
   const periodKey = decanPeriodKey(window);
-  const badges = await collectEvidence(deps.client, targetUserId, window);
+  const maatFlowFixture = parseMaatFlowFixture(body.maat_flow_fixture);
+  const fixtureBadges = maatFlowFixtureBadges(maatFlowFixture, window);
+  const fixtureScheduledEvents = maatFlowFixtureScheduledEvents(
+    maatFlowFixture,
+    window,
+  );
+  const badges = dedupeBadges([
+    ...(await collectEvidence(deps.client, targetUserId, window)),
+    ...fixtureBadges,
+  ]);
   const evidence = evidenceLines(badges);
   const decanContext = getDecanContext(window.decanContextKey);
   const allowFallback = body.allow_fallback === true ||
@@ -1522,6 +1713,15 @@ async function generatePreview(
           persist: false,
           use_knowledge_graph: true,
           use_decision_matrix: true,
+          badges: fixtureBadges.length ? fixtureBadges : undefined,
+          scheduled_maat_flow_events: fixtureScheduledEvents.length
+            ? fixtureScheduledEvents
+            : undefined,
+          admin_preview: maatFlowFixture
+            ? {
+              maat_flow_fixture: maatFlowFixture,
+            }
+            : undefined,
         });
       text = normalizeText(result.reflection) ||
         fallbackReflection(window, badges);
@@ -1529,6 +1729,25 @@ async function generatePreview(
       const outputControl = isRecord(result.outputControl)
         ? result.outputControl
         : null;
+      const maatFlowDecanPattern = isRecord(
+          outputControl?.maatFlowDecanPattern,
+        )
+        ? outputControl.maatFlowDecanPattern
+        : isRecord(outputControl?.maat_flow_decan_pattern)
+        ? outputControl.maat_flow_decan_pattern
+        : null;
+      const maatFlowDoNotSay = Array.isArray(outputControl?.maatFlowDoNotSay)
+        ? outputControl.maatFlowDoNotSay
+        : Array.isArray(outputControl?.maat_flow_do_not_say)
+        ? outputControl.maat_flow_do_not_say
+        : [];
+      const maatFlowEvidenceMetadata = Array.isArray(
+          outputControl?.maatFlowEvidenceMetadata,
+        )
+        ? outputControl.maatFlowEvidenceMetadata
+        : Array.isArray(outputControl?.maat_flow_evidence_metadata)
+        ? outputControl.maat_flow_evidence_metadata
+        : flowBadgeMetadata(badges);
       renderDiagnostics = reflectionRenderDiagnostics({
         modelUsed: result.modelUsed,
         outputControl,
@@ -1546,6 +1765,16 @@ async function generatePreview(
         branch: result.branch ?? null,
         render_diagnostics: renderDiagnostics,
         output_control: outputControl,
+        maat_flow_decan_pattern: maatFlowDecanPattern,
+        maat_flow_do_not_say: maatFlowDoNotSay,
+        maat_flow_evidence_metadata: maatFlowEvidenceMetadata,
+        admin_preview_fixture: maatFlowFixture
+          ? {
+            maat_flow_fixture: maatFlowFixture,
+            fixture_badge_count: fixtureBadges.length,
+            scheduled_event_count: fixtureScheduledEvents.length,
+          }
+          : null,
       };
     } catch (error) {
       text = fallbackReflection(window, badges);
@@ -1696,6 +1925,22 @@ async function generatePreview(
       maturity,
       shaping_fingerprint: shapingFingerprint,
       reflection: reflectionMeta ?? null,
+      maat_flow_decan_pattern: isRecord(
+          reflectionMeta?.maat_flow_decan_pattern,
+        )
+        ? reflectionMeta?.maat_flow_decan_pattern
+        : null,
+      maat_flow_do_not_say: Array.isArray(
+          reflectionMeta?.maat_flow_do_not_say,
+        )
+        ? reflectionMeta?.maat_flow_do_not_say
+        : [],
+      maat_flow_evidence_metadata: Array.isArray(
+          reflectionMeta?.maat_flow_evidence_metadata,
+        )
+        ? reflectionMeta?.maat_flow_evidence_metadata
+        : flowBadgeMetadata(badges),
+      admin_preview_fixture: reflectionMeta?.admin_preview_fixture ?? null,
       render_diagnostics: renderDiagnostics,
       memory_brief: {
         context_quality: memoryBrief.contextQuality,

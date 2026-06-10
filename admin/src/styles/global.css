@@ -706,6 +706,23 @@ textarea {
   font-weight: 800;
 }
 
+.operator-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #344346;
+  border-radius: 6px;
+  background: #141a1c;
+  color: #d8dfdc;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.operator-select select {
+  max-width: 220px;
+}
+
 .operator-toggle input {
   accent-color: #d6a93f;
 }

@@ -46,6 +46,16 @@ const artifactLabels: Record<ContentArtifact, string> = {
   push_preview: "Push preview",
 };
 
+const maatFlowFixtureOptions = [
+  { value: "", label: "Real evidence" },
+  { value: "observed_only", label: "Weighing observed" },
+  { value: "partial_only", label: "Weighing partial" },
+  { value: "skipped_only", label: "Weighing skipped" },
+  { value: "unobserved_only", label: "Weighing unobserved" },
+  { value: "observed_plus_partial", label: "Weighing observed + partial" },
+  { value: "partial_plus_skipped", label: "Weighing partial + skipped" },
+];
+
 function asString(value: unknown) {
   return typeof value === "string" ? value : "";
 }
@@ -277,6 +287,34 @@ function previewRenderDiagnostics(preview: ContentEvaluation | null) {
   return recordValue(guidance?.render_diagnostics);
 }
 
+function maatFlowDebugPayload(preview: ContentEvaluation | null) {
+  if (!preview) return null;
+  const guidance = recordValue(preview.source_snapshot?.guidance);
+  const reflection = recordValue(guidance?.reflection);
+  const outputControl = recordValue(reflection?.output_control);
+  const pattern = recordValue(guidance?.maat_flow_decan_pattern) ??
+    recordValue(reflection?.maat_flow_decan_pattern) ??
+    recordValue(outputControl?.maatFlowDecanPattern) ??
+    recordValue(outputControl?.maat_flow_decan_pattern);
+  if (!pattern) return null;
+  return {
+    maat_flow_decan_pattern: pattern,
+    maat_flow_do_not_say: guidance?.maat_flow_do_not_say ??
+      reflection?.maat_flow_do_not_say ??
+      outputControl?.maatFlowDoNotSay ??
+      outputControl?.maat_flow_do_not_say ??
+      [],
+    maat_flow_evidence_metadata: guidance?.maat_flow_evidence_metadata ??
+      reflection?.maat_flow_evidence_metadata ??
+      outputControl?.maatFlowEvidenceMetadata ??
+      outputControl?.maat_flow_evidence_metadata ??
+      [],
+    admin_preview_fixture: guidance?.admin_preview_fixture ??
+      reflection?.admin_preview_fixture ??
+      null,
+  };
+}
+
 function diagnosticRow(label: string, value: unknown) {
   const text = asString(value);
   if (!text) return null;
@@ -359,9 +397,11 @@ export function ContentLabPage() {
   const [busy, setBusy] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [requireLlmPreview, setRequireLlmPreview] = useState(true);
+  const [maatFlowFixture, setMaatFlowFixture] = useState("");
 
   const lines = evidenceLines(context, preview);
   const renderDiagnostics = previewRenderDiagnostics(preview);
+  const maatFlowDebug = maatFlowDebugPayload(preview);
   const topNodes = context?.top_nodes?.length
     ? context.top_nodes
     : selectedUser?.top_nodes ?? [];
@@ -451,6 +491,9 @@ export function ContentLabPage() {
         target_user_id: selectedUser.id,
         artifact,
         require_llm: requireLlmPreview,
+        maat_flow_fixture: artifact === "decan_reflection" && maatFlowFixture
+          ? maatFlowFixture
+          : undefined,
       });
       setPreview(payload.preview);
       if (!context) {
@@ -726,6 +769,19 @@ export function ContentLabPage() {
                     <ClipboardCheck size={16} />
                     Generate nudge
                   </button>
+                  <label className="operator-select">
+                    Weighing fixture
+                    <select
+                      value={maatFlowFixture}
+                      onChange={(event) => setMaatFlowFixture(event.target.value)}
+                    >
+                      {maatFlowFixtureOptions.map((option) => (
+                        <option key={option.value || "real"} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="operator-toggle">
                     <input
                       type="checkbox"
@@ -811,6 +867,12 @@ export function ContentLabPage() {
                     </div>
                     <p>{preview.generated_text}</p>
                     <RendererDiagnosticsPanel diagnostics={renderDiagnostics} />
+                    {maatFlowDebug && (
+                      <details>
+                        <summary>Ma'at flow semantics</summary>
+                        <pre>{JSON.stringify(maatFlowDebug, null, 2)}</pre>
+                      </details>
+                    )}
                     {previewIsNudge(preview) && (
                       <div className="nudge-delivery-panel">
                         <strong>Delivery</strong>

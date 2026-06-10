@@ -6,6 +6,11 @@ import {
   guidanceEvidencePhrasesFromLines,
 } from "../_shared/guidance_evidence.ts";
 import {
+  type MaatFlowDecanPatternSynthesis,
+  type MaatFlowScheduledEventInput,
+  synthesizeMaatFlowDecanPattern,
+} from "../_shared/maat_flow_response_spectrum.ts";
+import {
   buildGuidanceShapingFingerprint,
   type GuidanceGoalProfile,
   type GuidancePersonalBaseline,
@@ -164,6 +169,7 @@ type UserEventRow = {
   flow_local_id: number | null;
   flow_tpl_key: string | null;
   action_id: string | null;
+  behavior_payload?: Record<string, unknown> | null;
 };
 
 type ScheduledNotificationRow = {
@@ -196,6 +202,8 @@ type ReflectionPayload = {
   use_knowledge_graph?: boolean;
   use_decision_matrix?: boolean;
   badges?: InputBadge[]; // optional client-provided badges
+  scheduled_maat_flow_events?: MaatFlowScheduledEventInput[];
+  maat_flow_scheduled_events?: MaatFlowScheduledEventInput[];
   // Legacy fallback fields
   badge_titles?: string[];
   badge_count?: number;
@@ -215,8 +223,10 @@ type InputBadge = {
   details?: string | null;
   tags?: string[] | null;
   event_id?: string | null;
+  client_event_id?: string | null;
   occurred_on?: string;
   occurred_at?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 type AnthropicMessage = {
@@ -389,6 +399,10 @@ const EXECUTION_WORDS = [
 
 function normalizeText(value: string | null | undefined) {
   return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function clampText(value: string, maxChars: number) {
@@ -2609,6 +2623,52 @@ async function fetchCalendarEventEvidence(
     }));
 }
 
+async function fetchScheduledMaatFlowEvents(
+  client: any,
+  userId: string,
+  start: string,
+  end: string,
+): Promise<MaatFlowScheduledEventInput[]> {
+  const { data, error } = await client
+    .from("user_events")
+    .select(
+      "id, client_event_id, title, category, starts_at, ends_at, flow_local_id, flow_tpl_key, action_id, behavior_payload",
+    )
+    .eq("user_id", userId)
+    .gte("starts_at", dayStartIso(start))
+    .lt("starts_at", dayAfterIso(end))
+    .order("starts_at", { ascending: true })
+    .limit(80);
+
+  if (error) throw error;
+
+  return ((data ?? []) as UserEventRow[])
+    .filter((row) => !privateOrDisallowedEvidenceTitle(row.title))
+    .map((row) => ({
+      flowKey: normalizeText(
+        row.behavior_payload?.flow_key == null
+          ? row.flow_tpl_key
+          : String(row.behavior_payload.flow_key),
+      ) || null,
+      flowTitle: normalizeText(
+        row.behavior_payload?.flow_title == null
+          ? null
+          : String(row.behavior_payload.flow_title),
+      ) || null,
+      eventTitle: normalizeText(
+        row.behavior_payload?.event_title == null
+          ? row.title
+          : String(row.behavior_payload.event_title),
+      ) || null,
+      startsAt: row.starts_at,
+      scheduledOn: dateFromMaybeIso(row.starts_at, start),
+      clientEventId: row.client_event_id ?? `calendar-event:${row.id}`,
+      behaviorPayload: isRecord(row.behavior_payload)
+        ? row.behavior_payload
+        : null,
+    }));
+}
+
 function reminderEvidenceTags(row: ScheduledNotificationRow) {
   const title = normalizeText(row.title).toLowerCase();
   const tags = ["reminder"];
@@ -2751,6 +2811,134 @@ async function fetchBadges(
   });
 
   return dedupeBadges([...mergedBeforeNutrition, ...pendingNutritionBadges]);
+}
+
+function payloadScheduledMaatFlowEvents(
+  payload: ReflectionPayload,
+): MaatFlowScheduledEventInput[] {
+  const raw = payload.scheduled_maat_flow_events ??
+    payload.maat_flow_scheduled_events ?? [];
+  return Array.isArray(raw)
+    ? raw.filter(isRecord).map((event) => ({
+      flowKey: normalizeText(
+        event.flowKey == null ? null : String(event.flowKey),
+      ) ||
+        normalizeText(event.flow_key == null ? null : String(event.flow_key)) ||
+        null,
+      flowTitle: normalizeText(
+        event.flowTitle == null ? null : String(event.flowTitle),
+      ) ||
+        normalizeText(
+          event.flow_title == null ? null : String(event.flow_title),
+        ) ||
+        null,
+      eventTitle: normalizeText(
+        event.eventTitle == null ? null : String(event.eventTitle),
+      ) ||
+        normalizeText(
+          event.event_title == null ? null : String(event.event_title),
+        ) ||
+        null,
+      scheduledOn: normalizeText(
+        event.scheduledOn == null ? null : String(event.scheduledOn),
+      ) ||
+        normalizeText(
+          event.scheduled_on == null ? null : String(event.scheduled_on),
+        ) ||
+        null,
+      startsAt: normalizeText(
+        event.startsAt == null ? null : String(event.startsAt),
+      ) ||
+        normalizeText(
+          event.starts_at == null ? null : String(event.starts_at),
+        ) ||
+        null,
+      clientEventId: normalizeText(
+        event.clientEventId == null ? null : String(event.clientEventId),
+      ) ||
+        normalizeText(
+          event.client_event_id == null ? null : String(event.client_event_id),
+        ) ||
+        null,
+      event_id: normalizeText(
+        event.event_id == null ? null : String(event.event_id),
+      ) || null,
+      behaviorPayload: isRecord(event.behaviorPayload)
+        ? event.behaviorPayload
+        : null,
+      behavior_payload: isRecord(event.behavior_payload)
+        ? event.behavior_payload
+        : null,
+    }))
+    : [];
+}
+
+function uniqueTexts(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    const text = normalizeText(value ?? null);
+    const key = text.toLowerCase();
+    if (!text || seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+  }
+  return out;
+}
+
+function maatFlowSelectedDoNotSay(
+  pattern: MaatFlowDecanPatternSynthesis,
+) {
+  return uniqueTexts([
+    ...(pattern.selectedSeeds.reflection?.doNotSay ?? []),
+    ...(pattern.selectedSeeds.orientation?.doNotSay ?? []),
+    ...(pattern.selectedSeeds.alignment?.doNotSay ?? []),
+  ]);
+}
+
+function maatFlowEvidenceMetadata(badges: BadgeRow[]) {
+  return badges
+    .map((badge) => badge.metadata)
+    .filter(isRecord)
+    .filter((metadata) =>
+      normalizeText(
+        metadata.flow_key == null ? null : String(metadata.flow_key),
+      )
+    );
+}
+
+function maatFlowPatternPromptBlock(
+  pattern: MaatFlowDecanPatternSynthesis,
+) {
+  if (!pattern.flowSignals.length) return "";
+  return [
+    "MAAT_FLOW_DECAN_PATTERN (hidden authored synthesis input)",
+    `confidence: ${pattern.confidence}`,
+    pattern.fallbackReason ? `fallback_reason: ${pattern.fallbackReason}` : "",
+    `dominant_tier: ${pattern.dominantTier ?? "none"}`,
+    `last_explicit_tier: ${
+      pattern.interpretiveEmphasis.lastExplicitTier ?? "none"
+    }`,
+    `reflection_tier: ${pattern.interpretiveEmphasis.reflectionTier ?? "none"}`,
+    `orientation_tier: ${
+      pattern.interpretiveEmphasis.orientationTier ?? "none"
+    }`,
+    `alignment_tier: ${pattern.interpretiveEmphasis.alignmentTier ?? "none"}`,
+    pattern.centralTension
+      ? `authored_central_tension: ${pattern.centralTension}`
+      : "",
+    pattern.selectedSeeds.reflection
+      ? `reflection_seed: ${pattern.selectedSeeds.reflection.seed}`
+      : "",
+    pattern.selectedSeeds.orientation
+      ? `orientation_seed: ${pattern.selectedSeeds.orientation.seed}`
+      : "",
+    pattern.selectedSeeds.alignment
+      ? `alignment_seed: ${pattern.selectedSeeds.alignment.seed}`
+      : "",
+    `do_not_say: ${maatFlowSelectedDoNotSay(pattern).join(" | ")}`,
+    "Instruction: use the reflection seed and central tension as authored semantic seasoning for this decan reflection. Do not quote the seed verbatim when it conflicts with surface bans. Preserve the selected tier meaning; do not invent motive for partial, do not shame skipped, and keep unobserved as absence of signal.",
+  ].filter(Boolean).join("\n");
 }
 
 async function fetchHistoricalWindows(
@@ -3811,9 +3999,35 @@ serve(async (req) => {
           occurred_on: b.occurred_on ?? currentWindow.start,
           flow_id: null,
           event_id: b.event_id ?? null,
+          metadata: isRecord(b.metadata) ? b.metadata : null,
+          client_event_id: b.client_event_id ?? null,
         }));
       }
       const currentBadges = dedupeBadges([...clientBadges, ...serverBadges]);
+      const serverScheduledMaatFlowEvents = await fetchScheduledMaatFlowEvents(
+        client,
+        payload.user_id!,
+        currentWindow.start,
+        currentWindow.end,
+      ).catch((error) => {
+        console.error("Scheduled Ma'at flow event fetch error:", error);
+        return [] as MaatFlowScheduledEventInput[];
+      });
+      const scheduledMaatFlowEvents = [
+        ...serverScheduledMaatFlowEvents,
+        ...payloadScheduledMaatFlowEvents(payload),
+      ];
+      const maatFlowDecanPattern = synthesizeMaatFlowDecanPattern({
+        decanId: decanPeriodKey,
+        decanStart: currentWindow.start,
+        decanEnd: currentWindow.end,
+        completionEvidence: currentBadges,
+        scheduledEvents: scheduledMaatFlowEvents,
+      });
+      const maatFlowDoNotSay = maatFlowSelectedDoNotSay(
+        maatFlowDecanPattern,
+      );
+      const maatFlowBadgeMetadata = maatFlowEvidenceMetadata(currentBadges);
       const evidenceLines = buildEvidenceLines(currentBadges);
       const tagStr = topTags(currentBadges);
       const topTagList = tagStr
@@ -4017,6 +4231,22 @@ serve(async (req) => {
         guidanceOutcomes: guidanceOutcomeStats,
         historyMetrics,
       });
+      if (maatFlowDoNotSay.length || maatFlowDecanPattern.flowSignals.length) {
+        reflectionOutputPlan = {
+          ...reflectionOutputPlan,
+          surfaceConstraints: {
+            ...reflectionOutputPlan.surfaceConstraints,
+            bannedPhrases: uniqueTexts([
+              ...reflectionOutputPlan.surfaceConstraints.bannedPhrases,
+              ...maatFlowDoNotSay,
+            ]),
+          },
+          rhetoricalMoves: [
+            ...reflectionOutputPlan.rhetoricalMoves,
+            "apply_maat_flow_response_spectrum",
+          ],
+        };
+      }
       const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
       let reflectionText = "";
       let modelUsed = "local-generator-v2";
@@ -4160,9 +4390,10 @@ serve(async (req) => {
       const reflectionThesisGateBlock = reflectionThesisGatePromptBlock(
         reflectionThesisGate,
       );
-      const outputControlPromptBlock = generatedTextPlanPromptBlock(
-        reflectionOutputPlan,
-      );
+      const outputControlPromptBlock = [
+        generatedTextPlanPromptBlock(reflectionOutputPlan),
+        maatFlowPatternPromptBlock(maatFlowDecanPattern),
+      ].filter((block) => block.trim().length).join("\n\n");
       const shapingFingerprint = buildGuidanceShapingFingerprint({
         maturity: guidanceMaturity,
         profile: reflectionProfile,
@@ -4514,6 +4745,9 @@ serve(async (req) => {
                   tension_labels: memoryBrief.tensionLabels,
                   evidence_phrases: memoryBrief.evidencePhrases,
                 },
+                maat_flow_decan_pattern: maatFlowDecanPattern,
+                maat_flow_do_not_say: maatFlowDoNotSay,
+                maat_flow_evidence_metadata: maatFlowBadgeMetadata,
                 output_control: {
                   policy_version: reflectionOutputPlan.policyVersion,
                   constitution_version:
@@ -4538,6 +4772,9 @@ serve(async (req) => {
                     reflectionOutputPlan.reflectionProfileSnapshot,
                   profile_context: translatedProfileContext,
                   profile_facts: profileFactsForDiagnostics,
+                  maat_flow_decan_pattern: maatFlowDecanPattern,
+                  maat_flow_do_not_say: maatFlowDoNotSay,
+                  maat_flow_evidence_metadata: maatFlowBadgeMetadata,
                   output_compiler: reflectionOutputCompiler,
                   compiled_output_package: reflectionOutputPackage,
                 },
@@ -4564,6 +4801,9 @@ serve(async (req) => {
                 dimension_source: maatSnapshot.source,
                 decision_matrix: decisionMatrix?.fingerprint ?? null,
                 memory_context_quality: memoryBrief.contextQuality,
+                maat_flow_decan_pattern: maatFlowDecanPattern,
+                maat_flow_do_not_say: maatFlowDoNotSay,
+                maat_flow_evidence_metadata: maatFlowBadgeMetadata,
                 output_control: {
                   policy_version: reflectionOutputPlan.policyVersion,
                   constitution_version:
@@ -4588,6 +4828,9 @@ serve(async (req) => {
                     reflectionOutputPlan.reflectionProfileSnapshot,
                   profile_context: translatedProfileContext,
                   profile_facts: profileFactsForDiagnostics,
+                  maat_flow_decan_pattern: maatFlowDecanPattern,
+                  maat_flow_do_not_say: maatFlowDoNotSay,
+                  maat_flow_evidence_metadata: maatFlowBadgeMetadata,
                   output_compiler: reflectionOutputCompiler,
                   compiled_output_package: reflectionOutputPackage,
                 },
@@ -4628,6 +4871,9 @@ serve(async (req) => {
           lead_axis: maatSnapshot.leadAxis,
           knowledgeGraphUsed: useKnowledgeGraph && !!reflectionProfile,
           decisionMatrixUsed: useDecisionMatrix && !!decisionMatrix,
+          maat_flow_decan_pattern: maatFlowDecanPattern,
+          maat_flow_do_not_say: maatFlowDoNotSay,
+          maat_flow_evidence_metadata: maatFlowBadgeMetadata,
           outputControl: {
             policyVersion: reflectionOutputPlan.policyVersion,
             constitutionVersion: reflectionOutputPlan.constitutionVersion ??
@@ -4646,6 +4892,9 @@ serve(async (req) => {
             profileSnapshot: reflectionOutputPlan.reflectionProfileSnapshot,
             profileContext: translatedProfileContext,
             profileFacts: profileFactsForDiagnostics,
+            maatFlowDecanPattern,
+            maatFlowDoNotSay,
+            maatFlowEvidenceMetadata: maatFlowBadgeMetadata,
             outputCompiler: reflectionOutputCompiler,
             compiledOutputPackage: reflectionOutputPackage,
           },

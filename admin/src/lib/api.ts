@@ -1360,6 +1360,7 @@ export async function generateContentPreview(
     decan_context_key?: string;
     day_card?: Record<string, unknown>;
     require_llm?: boolean;
+    maat_flow_fixture?: string;
   },
 ): Promise<ContentPreviewPayload> {
   return adminFunctionFetch<ContentPreviewPayload>(

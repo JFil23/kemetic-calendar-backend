@@ -6,6 +6,7 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 import { authedRequest, createMockAdminClient } from "../_shared/admin_test.ts";
+import { synthesizeMaatFlowDecanPattern } from "../_shared/maat_flow_response_spectrum.ts";
 import { createAdminContentPreviewHandler } from "./index.ts";
 
 Deno.test("admin_content_preview generates an opening preview and logs an evaluation", async () => {
@@ -699,6 +700,191 @@ Deno.test("admin_content_preview require_llm passes only for Anthropic reflectio
   assertEquals(
     payload.preview.push_preview.render_diagnostics.renderer.fallback_reason,
     null,
+  );
+});
+
+Deno.test("admin_content_preview wires Weighing fixture semantics into reflection debug payload", async () => {
+  const { client } = createMockAdminClient({
+    user: { id: "operator-1" },
+    staff: {
+      role: "operator",
+      scopes: ["product.content.test"],
+      is_active: true,
+    },
+    tables: {
+      profiles: [{ id: "user-a", timezone: "America/Los_Angeles" }],
+      reflection_profiles: [],
+      journal_badges: [],
+      journal_entries: [],
+      todos: [],
+      nutrition_items: [],
+      admin_content_evaluations: [],
+    },
+  });
+  const handler = createAdminContentPreviewHandler({
+    client,
+    environment: "test",
+    reflectionGenerator: async (input) => {
+      await Promise.resolve();
+      const badges = Array.isArray(input.badges) ? input.badges : [];
+      assertEquals(badges.length, 2);
+      assertEquals(badges[0].metadata.status, "observed");
+      assertEquals(badges[0].metadata.flow_key, "the-weighing");
+      assertEquals(badges[1].metadata.status, "observed_partly");
+      assertEquals(badges[1].metadata.flow_key, "the-weighing");
+
+      const pattern = synthesizeMaatFlowDecanPattern({
+        decanId: "2026-05-19:2026-05-28:Hathor - s3h",
+        decanStart: String(input.decan_start),
+        decanEnd: String(input.decan_end),
+        completionEvidence: badges,
+        scheduledEvents: Array.isArray(input.scheduled_maat_flow_events)
+          ? input.scheduled_maat_flow_events
+          : [],
+      });
+      assertEquals(pattern.dominantTier, "observed");
+      assertEquals(pattern.interpretiveEmphasis.lastExplicitTier, "partial");
+      assertEquals(pattern.interpretiveEmphasis.reflectionTier, "partial");
+      assertEquals(pattern.interpretiveEmphasis.orientationTier, "observed");
+      assertEquals(pattern.interpretiveEmphasis.alignmentTier, "partial");
+      assertEquals(
+        pattern.centralTension,
+        "The scale was approached and the account opened, but not all of it reached the scale.",
+      );
+      assertEquals(pattern.selectedTensionTemplateId, "weighing-partial-solo");
+      assertEquals(
+        pattern.selectedSeeds.reflection?.seed,
+        "The sitting was entered but not completed. The scale was approached; the full account was not placed.",
+      );
+      assertEquals(
+        pattern.selectedSeeds.orientation?.seed,
+        "The balance holds when the measure continues.",
+      );
+      assertEquals(
+        pattern.selectedSeeds.alignment?.seed,
+        "Return to the sitting and place the one thing that was not yet named.",
+      );
+      const doNotSay = pattern.selectedSeeds.reflection?.doNotSay ?? [];
+      assert(doNotSay.includes("you didn't finish"));
+
+      return {
+        reflection:
+          "Hathor - s3h closed with an interrupted Weighing sitting; the decan should not be read as purely complete.",
+        modelUsed: "claude-reflection",
+        badgeCount: badges.length,
+        evidenceCount: badges.length,
+        topTags: ["flow", "maat_flow"],
+        branch: "decan",
+        outputControl: {
+          renderer: {
+            renderer: "anthropic",
+            model_used: "claude-reflection",
+            fallback_reason: null,
+          },
+          plan: {
+            surfaceConstraints: {
+              bannedPhrases: doNotSay,
+            },
+          },
+          outputCompiler: {
+            status: "compiled",
+            fallback_used: false,
+            not_quality_proof: false,
+          },
+          compiledOutputPackage: {
+            package_version: "compiled_output_package_v1",
+            fallback_used: false,
+            not_quality_proof: false,
+            push_text: "Compiled reflection push.",
+          },
+          maatFlowDecanPattern: pattern,
+          maatFlowDoNotSay: doNotSay,
+          maatFlowEvidenceMetadata: badges.map((badge) => badge.metadata),
+        },
+      };
+    },
+  });
+
+  const response = await handler(authedRequest(
+    "https://example.test/functions/v1/admin_content_preview?action=generate",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        target_user_id: "user-a",
+        artifact: "decan_reflection",
+        decan_start: "2026-05-19",
+        decan_end: "2026-05-28",
+        decan_name: "Hathor - s3h",
+        require_llm: true,
+        maat_flow_fixture: "observed_plus_partial",
+      }),
+    },
+  ));
+
+  assertEquals(response.status, 200);
+  const payload = await response.json();
+  const guidance = payload.preview.source_snapshot.guidance;
+  const pattern = guidance.maat_flow_decan_pattern;
+  assertExists(pattern);
+  assertEquals(pattern.dominantTier, "observed");
+  assertEquals(pattern.interpretiveEmphasis.reflectionTier, "partial");
+  assertEquals(pattern.interpretiveEmphasis.orientationTier, "observed");
+  assertEquals(pattern.interpretiveEmphasis.alignmentTier, "partial");
+  assertEquals(pattern.selectedTensionTemplateId, "weighing-partial-solo");
+  assertEquals(
+    pattern.selectedSeeds.reflection.seed,
+    "The sitting was entered but not completed. The scale was approached; the full account was not placed.",
+  );
+  assertEquals(
+    pattern.selectedSeeds.orientation.seed,
+    "The balance holds when the measure continues.",
+  );
+  assertEquals(
+    pattern.selectedSeeds.alignment.seed,
+    "Return to the sitting and place the one thing that was not yet named.",
+  );
+  assertEquals(
+    pattern.selectedSeeds.reflection.preferredSurface,
+    "lower_third_badge",
+  );
+  assertEquals(
+    pattern.selectedSeeds.reflection.badgeRole,
+    "end_decan_reflection",
+  );
+  assertEquals(
+    pattern.selectedSeeds.orientation.badgeRole,
+    "opening_orientation",
+  );
+  assertEquals(
+    pattern.selectedSeeds.alignment.badgeRole,
+    "mid_decan_alignment",
+  );
+  assert(
+    guidance.maat_flow_do_not_say.includes("you didn't finish"),
+  );
+  assertEquals(
+    guidance.reflection.output_control.plan.surfaceConstraints.bannedPhrases
+      .includes("you didn't finish"),
+    true,
+  );
+  assertEquals(guidance.maat_flow_evidence_metadata[0].status, "observed");
+  assertEquals(
+    guidance.maat_flow_evidence_metadata[1].status,
+    "observed_partly",
+  );
+  assertEquals(
+    guidance.admin_preview_fixture.maat_flow_fixture,
+    "observed_plus_partial",
+  );
+  assertStringIncludes(
+    payload.preview.generated_text,
+    "interrupted Weighing sitting",
+  );
+  assertEquals(
+    payload.preview.generated_text.includes(
+      "The record was brought to the scale without alteration",
+    ),
+    false,
   );
 });
 
