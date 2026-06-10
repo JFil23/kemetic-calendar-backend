@@ -736,6 +736,19 @@ textarea {
   padding: 12px;
 }
 
+.preview-error-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #7a3b35;
+  border-radius: 8px;
+  background: #201313;
+  padding: 12px;
+}
+
+.preview-error-panel p {
+  color: #f0c4be;
+}
+
 .renderer-diagnostics-llm {
   border-color: #2f6f5f;
   background: #101b18;

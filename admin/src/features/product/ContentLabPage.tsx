@@ -378,12 +378,47 @@ function RendererDiagnosticsPanel({
   );
 }
 
+type PreviewError = {
+  message: string;
+  status?: number | null;
+  code?: string | null;
+  detail?: unknown;
+  artifact?: ContentArtifact;
+  fixture?: string | null;
+  requireLlm?: boolean;
+};
+
+function PreviewErrorPanel({ error }: { error: PreviewError }) {
+  return (
+    <div className="preview-error-panel">
+      <div className="renderer-diagnostics-heading">
+        <strong>Preview generation failed</strong>
+        <span>{error.status ?? "error"}</span>
+      </div>
+      <p>{error.message}</p>
+      <div className="renderer-diagnostics-grid">
+        {diagnosticRow("artifact", error.artifact)}
+        {diagnosticRow("fixture", error.fixture || "real evidence")}
+        {diagnosticRow("require LLM", error.requireLlm ? "true" : "false")}
+        {diagnosticRow("code", error.code)}
+      </div>
+      {error.detail !== undefined && (
+        <details>
+          <summary>Error payload</summary>
+          <pre>{JSON.stringify(error.detail, null, 2)}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
 export function ContentLabPage() {
   const [users, setUsers] = useState<ContentUserCard[]>([]);
   const [selectedUser, setSelectedUser] = useState<ContentUserCard | null>(null);
   const [context, setContext] = useState<ContentContext | null>(null);
   const [evaluations, setEvaluations] = useState<ContentEvaluation[]>([]);
   const [preview, setPreview] = useState<ContentEvaluation | null>(null);
+  const [previewError, setPreviewError] = useState<PreviewError | null>(null);
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<"active" | "needs_review" | "">("active");
   const [band, setBand] = useState("");
@@ -424,6 +459,7 @@ export function ContentLabPage() {
     setBusy(true);
     setSelectedUser(user);
     setPreview(null);
+    setPreviewError(null);
     try {
       const session = await getAdminSession();
       const [nextContext, rows] = await Promise.all([
@@ -484,6 +520,7 @@ export function ContentLabPage() {
   const runPreview = async (artifact: ContentArtifact) => {
     if (!selectedUser) return;
     setNotice(null);
+    setPreviewError(null);
     setBusy(true);
     try {
       const session = await getAdminSession();
@@ -518,7 +555,18 @@ export function ContentLabPage() {
       setNotice(`${artifactLabels[artifact]} preview generated. Nothing was delivered.`);
     } catch (error) {
       const apiError = error instanceof AdminApiError ? error : null;
-      setNotice(apiError?.message ?? "Preview generation failed.");
+      const message = apiError?.message ?? "Preview generation failed.";
+      setPreview(null);
+      setPreviewError({
+        message,
+        status: apiError?.status ?? null,
+        code: apiError?.code ?? null,
+        detail: apiError?.detail,
+        artifact,
+        fixture: artifact === "decan_reflection" ? maatFlowFixture || null : null,
+        requireLlm: requireLlmPreview,
+      });
+      setNotice(message);
     } finally {
       setBusy(false);
     }
@@ -895,6 +943,8 @@ export function ContentLabPage() {
                       <pre>{JSON.stringify(preview.push_preview, null, 2)}</pre>
                     </details>
                   </>
+                ) : previewError ? (
+                  <PreviewErrorPanel error={previewError} />
                 ) : (
                   <p>
                     Select a user, then generate reflection, decan opening, or the
