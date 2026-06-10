@@ -1,7 +1,10 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
 import { getDecanContext } from "../_shared/decan_context.ts";
-import { guidanceEvidencePhrasesFromLines } from "../_shared/guidance_evidence.ts";
+import {
+  fetchMaatFlowCompletionEvidenceBadges,
+  guidanceEvidencePhrasesFromLines,
+} from "../_shared/guidance_evidence.ts";
 import {
   buildGuidanceShapingFingerprint,
   type GuidanceGoalProfile,
@@ -119,6 +122,7 @@ type BadgeRow = {
   occurred_on: string;
   flow_id?: number | null;
   event_id?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 type JournalEntryRow = {
@@ -169,23 +173,6 @@ type ScheduledNotificationRow = {
   notification_type: string | null;
   scheduled_at: string;
   is_active: boolean | null;
-};
-
-type UserEventCompletionRow = {
-  id: number;
-  client_event_id: string | null;
-  flow_id: number | null;
-  completed_on: string;
-  completed_at: string | null;
-  source: string | null;
-  metadata?: Record<string, unknown> | null;
-};
-
-type FlowNameRow = {
-  id: number;
-  name: string | null;
-  active: boolean | null;
-  is_hidden: boolean | null;
 };
 
 type DecanWindow = {
@@ -2676,110 +2663,6 @@ async function fetchScheduledReminderEvidence(
     });
 }
 
-function completionTitle(
-  completion: UserEventCompletionRow,
-  eventByClientId: Map<string, UserEventRow>,
-  flowById: Map<number, FlowNameRow>,
-) {
-  const event = completion.client_event_id
-    ? eventByClientId.get(completion.client_event_id)
-    : null;
-  const eventTitle = normalizeText(event?.title);
-  if (eventTitle && !privateOrDisallowedEvidenceTitle(eventTitle)) {
-    return eventTitle;
-  }
-  const flow = completion.flow_id ? flowById.get(completion.flow_id) : null;
-  const flowName = normalizeText(flow?.name);
-  if (flowName && !privateOrDisallowedEvidenceTitle(flowName)) {
-    return flowName;
-  }
-  return "Ma'at flow step";
-}
-
-async function fetchFlowCompletionEvidence(
-  client: any,
-  userId: string,
-  start: string,
-  end: string,
-) {
-  const { data, error } = await client
-    .from("user_event_completions")
-    .select(
-      "id, client_event_id, flow_id, completed_on, completed_at, source, metadata",
-    )
-    .eq("user_id", userId)
-    .gte("completed_on", start)
-    .lte("completed_on", end)
-    .order("completed_on", { ascending: true })
-    .limit(80);
-
-  if (error) throw error;
-
-  const completions = (data ?? []) as UserEventCompletionRow[];
-  if (!completions.length) return [] as BadgeRow[];
-
-  const clientIds = [
-    ...new Set(
-      completions.map((row) => normalizeText(row.client_event_id)).filter(
-        Boolean,
-      ),
-    ),
-  ];
-  const flowIds = [
-    ...new Set(
-      completions.map((row) => row.flow_id).filter((
-        id,
-      ): id is number => typeof id === "number"),
-    ),
-  ];
-
-  const eventByClientId = new Map<string, UserEventRow>();
-  if (clientIds.length) {
-    const { data: events, error: eventsError } = await client
-      .from("user_events")
-      .select(
-        "id, client_event_id, title, category, starts_at, ends_at, flow_local_id, flow_tpl_key, action_id",
-      )
-      .eq("user_id", userId)
-      .in("client_event_id", clientIds)
-      .limit(100);
-    if (eventsError) throw eventsError;
-    for (const event of (events ?? []) as UserEventRow[]) {
-      const clientId = normalizeText(event.client_event_id);
-      if (clientId) eventByClientId.set(clientId, event);
-    }
-  }
-
-  const flowById = new Map<number, FlowNameRow>();
-  if (flowIds.length) {
-    const { data: flows, error: flowsError } = await client
-      .from("flows")
-      .select("id, name, active, is_hidden")
-      .eq("user_id", userId)
-      .in("id", flowIds)
-      .limit(100);
-    if (flowsError) throw flowsError;
-    for (const flow of (flows ?? []) as FlowNameRow[]) {
-      flowById.set(flow.id, flow);
-    }
-  }
-
-  return completions.map((completion) => {
-    const title = completionTitle(completion, eventByClientId, flowById);
-    return {
-      title: `Observed flow: ${title}`,
-      details:
-        `Flow or day-card practice marked observed on ${completion.completed_on}.`,
-      tags: ["flow", "observed", "practice", "state:done"],
-      occurred_on: completion.completed_on,
-      flow_id: completion.flow_id ?? null,
-      event_id: completion.client_event_id
-        ? `flow-completion:${completion.client_event_id}`
-        : `flow-completion:${completion.id}`,
-    };
-  });
-}
-
 function dedupeBadges(badges: BadgeRow[]) {
   const seen = new Set<string>();
   const deduped: BadgeRow[] = [];
@@ -2831,7 +2714,13 @@ async function fetchBadges(
         return [] as BadgeRow[];
       },
     ),
-    fetchFlowCompletionEvidence(client, userId, start, end).catch((error) => {
+    fetchMaatFlowCompletionEvidenceBadges({
+      client,
+      userId,
+      start,
+      end,
+      isDisallowedTitle: privateOrDisallowedEvidenceTitle,
+    }).catch((error) => {
       console.error("Flow completion evidence fetch error:", error);
       return [] as BadgeRow[];
     }),

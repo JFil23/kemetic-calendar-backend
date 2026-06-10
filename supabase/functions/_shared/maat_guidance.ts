@@ -35,6 +35,7 @@ import {
   MAAT_OUTPUT_FORCE_PRINCIPLE,
   MAAT_OUTPUT_NORTH_STAR,
 } from "./maat_constitution.ts";
+import type { MaatFlowDecanPatternSynthesis } from "./maat_flow_response_spectrum.ts";
 import {
   buildCompiledOutputPackage,
   buildOutputCompilerTrace,
@@ -86,6 +87,7 @@ export type GuidanceBadgeRow = {
   occurred_on: string;
   flow_id?: number | null;
   event_id?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
 export type DayCardGuidanceInput = {
@@ -190,6 +192,12 @@ export type GuidancePersonalBaseline = {
   nutritionDoneRate?: number | null;
   axisMedians?: Partial<Record<MaatAxisCode, number>> | null;
 };
+
+function maatFlowPatternPayload(
+  pattern?: MaatFlowDecanPatternSynthesis | null,
+) {
+  return pattern ? { maat_flow_decan_pattern: pattern } : {};
+}
 
 type PlannerSummary = {
   total: number;
@@ -1572,6 +1580,7 @@ export function buildDecanOpeningDraft(params: {
   matrix?: ReflectionDecisionMatrixV1 | null;
   snapshot: MaatDimensionSnapshot;
   memoryBrief?: UserMemoryBrief | null;
+  maatFlowPattern?: MaatFlowDecanPatternSynthesis | null;
 }): GuidanceDraft {
   const leadAxis = params.snapshot.decanPrimaryAxes[0] ??
     params.snapshot.leadAxis;
@@ -1683,6 +1692,7 @@ export function buildDecanOpeningDraft(params: {
       surface_variants: outputSurfaceVariantsPayload(output.surfaceVariants),
       output_compiler: compiled.compiler,
       compiled_output_package: compiled.package,
+      ...maatFlowPatternPayload(params.maatFlowPattern),
     },
     ctaType: destination.ctaType,
     ctaRef: destination.ctaRef,
@@ -1796,6 +1806,7 @@ export function buildDriftNudgeDraft(params: {
   personalBaseline?: GuidancePersonalBaseline | null;
   enablePersonalizedFlow?: boolean;
   memoryBrief?: UserMemoryBrief | null;
+  maatFlowPattern?: MaatFlowDecanPatternSynthesis | null;
 }): GuidanceDraft {
   const correctionAxis = params.snapshot.correctionAxes[0] ??
     params.snapshot.leadAxis;
@@ -1900,6 +1911,7 @@ export function buildDriftNudgeDraft(params: {
       ...maatLedgerPayload(params.snapshot.source.ledger),
       ...maatSituationPayload(situation),
       ...outputControlPayloadFields(output),
+      ...maatFlowPatternPayload(params.maatFlowPattern),
       ...flowBriefPayload(
         (cta as MaatDestinationResolution & {
           brief?: MaatFlowBrief | null;
@@ -1924,6 +1936,7 @@ export function buildStrengthNudgeDraft(params: {
   memoryBrief?: UserMemoryBrief | null;
   triggerReason?: string;
   celebrationOnly?: boolean;
+  maatFlowPattern?: MaatFlowDecanPatternSynthesis | null;
 }): GuidanceDraft {
   const leadAxis = params.snapshot.leadAxis;
   const axisLabel = AXIS_LABELS[leadAxis];
@@ -2026,6 +2039,7 @@ export function buildStrengthNudgeDraft(params: {
       ...maatLedgerPayload(params.snapshot.source.ledger),
       ...maatSituationPayload(situation),
       ...outputControlPayloadFields(output),
+      ...maatFlowPatternPayload(params.maatFlowPattern),
       ...flowBriefPayload(
         (cta as MaatDestinationResolution & {
           brief?: MaatFlowBrief | null;

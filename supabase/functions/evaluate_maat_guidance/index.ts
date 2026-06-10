@@ -34,6 +34,8 @@ import {
   snapshotFromRow,
   type SnapshotRowLike,
 } from "../_shared/maat_guidance.ts";
+import { fetchMaatFlowCompletionEvidenceBadges } from "../_shared/guidance_evidence.ts";
+import { synthesizeMaatFlowDecanPattern } from "../_shared/maat_flow_response_spectrum.ts";
 import {
   deliveryChannelFromPayload,
   mergeMaatOutputTelemetry,
@@ -119,6 +121,17 @@ type MaatSnapshotRow = SnapshotRowLike & {
   window_date: string;
 };
 
+type ScheduledMaatFlowEventRow = {
+  id: string | number;
+  client_event_id: string | null;
+  title: string | null;
+  starts_at: string | null;
+  flow_local_id: number | null;
+  flow_tpl_key: string | null;
+  action_id: string | null;
+  behavior_payload?: Record<string, unknown> | null;
+};
+
 type GuidanceDeliveryRow = {
   kind: string;
   status: string;
@@ -186,6 +199,14 @@ function parseDateOnly(value: string) {
 
 function dateKey(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function dayStartIso(date: string) {
+  return `${date}T00:00:00.000Z`;
+}
+
+function dayEndIso(date: string) {
+  return `${date}T23:59:59.999Z`;
 }
 
 function dateKeysInRange(start: string, end: string) {
@@ -600,10 +621,20 @@ async function fetchBadges(
       return [] as GuidanceBadgeRow[];
     },
   );
+  const flowCompletionBadges = await fetchMaatFlowCompletionEvidenceBadges({
+    client,
+    userId,
+    start: window.start,
+    end: window.end,
+  }).catch((error) => {
+    console.error("maat flow completion evidence fetch error", error);
+    return [] as GuidanceBadgeRow[];
+  });
 
   const mergedBeforeNutrition = dedupeBadges([
     ...journalBadges,
     ...todoBadges,
+    ...flowCompletionBadges,
     ...storedBadges,
   ]);
   const existingEventIds = new Set(
@@ -622,6 +653,33 @@ async function fetchBadges(
   });
 
   return dedupeBadges([...mergedBeforeNutrition, ...pendingNutritionBadges]);
+}
+
+async function fetchScheduledMaatFlowEvents(
+  client: SupabaseClientLike,
+  userId: string,
+  window: GuidanceWindow,
+) {
+  const { data, error } = await client
+    .from("user_events")
+    .select(
+      "id, client_event_id, title, starts_at, flow_local_id, flow_tpl_key, action_id, behavior_payload",
+    )
+    .eq("user_id", userId)
+    .gte("starts_at", dayStartIso(window.start))
+    .lte("starts_at", dayEndIso(window.end))
+    .order("starts_at", { ascending: true })
+    .limit(120);
+  if (error) throw error;
+  return ((data ?? []) as ScheduledMaatFlowEventRow[]).map((row) => ({
+    flowKey: typeof row.behavior_payload?.flow_key === "string"
+      ? row.behavior_payload.flow_key
+      : row.flow_tpl_key,
+    eventTitle: row.title,
+    startsAt: row.starts_at,
+    clientEventId: row.client_event_id,
+    behaviorPayload: row.behavior_payload ?? null,
+  }));
 }
 
 async function fetchReflectionProfile(
@@ -1138,6 +1196,31 @@ export function createEvaluateMaatGuidanceHandler(options?: {
       await expireStaleDeliveries(client, user.id, periodKey);
 
       const badges = await fetchBadges(client, user.id, window);
+      const [
+        maatFlowCompletionEvidence,
+        scheduledMaatFlowEvents,
+      ] = await Promise.all([
+        fetchMaatFlowCompletionEvidenceBadges({
+          client,
+          userId: user.id,
+          start: window.start,
+          end: window.end,
+        }).catch((error) => {
+          console.error("maat flow pattern completion fetch error", error);
+          return [];
+        }),
+        fetchScheduledMaatFlowEvents(client, user.id, window).catch((error) => {
+          console.error("maat flow pattern scheduled event fetch error", error);
+          return [];
+        }),
+      ]);
+      const maatFlowPattern = synthesizeMaatFlowDecanPattern({
+        decanId: periodKey,
+        decanStart: window.start,
+        decanEnd: window.end,
+        completionEvidence: maatFlowCompletionEvidence,
+        scheduledEvents: scheduledMaatFlowEvents,
+      });
       const decanContext = getDecanContext(window.decanContextKey);
       const profile = await fetchReflectionProfile(client, user.id);
       const { data: snapshotRows } = await client
@@ -1448,6 +1531,7 @@ export function createEvaluateMaatGuidanceHandler(options?: {
             personalBaseline,
             enablePersonalizedFlow: personalizedFlowEnabled,
             memoryBrief,
+            maatFlowPattern,
           });
           draft.payload = {
             ...draft.payload,
@@ -1483,6 +1567,7 @@ export function createEvaluateMaatGuidanceHandler(options?: {
             memoryBrief,
             triggerReason: dayFiveCadenceDecision.reason,
             celebrationOnly: true,
+            maatFlowPattern,
           });
           draft.payload = {
             ...draft.payload,
@@ -1537,6 +1622,7 @@ export function createEvaluateMaatGuidanceHandler(options?: {
             personalBaseline,
             enablePersonalizedFlow: personalizedFlowEnabled,
             memoryBrief,
+            maatFlowPattern,
           });
           const renderedDraft = await renderGuidanceDraftWithLlm(draft);
           const delivery = await createDelivery({
@@ -1570,6 +1656,7 @@ export function createEvaluateMaatGuidanceHandler(options?: {
             personalBaseline,
             enablePersonalizedFlow: personalizedFlowEnabled,
             memoryBrief,
+            maatFlowPattern,
           });
           const renderedDraft = await renderGuidanceDraftWithLlm(draft);
           const delivery = await createDelivery({
@@ -1623,6 +1710,7 @@ export function createEvaluateMaatGuidanceHandler(options?: {
         cta_outcome_cohort: ctaOutcomeSignalResult.cohort,
         cta_outcome_cohort_candidates: outcomeCohortCandidates,
         personalized_flow_enabled: personalizedFlowEnabled,
+        maat_flow_decan_pattern: maatFlowPattern,
         memory_brief: {
           context_quality: memoryBrief.contextQuality,
           anchor_labels: memoryBrief.anchorLabels,
