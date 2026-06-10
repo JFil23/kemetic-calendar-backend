@@ -944,7 +944,7 @@ async function adminFunctionFetch<T>(
       detail ?? payload.error ?? `${functionName} request failed.`,
       response.status,
       payload.error,
-      payload.detail,
+      payload,
     );
   }
 
