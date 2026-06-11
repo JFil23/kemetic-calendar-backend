@@ -39,6 +39,13 @@ type InvokeResult = {
 
 type FunctionInvoker = (params: InvokeParams) => Promise<InvokeResult>;
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function createDefaultClient(): SupabaseClientLike {
   const supabaseUrl = Deno.env.get("PROJECT_URL") ??
     Deno.env.get("SUPABASE_URL");
@@ -85,7 +92,10 @@ function createDefaultInvoker(): FunctionInvoker {
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      ...CORS_HEADERS,
+      "Content-Type": "application/json",
+    },
   });
 }
 
@@ -174,6 +184,10 @@ export function createEnsureUserGuidanceHandler(options?: {
   const nowFn = options?.now ?? (() => new Date());
 
   return async (req: Request): Promise<Response> => {
+    if (req.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+
     if (req.method !== "POST") {
       return jsonResponse({ error: "Method not allowed" }, 405);
     }

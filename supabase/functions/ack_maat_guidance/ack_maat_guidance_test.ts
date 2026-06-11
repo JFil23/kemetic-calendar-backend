@@ -3,6 +3,7 @@
 import {
   assert,
   assertEquals,
+  assertStringIncludes,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 import { createAckMaatGuidanceHandler } from "./index.ts";
@@ -99,15 +100,250 @@ class MockSupabaseQuery {
   }
 }
 
-function createMockClient(tables: Tables) {
-  return {
+function createMockClient(
+  tables: Tables,
+  options?: {
+    user?: { id: string } | null;
+    authError?: unknown;
+  },
+) {
+  let authCalls = 0;
+  const client = {
     auth: {
-      getUser: (_token: string) =>
-        Promise.resolve({ data: { user: { id: userId } }, error: null }),
+      getUser: (_token: string) => {
+        authCalls += 1;
+        return Promise.resolve({
+          data: {
+            user: options?.user === undefined ? { id: userId } : options.user,
+          },
+          error: options?.authError ?? null,
+        });
+      },
     },
     from: (table: string) => new MockSupabaseQuery(tables, table),
   };
+  return Object.assign(client, { authCalls: () => authCalls });
 }
+
+function assertCorsHeaders(response: Response) {
+  assertEquals(response.headers.get("Access-Control-Allow-Origin"), "*");
+  assertStringIncludes(
+    response.headers.get("Access-Control-Allow-Methods") ?? "",
+    "POST",
+  );
+  assertStringIncludes(
+    response.headers.get("Access-Control-Allow-Methods") ?? "",
+    "OPTIONS",
+  );
+  const allowedHeaders = response.headers.get("Access-Control-Allow-Headers") ??
+    "";
+  assertStringIncludes(allowedHeaders, "authorization");
+  assertStringIncludes(allowedHeaders, "apikey");
+  assertStringIncludes(allowedHeaders, "content-type");
+}
+
+function ackRequest(body: Record<string, unknown>, token = "test-token") {
+  return new Request("http://localhost/ack_maat_guidance", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+Deno.test("ack_maat_guidance handles browser preflight without auth", async () => {
+  const client = createMockClient({});
+  const handler = createAckMaatGuidanceHandler({ client });
+
+  const response = await handler(
+    new Request("http://localhost/ack_maat_guidance", { method: "OPTIONS" }),
+  );
+
+  assertEquals(response.status, 204);
+  assertEquals(await response.text(), "");
+  assertCorsHeaders(response);
+  assertEquals(client.authCalls(), 0);
+});
+
+Deno.test("ack_maat_guidance keeps auth required for POST", async () => {
+  const client = createMockClient({});
+  const handler = createAckMaatGuidanceHandler({ client });
+
+  const response = await handler(
+    new Request("http://localhost/ack_maat_guidance", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    }),
+  );
+  const body = await response.json();
+
+  assertEquals(response.status, 401);
+  assertEquals(body.error, "Unauthorized");
+  assertCorsHeaders(response);
+  assertEquals(client.authCalls(), 0);
+});
+
+Deno.test("ack_maat_guidance returns CORS headers for unsupported methods", async () => {
+  const client = createMockClient({});
+  const handler = createAckMaatGuidanceHandler({ client });
+
+  const response = await handler(
+    new Request("http://localhost/ack_maat_guidance", { method: "GET" }),
+  );
+  const body = await response.json();
+
+  assertEquals(response.status, 405);
+  assertEquals(body.error, "Method not allowed");
+  assertCorsHeaders(response);
+  assertEquals(client.authCalls(), 0);
+});
+
+Deno.test("ack_maat_guidance rejects invalid bearer tokens", async () => {
+  const client = createMockClient({}, {
+    user: null,
+    authError: new Error("bad token"),
+  });
+  const handler = createAckMaatGuidanceHandler({ client });
+
+  const response = await handler(
+    ackRequest({ delivery_id: "d1", action: "shown" }),
+  );
+  const body = await response.json();
+
+  assertEquals(response.status, 401);
+  assertEquals(body.error, "Unauthorized");
+  assertCorsHeaders(response);
+  assertEquals(client.authCalls(), 1);
+});
+
+Deno.test("ack_maat_guidance marks opening guidance shown", async () => {
+  const tables: Tables = {
+    maat_guidance_deliveries: [{
+      id: "delivery-opening-shown",
+      user_id: userId,
+      kind: "decan_opening",
+      decan_period_key: periodKey,
+      status: "pending",
+      cta_type: "flow_template",
+      cta_ref: "the-weighing",
+      payload: {},
+      created_at: "2026-05-18T17:45:00.000Z",
+      shown_at: null,
+      opened_at: null,
+      dismissed_at: null,
+    }],
+    maat_delivery_receipt_events: [],
+  };
+  const handler = createAckMaatGuidanceHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-18T19:00:00.000Z"),
+  });
+
+  const response = await handler(ackRequest({
+    delivery_id: "delivery-opening-shown",
+    action: "shown",
+  }));
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertCorsHeaders(response);
+  assertEquals(body.delivery.status, "shown");
+  assertEquals(body.delivery.shown_at, "2026-05-18T19:00:00.000Z");
+  assertEquals(body.delivery.opened_at, null);
+  assertEquals(body.delivery.dismissed_at, null);
+  assertEquals(body.delivery.payload.output_telemetry.user_saw_output, true);
+  assertEquals(body.delivery.payload.output_telemetry.user_opened, false);
+  assertEquals(body.delivery.payload.output_telemetry.dismissed, false);
+  assertEquals(tables.maat_delivery_receipt_events[0].receipt_event, "shown");
+});
+
+Deno.test("ack_maat_guidance marks opening guidance opened", async () => {
+  const tables: Tables = {
+    maat_guidance_deliveries: [{
+      id: "delivery-opening-opened",
+      user_id: userId,
+      kind: "decan_opening",
+      decan_period_key: periodKey,
+      status: "pending",
+      cta_type: "flow_template",
+      cta_ref: "the-weighing",
+      payload: {},
+      created_at: "2026-05-18T17:45:00.000Z",
+      shown_at: null,
+      opened_at: null,
+      dismissed_at: null,
+    }],
+    maat_delivery_receipt_events: [],
+  };
+  const handler = createAckMaatGuidanceHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-18T19:05:00.000Z"),
+  });
+
+  const response = await handler(ackRequest({
+    delivery_id: "delivery-opening-opened",
+    action: "opened",
+  }));
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertCorsHeaders(response);
+  assertEquals(body.delivery.status, "opened");
+  assertEquals(body.delivery.shown_at, "2026-05-18T19:05:00.000Z");
+  assertEquals(body.delivery.opened_at, "2026-05-18T19:05:00.000Z");
+  assertEquals(body.delivery.dismissed_at, null);
+  assertEquals(body.delivery.payload.output_telemetry.user_saw_output, true);
+  assertEquals(body.delivery.payload.output_telemetry.user_opened, true);
+  assertEquals(body.delivery.payload.output_telemetry.dismissed, false);
+  assertEquals(tables.maat_delivery_receipt_events[0].receipt_event, "opened");
+});
+
+Deno.test("ack_maat_guidance marks opening guidance dismissed", async () => {
+  const tables: Tables = {
+    maat_guidance_deliveries: [{
+      id: "delivery-opening-dismissed",
+      user_id: userId,
+      kind: "decan_opening",
+      decan_period_key: periodKey,
+      status: "shown",
+      cta_type: "flow_template",
+      cta_ref: "the-weighing",
+      payload: {},
+      created_at: "2026-05-18T17:45:00.000Z",
+      shown_at: "2026-05-18T19:00:00.000Z",
+      opened_at: null,
+      dismissed_at: null,
+    }],
+    maat_delivery_receipt_events: [],
+  };
+  const handler = createAckMaatGuidanceHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-18T19:10:00.000Z"),
+  });
+
+  const response = await handler(ackRequest({
+    delivery_id: "delivery-opening-dismissed",
+    action: "dismissed",
+  }));
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertCorsHeaders(response);
+  assertEquals(body.delivery.status, "dismissed");
+  assertEquals(body.delivery.shown_at, "2026-05-18T19:00:00.000Z");
+  assertEquals(body.delivery.opened_at, null);
+  assertEquals(body.delivery.dismissed_at, "2026-05-18T19:10:00.000Z");
+  assertEquals(body.delivery.payload.output_telemetry.user_saw_output, true);
+  assertEquals(body.delivery.payload.output_telemetry.user_opened, false);
+  assertEquals(body.delivery.payload.output_telemetry.dismissed, true);
+  assertEquals(
+    tables.maat_delivery_receipt_events[0].receipt_event,
+    "dismissed",
+  );
+});
 
 Deno.test("ack_maat_guidance acted records suggestion and completes drift correction", async () => {
   const tables: Tables = {
@@ -191,6 +427,7 @@ Deno.test("ack_maat_guidance acted records suggestion and completes drift correc
   const body = await response.json();
 
   assertEquals(response.status, 200);
+  assertCorsHeaders(response);
   assertEquals(body.delivery.status, "acted");
   assertEquals(body.delivery.acted_at, "2026-05-18T19:00:00.000Z");
   assertEquals(body.delivery.opened_at, "2026-05-18T19:00:00.000Z");
@@ -312,6 +549,7 @@ Deno.test("ack_maat_guidance dismissed drift dismisses open correction", async (
   const body = await response.json();
 
   assertEquals(response.status, 200);
+  assertCorsHeaders(response);
   assertEquals(body.delivery.status, "dismissed");
   assertEquals(body.delivery.dismissed_at, "2026-05-18T19:30:00.000Z");
   assertEquals(body.delivery.payload.output_telemetry.dismissed, true);
