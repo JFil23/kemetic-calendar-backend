@@ -4678,7 +4678,7 @@ serve(async (req) => {
             editorErr,
           );
         }
-      } else if (reflectionText) {
+      } else if (reflectionText && !useDeterministicMaatFlowRenderer) {
         reflectionPlainSacredEdit = buildFallbackReflectionPlainSacredEdit(
           plainSacredEditorInput,
         );
@@ -4693,6 +4693,9 @@ serve(async (req) => {
           reflectionPlainSacredEdit.removedAbstractions;
         rendererDiagnostics.plain_sacred_editor_warnings =
           reflectionPlainSacredEdit.editorWarnings;
+      } else if (reflectionText && useDeterministicMaatFlowRenderer) {
+        rendererDiagnostics.plain_sacred_editor_source =
+          "skipped_for_deterministic_spectrum";
       }
 
       let reflectionOutputValidation = validateGeneratedTextAgainstPlan(
