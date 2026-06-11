@@ -703,6 +703,94 @@ Deno.test("admin_content_preview require_llm passes only for Anthropic reflectio
   );
 });
 
+Deno.test("admin_content_preview require_llm surfaces Ma'at binding failures", async () => {
+  const { client } = createMockAdminClient({
+    user: { id: "operator-1" },
+    staff: {
+      role: "operator",
+      scopes: ["product.content.test"],
+      is_active: true,
+    },
+    tables: {
+      profiles: [{ id: "user-a", timezone: "America/Los_Angeles" }],
+      reflection_profiles: [],
+      journal_badges: [],
+      journal_entries: [],
+      todos: [],
+      nutrition_items: [],
+      admin_content_evaluations: [],
+    },
+  });
+  const handler = createAdminContentPreviewHandler({
+    client,
+    environment: "test",
+    reflectionGenerator: async () => {
+      await Promise.resolve();
+      return {
+        reflection:
+          "The sitting was available and set aside; the measure was not opened. Return one act of care inward.",
+        modelUsed: "claude-reflection",
+        outputControl: {
+          renderer: {
+            renderer: "anthropic",
+            model_used: "claude-reflection",
+            fallback_reason: "maat_flow_binding_failed",
+            error:
+              "Ma'at flow reflection binding failed at final_text: imperative_sentence_forbidden",
+            maat_flow_binding_final_check: {
+              ok: false,
+              reasons: ["imperative_sentence_forbidden"],
+            },
+          },
+          outputCompiler: {
+            status: "fallback",
+            fallback_reason: "maat_flow_binding_failed",
+            fallback_used: true,
+            not_quality_proof: true,
+          },
+          compiledOutputPackage: {
+            package_version: "compiled_output_package_v1",
+            fallback_used: true,
+            not_quality_proof: true,
+          },
+        },
+      };
+    },
+  });
+
+  const response = await handler(authedRequest(
+    "https://example.test/functions/v1/admin_content_preview?action=generate",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        target_user_id: "user-a",
+        artifact: "decan_reflection",
+        decan_start: "2026-05-19",
+        decan_end: "2026-05-28",
+        decan_name: "Hathor - s3h",
+        require_llm: true,
+        maat_flow_fixture: "skipped_only",
+      }),
+    },
+  ));
+
+  assertEquals(response.status, 502);
+  const payload = await response.json();
+  assertEquals(payload.error, "llm_render_required");
+  assertEquals(
+    payload.diagnostics.renderer.fallback_reason,
+    "maat_flow_binding_failed",
+  );
+  assertEquals(
+    payload.diagnostics.renderer.maat_flow_binding_final_check.reasons,
+    ["imperative_sentence_forbidden"],
+  );
+  assertStringIncludes(
+    payload.diagnostics.renderer.error,
+    "Ma'at flow reflection binding failed at final_text",
+  );
+});
+
 Deno.test("admin_content_preview wires Weighing fixture semantics into reflection debug payload", async () => {
   const { client } = createMockAdminClient({
     user: { id: "operator-1" },

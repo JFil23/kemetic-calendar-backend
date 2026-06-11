@@ -78,12 +78,12 @@ Deno.test("Ma'at flow reflection prompt binds Weighing partial semantics", () =>
   );
   assertStringIncludes(prompt, "conflict_priority:");
   assertStringIncludes(prompt, "required_surface_order:");
-  assertStringIncludes(prompt, "explicitly honor reflection_seed");
+  assertStringIncludes(prompt, "visibly honor reflection_seed");
   assertStringIncludes(
     prompt,
-    "name interruption or incompletion without motive",
+    "name entered/approached/opened but not completed or fully placed without motive",
   );
-  assertStringIncludes(prompt, "do not end with a direct command");
+  assertStringIncludes(prompt, "must not contain an imperative sentence");
 });
 
 Deno.test("Ma'at flow reflection prompt is absent without flow signals", () => {
@@ -115,6 +115,7 @@ Deno.test("Ma'at flow reflection binding detects ignored partial seed and impera
     true,
   );
   assertEquals(check.reasons.includes("imperative_closing_forbidden"), true);
+  assertEquals(check.reasons.includes("imperative_sentence_forbidden"), true);
 
   const repairPrompt = maatFlowReflectionBindingRepairPrompt(
     pattern,
@@ -123,7 +124,10 @@ Deno.test("Ma'at flow reflection binding detects ignored partial seed and impera
   assertStringIncludes(repairPrompt, "MAAT_FLOW_REFLECTION_BINDING_REPAIR");
   assertStringIncludes(repairPrompt, "failed_reasons:");
   assertStringIncludes(repairPrompt, "reflection_tier: partial");
-  assertStringIncludes(repairPrompt, "Do not end with a direct command");
+  assertStringIncludes(
+    repairPrompt,
+    "Do not include any direct command",
+  );
 });
 
 Deno.test("Ma'at flow reflection binding accepts partial interruption without imperative", () => {
@@ -140,4 +144,99 @@ Deno.test("Ma'at flow reflection binding accepts partial interruption without im
   );
 
   assertEquals(check, { ok: true, reasons: [] });
+});
+
+Deno.test("Ma'at flow reflection binding rejects skipped imperative sentences", () => {
+  const pattern = synthesizeMaatFlowDecanPattern({
+    ...decan,
+    completionEvidence: [badgeFor("skipped", "2026-05-19")],
+  });
+  const check = validateMaatFlowReflectionTextBinding(
+    "The sitting was available and set aside; the measure was not opened. Return one act of care inward before the day closes. What remains true when the unopened measure is allowed to be seen without shame?",
+    pattern,
+  );
+
+  assertEquals(check.ok, false);
+  assertEquals(check.reasons.includes("imperative_sentence_forbidden"), true);
+  assertEquals(check.reasons.includes("imperative_closing_forbidden"), false);
+  assertEquals(
+    check.reasons.includes("missing_weighing_skipped_set_aside"),
+    false,
+  );
+});
+
+Deno.test("Ma'at flow reflection binding requires skipped set-aside semantics", () => {
+  const pattern = synthesizeMaatFlowDecanPattern({
+    ...decan,
+    completionEvidence: [
+      badgeFor("observed_partly", "2026-05-19"),
+      badgeFor("skipped", "2026-05-20"),
+    ],
+  });
+  const weakCheck = validateMaatFlowReflectionTextBinding(
+    "The sitting was entered but not completed; care moved inward but did not fully settle. What would restore proportion without turning care into performance?",
+    pattern,
+  );
+
+  assertEquals(pattern.interpretiveEmphasis.reflectionTier, "skipped_explicit");
+  assertEquals(weakCheck.ok, false);
+  assertEquals(
+    weakCheck.reasons.includes("missing_weighing_skipped_set_aside"),
+    true,
+  );
+
+  const validCheck = validateMaatFlowReflectionTextBinding(
+    "The sitting was available and set aside; the measure was not opened. Hathor's care can remain context around that quieter absence. What remains true when the unopened measure is seen without shame?",
+    pattern,
+  );
+  assertEquals(validCheck, { ok: true, reasons: [] });
+});
+
+Deno.test("Ma'at flow reflection binding rejects partial motive diagnosis", () => {
+  const pattern = synthesizeMaatFlowDecanPattern({
+    ...decan,
+    completionEvidence: [
+      badgeFor("observed", "2026-05-19"),
+      badgeFor("observed_partly", "2026-05-20"),
+    ],
+  });
+  const check = validateMaatFlowReflectionTextBinding(
+    "The sitting was entered but not completed; the measure was approached without being fully placed because you were not ready to face it. What would restore proportion without turning care into performance?",
+    pattern,
+  );
+
+  assertEquals(check.ok, false);
+  assertEquals(check.reasons.includes("partial_motive_diagnosis"), true);
+  assertEquals(
+    check.reasons.includes("missing_weighing_partial_interruption"),
+    false,
+  );
+});
+
+Deno.test("Ma'at flow reflection binding keeps unobserved neutral", () => {
+  const pattern = synthesizeMaatFlowDecanPattern({
+    ...decan,
+    completionEvidence: [],
+    scheduledEvents: [{
+      flowKey: THE_WEIGHING_FLOW_KEY,
+      flowTitle: THE_WEIGHING_FLOW_TITLE,
+      eventTitle: "Open the Material Ledger",
+      scheduledOn: "2026-05-19",
+      clientEventId: "admin-fixture-weighing-unobserved",
+    }],
+  });
+  const check = validateMaatFlowReflectionTextBinding(
+    "The Weighing has no completed signal in this decan. The absence can stay neutral while the rest of the pattern is read with care.",
+    pattern,
+  );
+
+  assertEquals(pattern.interpretiveEmphasis.reflectionTier, "unobserved");
+  assertEquals(check, { ok: true, reasons: [] });
+
+  const avoidantCheck = validateMaatFlowReflectionTextBinding(
+    "The Weighing has no completed signal in this decan because you avoided the scale.",
+    pattern,
+  );
+  assertEquals(avoidantCheck.ok, false);
+  assertEquals(avoidantCheck.reasons.includes("unobserved_not_neutral"), true);
 });

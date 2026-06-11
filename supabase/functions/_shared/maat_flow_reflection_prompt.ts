@@ -76,9 +76,9 @@ export function maatFlowPatternPromptBlock(
     orientationSeed ? `orientation_seed: ${orientationSeed.seed}` : "",
     alignmentSeed ? `alignment_seed: ${alignmentSeed.seed}` : "",
     `do_not_say: ${maatFlowSelectedDoNotSay(pattern).join(" | ")}`,
-    "Binding instruction: when selectedSeeds.reflection exists, explicitly honor reflection_seed, reflection_tier, and authored_central_tension. Other evidence may contextualize them, but must not replace them.",
-    "Reflection tier rule: if reflection_tier is partial, name interruption or incompletion without motive; if skipped_explicit, name set-aside/restorative absence without shame; if unobserved, keep the language neutral and do not imply avoidance.",
-    "Reflection/action boundary: do not convert this reflection into an alignment instruction. If reflection_constraints says imperatives_allowed=false, do not end with a direct command or concrete task imperative.",
+    "Binding instruction: when selectedSeeds.reflection exists, the first reflection movement must visibly honor reflection_seed, reflection_tier, required_reflection_contract, and authored_central_tension before broader decan, care, maintenance, calendar, or profile interpretation. Other evidence may contextualize them, but must not replace them.",
+    "Reflection tier rule: if reflection_tier is partial, name entered/approached/opened but not completed or fully placed without motive; if skipped_explicit, name set-aside/restorative absence and a not-opened/not-entered measure without shame; if unobserved, keep the language neutral and do not imply avoidance.",
+    "Reflection/action boundary: do not convert this reflection into an alignment instruction. If reflection_constraints says imperatives_allowed=false, the output must not contain an imperative sentence anywhere, including the closing.",
     "Preserve the selected tier meaning; do not invent motive for partial, do not shame skipped, and keep unobserved as absence of signal.",
   ].filter(Boolean).join("\n");
 }
@@ -91,7 +91,7 @@ export function maatFlowReflectionContractInstruction(
     return "include a reflection sentence that names interruption or incompletion in The Weighing: the sitting or measure was entered/approached but was not completed or not fully placed; do not explain why.";
   }
   if (reflectionTier === "skipped_explicit") {
-    return "include a reflection sentence that names the sitting as set aside/restorative absence; do not shame the skip or dismiss it.";
+    return "include a reflection sentence that names the sitting as available and set aside/restorative absence, and names that the measure was not opened or entered; do not shame the skip or dismiss it.";
   }
   if (reflectionTier === "unobserved") {
     return "keep the Weighing signal as neutral absence of signal; do not imply avoidance, refusal, or dishonesty.";
@@ -108,32 +108,54 @@ function lastSentence(text: string) {
   return normalizeText(matches.at(-1) ?? normalized);
 }
 
+function sentences(text: string) {
+  const normalized = normalizeText(text);
+  return (normalized.match(/[^.!?]+[.!?]*/g) ?? [normalized]).map((sentence) =>
+    normalizeText(sentence)
+  ).filter(Boolean);
+}
+
 function startsWithImperative(text: string) {
   const sentence = lowerText(text).replace(/^["'“”‘’\s]+/, "");
-  return /^(complete|return|try|do|make|name|place|choose|let|keep|bring|give|set|take|hold|offer|write|ask|carry|turn|notice|remember|restore)\b/
+  return /^(begin|bring|carry|choose|complete|do|give|hold|keep|let|make|name|notice|offer|open|place|remember|restore|return|set|sit|take|try|turn|write)\b/
     .test(sentence);
+}
+
+function imperativeSentences(text: string) {
+  return sentences(text).filter((sentence) => startsWithImperative(sentence));
 }
 
 function namesPartialInterruption(text: string) {
   const lower = lowerText(text);
   const hasWeighingSurface =
-    /\b(sitting|measure|weighing|scale|placed|placement)\b/.test(lower);
+    /\b(account|full account|sitting|measure|weighing|scale|placed|placement|opened|approached|entered)\b/
+      .test(lower);
   const hasPartialMeaning =
-    /\b(not completed|incomplete|interrupted|interruption|not fully|not all|not placed|not yet placed|approached but|entered but)\b/
+    /\b(entered but not completed|approached but|opened but not|not completed|incomplete|interrupted|interruption|not fully|not all|not placed|not yet placed|full account was not placed|not all of it reached)\b/
       .test(lower);
   return hasWeighingSurface && hasPartialMeaning;
 }
 
 function namesSkippedSetAside(text: string) {
   const lower = lowerText(text);
-  return /\b(sitting|measure|weighing|scale)\b/.test(lower) &&
-    /\b(set aside|not opened|restorative absence|left unentered|available and set aside)\b/
+  const hasSetAsideMeaning =
+    /\b(set aside|set-aside|was available|sitting was available|available and set aside|restorative absence|left unentered|set down unopened)\b/
       .test(lower);
+  const hasNotOpenedMeaning =
+    /\b(account was not opened|without the account being opened|not opened|was not opened|measure was not opened|measure was not entered|not entered|was not entered|sitting was not entered|scale was not approached|nothing was opened)\b/
+      .test(lower);
+  return hasSetAsideMeaning && hasNotOpenedMeaning;
 }
 
 function keepsUnobservedNeutral(text: string) {
   const lower = lowerText(text);
   return !/\b(avoid|avoided|avoidance|dishonest|refused|refusal|hid|hiding)\b/
+    .test(lower);
+}
+
+function diagnosesPartialMotive(text: string) {
+  const lower = lowerText(text);
+  return /\b(because you|you avoided|you were afraid|you were not ready|you weren't ready|you resisted|you refused|you held back|being held back|didn't want to|did not want to)\b/
     .test(lower);
 }
 
@@ -157,12 +179,20 @@ export function validateMaatFlowReflectionTextBinding(
   } else if (reflectionTier === "unobserved" && !keepsUnobservedNeutral(text)) {
     reasons.push("unobserved_not_neutral");
   }
+  if (reflectionTier === "partial" && diagnosesPartialMotive(text)) {
+    reasons.push("partial_motive_diagnosis");
+  }
 
   if (
-    reflectionConstraints.imperativesAllowed === false &&
-    startsWithImperative(lastSentence(text))
+    reflectionConstraints.imperativesAllowed === false
   ) {
-    reasons.push("imperative_closing_forbidden");
+    const forbiddenImperatives = imperativeSentences(text);
+    if (forbiddenImperatives.length) {
+      reasons.push("imperative_sentence_forbidden");
+    }
+    if (startsWithImperative(lastSentence(text))) {
+      reasons.push("imperative_closing_forbidden");
+    }
   }
 
   const lower = lowerText(text);
@@ -195,10 +225,10 @@ export function maatFlowReflectionBindingRepairPrompt(
       maatFlowReflectionContractInstruction(pattern)
     }`,
     `reflection_seed: ${pattern.selectedSeeds.reflection.seed}`,
-    "Revise the reflection so this contract is visibly honored before broader decan/profile interpretation.",
+    "Revise the reflection so this contract is visibly honored in the first movement before broader decan/profile/care interpretation.",
     "Do not add motive, shame, avoidance, dishonesty, or performance grading.",
     pattern.selectedSeeds.reflection.constraints.imperativesAllowed === false
-      ? "Do not end with a direct command, task, or imperative. Use a reflective question or non-commanding closing if the earlier judgment requested a charge."
+      ? "Do not include any direct command, task, or imperative sentence anywhere. Use a reflective question or non-commanding closing if the earlier judgment requested a charge."
       : "",
   ].filter(Boolean).join("\n");
 }
