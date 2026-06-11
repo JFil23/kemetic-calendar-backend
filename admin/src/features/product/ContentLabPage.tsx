@@ -431,7 +431,7 @@ export function ContentLabPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [requireLlmPreview, setRequireLlmPreview] = useState(true);
+  const [requireLlmPreview, setRequireLlmPreview] = useState(false);
   const [maatFlowFixture, setMaatFlowFixture] = useState("");
 
   const lines = evidenceLines(context, preview);
@@ -836,7 +836,7 @@ export function ContentLabPage() {
                       checked={requireLlmPreview}
                       onChange={(event) => setRequireLlmPreview(event.target.checked)}
                     />
-                    Require LLM render
+                    LLM polish / experimental (cost-bearing)
                   </label>
                 </div>
 

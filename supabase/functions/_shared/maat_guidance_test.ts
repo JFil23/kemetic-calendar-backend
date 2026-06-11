@@ -25,6 +25,12 @@ import {
 } from "./maat_guidance.ts";
 import { buildUserMemoryBrief } from "./user_memory_brief.ts";
 import { buildMaatDimensionSnapshot } from "../ai_generate_reflection/maat_decision.ts";
+import { buildMaatFlowCompletionEvidenceBadges } from "./guidance_evidence.ts";
+import {
+  synthesizeMaatFlowDecanPattern,
+  THE_WEIGHING_FLOW_KEY,
+  THE_WEIGHING_FLOW_TITLE,
+} from "./maat_flow_response_spectrum.ts";
 
 const window = {
   start: "2026-05-16",
@@ -33,6 +39,32 @@ const window = {
   decanTheme: "measure",
   decanContextKey: "1-1",
 };
+
+function weighingPattern(status: string) {
+  const badge = buildMaatFlowCompletionEvidenceBadges({
+    completions: [{
+      id: 1,
+      client_event_id: `weighing-${status}`,
+      flow_id: 42,
+      completed_on: "2026-05-18",
+      completed_at: "2026-05-18T17:00:00.000Z",
+      source: "client",
+      metadata: {
+        status,
+        flow_key: THE_WEIGHING_FLOW_KEY,
+        flow_title: THE_WEIGHING_FLOW_TITLE,
+        event_title: "Open the Material Ledger",
+        completed_on: "2026-05-18",
+      },
+    }],
+  })[0];
+  return synthesizeMaatFlowDecanPattern({
+    decanId: `${window.start}:${window.end}:${window.decanContextKey}`,
+    decanStart: window.start,
+    decanEnd: window.end,
+    completionEvidence: [badge],
+  });
+}
 
 Deno.test("pending planner badges become Ma'at ledger obligations", () => {
   const badges: GuidanceBadgeRow[] = [{
@@ -112,6 +144,76 @@ Deno.test("drift nudge chooses the largest Ma'at ledger restoration target", () 
     "Choose the task with the clearest finish line",
   );
   assertEquals(draft.bodyText.includes("failure"), false);
+});
+
+Deno.test("Ma'at spectrum opening uses orientation seed as deterministic output", () => {
+  const snapshot = buildGuidanceSnapshot({ window, badges: [] });
+  const pattern = weighingPattern("observed");
+  const draft = buildDecanOpeningDraft({
+    window,
+    snapshot,
+    maatFlowPattern: pattern,
+  });
+
+  assertEquals(
+    draft.bodyText,
+    "The balance holds when the measure continues.",
+  );
+  assertEquals(
+    (draft.payload.maat_flow_response_renderer as { renderer?: string })
+      .renderer,
+    "deterministic_spectrum",
+  );
+  assertEquals(
+    (draft.payload.maat_flow_response as { usedLlm?: boolean }).usedLlm,
+    false,
+  );
+  assertEquals(
+    (draft.payload.output_compiler as { status?: string }).status,
+    "compiled",
+  );
+});
+
+Deno.test("Ma'at spectrum nudge uses alignment seed without calling LLM", async () => {
+  const snapshot = buildGuidanceSnapshot({
+    window,
+    badges: [{
+      title: "To-do: file notes",
+      details: "Planner to-do entry for 2026-05-19. State: pending.",
+      tags: ["planner", "kind:todo", "state:pending"],
+      occurred_on: "2026-05-19",
+    }],
+  });
+  const pattern = weighingPattern("observed_partly");
+  const draft = buildDriftNudgeDraft({
+    snapshot,
+    triggerReason: "test_pending_obligations",
+    window,
+    maatFlowPattern: pattern,
+  });
+  const rendered = await renderGuidanceDraftWithLlm(draft, {
+    renderer: async () => {
+      await Promise.resolve();
+      throw new Error("Anthropic should not be called for Ma'at spectrum");
+    },
+  });
+
+  assertEquals(
+    rendered.bodyText,
+    "Return to the sitting and place the one thing that was not yet named.",
+  );
+  assertEquals(
+    (rendered.payload.nudge_renderer as { renderer?: string }).renderer,
+    "deterministic_spectrum",
+  );
+  assertEquals(
+    (rendered.payload.maat_flow_response as { usedLlm?: boolean }).usedLlm,
+    false,
+  );
+  assertEquals(
+    (rendered.payload.output_compiler as { status?: string }).status,
+    "compiled",
+  );
 });
 
 Deno.test("Moon Return backlog records are not planner skip evidence", () => {

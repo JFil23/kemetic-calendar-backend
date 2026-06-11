@@ -522,7 +522,7 @@ Deno.test("admin_content_preview exposes reflection renderer diagnostics", async
     }),
   });
 
-  const blockedResponse = await handler(authedRequest(
+  const response = await handler(authedRequest(
     "https://example.test/functions/v1/admin_content_preview?action=generate",
     {
       method: "POST",
@@ -535,12 +535,14 @@ Deno.test("admin_content_preview exposes reflection renderer diagnostics", async
       }),
     },
   ));
-  assertEquals(blockedResponse.status, 502);
-  const blockedPayload = await blockedResponse.json();
-  assertEquals(blockedPayload.error, "llm_render_required");
-  assertEquals(blockedPayload.diagnostics.renderer.error, "test failure");
+  assertEquals(response.status, 200);
+  const payload = await response.json();
+  assertEquals(
+    payload.preview.push_preview.render_diagnostics.renderer.error,
+    "test failure",
+  );
 
-  const response = await handler(authedRequest(
+  const fallbackResponse = await handler(authedRequest(
     "https://example.test/functions/v1/admin_content_preview?action=generate",
     {
       method: "POST",
@@ -554,35 +556,36 @@ Deno.test("admin_content_preview exposes reflection renderer diagnostics", async
       }),
     },
   ));
-  assertEquals(response.status, 200);
-  const payload = await response.json();
+  assertEquals(fallbackResponse.status, 200);
+  const fallbackPayload = await fallbackResponse.json();
   assertEquals(
-    payload.preview.push_preview.render_diagnostics.renderer.fallback_reason,
+    fallbackPayload.preview.push_preview.render_diagnostics.renderer
+      .fallback_reason,
     "anthropic_error",
   );
   assertEquals(
-    payload.preview.push_preview.render_diagnostics.compiler.status,
+    fallbackPayload.preview.push_preview.render_diagnostics.compiler.status,
     "fallback",
   );
   assertEquals(
-    payload.preview.push_preview.render_diagnostics.compiled_package
+    fallbackPayload.preview.push_preview.render_diagnostics.compiled_package
       .package_version,
     "compiled_output_package_v1",
   );
   assertEquals(
-    payload.preview.push_preview.render_diagnostics.not_quality_proof,
+    fallbackPayload.preview.push_preview.render_diagnostics.not_quality_proof,
     true,
   );
   assertEquals(
-    payload.preview.push_preview.render_diagnostics.push_source,
+    fallbackPayload.preview.push_preview.render_diagnostics.push_source,
     "blocked_fallback",
   );
   assertEquals(
-    payload.preview.push_preview.render_diagnostics.push_blocked,
+    fallbackPayload.preview.push_preview.render_diagnostics.push_blocked,
     true,
   );
   assertEquals(
-    payload.preview.push_preview.render_diagnostics.push_block_reason,
+    fallbackPayload.preview.push_preview.render_diagnostics.push_block_reason,
     "compiled_package_not_quality_proof",
   );
 
@@ -818,6 +821,8 @@ Deno.test("admin_content_preview wires Weighing fixture semantics into reflectio
         maat_flow_fixture: "observed_plus_partial",
         maat_flow_fixture_mode: "isolated",
         maat_flow_evidence_mode: "fixture_only",
+        llm_polish: false,
+        allow_llm_maat_runtime: false,
       });
       assertEquals(input.scheduled_maat_flow_events, undefined);
       const badges = Array.isArray(input.badges) ? input.badges : [];
@@ -920,7 +925,6 @@ Deno.test("admin_content_preview wires Weighing fixture semantics into reflectio
         decan_start: "2026-05-19",
         decan_end: "2026-05-28",
         decan_name: "Hathor - s3h",
-        require_llm: true,
         maat_flow_fixture: "observed_plus_partial",
       }),
     },
@@ -993,6 +997,111 @@ Deno.test("admin_content_preview wires Weighing fixture semantics into reflectio
       "The record was brought to the scale without alteration",
     ),
     false,
+  );
+});
+
+Deno.test("admin_content_preview accepts Ma'at spectrum preview without Anthropic credits", async () => {
+  const { client } = createMockAdminClient({
+    user: { id: "operator-1" },
+    staff: {
+      role: "operator",
+      scopes: ["product.content.test"],
+      is_active: true,
+    },
+    tables: {
+      profiles: [{ id: "user-a", timezone: "America/Los_Angeles" }],
+      reflection_profiles: [],
+      journal_badges: [],
+      journal_entries: [],
+      todos: [],
+      nutrition_items: [],
+      admin_content_evaluations: [],
+    },
+  });
+  const handler = createAdminContentPreviewHandler({
+    client,
+    environment: "test",
+    reflectionGenerator: async (input) => {
+      await Promise.resolve();
+      const adminPreview = input.admin_preview as
+        | { llm_polish?: boolean }
+        | undefined;
+      assertEquals(adminPreview?.llm_polish, false);
+      const badges = Array.isArray(input.badges) ? input.badges : [];
+      const pattern = synthesizeMaatFlowDecanPattern({
+        decanId: "2026-05-19:2026-05-28:Hathor - s3h",
+        decanStart: String(input.decan_start),
+        decanEnd: String(input.decan_end),
+        completionEvidence: badges,
+      });
+      return {
+        reflection:
+          "The sitting was entered but not completed. The scale was approached; the full account was not placed.",
+        modelUsed: "deterministic_spectrum",
+        badgeCount: badges.length,
+        evidenceCount: badges.length,
+        branch: "decan",
+        outputControl: {
+          renderer: {
+            renderer: "deterministic_spectrum",
+            model_used: "deterministic_spectrum",
+            used_llm: false,
+            llm_cost: 0,
+            spectrum_flow_key: "the-weighing",
+            fallback_reason: null,
+          },
+          outputCompiler: {
+            status: "compiled",
+            fallback_used: false,
+            not_quality_proof: false,
+          },
+          compiledOutputPackage: {
+            package_version: "compiled_output_package_v1",
+            fallback_used: false,
+            not_quality_proof: false,
+            push_text: "The sitting was entered but not completed.",
+          },
+          maatFlowDecanPattern: pattern,
+          maatFlowDoNotSay: pattern.selectedSeeds.reflection?.doNotSay ?? [],
+          maatFlowEvidenceMetadata: badges.map((badge) => badge.metadata),
+        },
+      };
+    },
+  });
+
+  const response = await handler(authedRequest(
+    "https://example.test/functions/v1/admin_content_preview?action=generate",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        target_user_id: "user-a",
+        artifact: "decan_reflection",
+        decan_start: "2026-05-19",
+        decan_end: "2026-05-28",
+        decan_name: "Hathor - s3h",
+        maat_flow_fixture: "partial_only",
+      }),
+    },
+  ));
+
+  assertEquals(response.status, 200);
+  const payload = await response.json();
+  assertEquals(payload.preview.model_version, "deterministic_spectrum");
+  assertEquals(
+    payload.preview.push_preview.render_diagnostics.status,
+    "deterministic_spectrum",
+  );
+  assertEquals(
+    payload.preview.push_preview.render_diagnostics.renderer.used_llm,
+    false,
+  );
+  assertEquals(
+    payload.preview.push_preview.render_diagnostics.renderer.llm_cost,
+    0,
+  );
+  assertStringIncludes(
+    payload.preview.generated_text,
+    "entered but not completed",
   );
 });
 

@@ -322,7 +322,10 @@ export function compilerStatusFromRenderer(params: {
 }): OutputCompilerStatus {
   const renderer = clean(params.renderer);
   const fallbackReason = clean(params.fallbackReason);
-  return renderer === "anthropic" && !fallbackReason ? "compiled" : "fallback";
+  return (renderer === "anthropic" || renderer === "deterministic_spectrum") &&
+      !fallbackReason
+    ? "compiled"
+    : "fallback";
 }
 
 export function buildOutputCompilerTrace(params: {

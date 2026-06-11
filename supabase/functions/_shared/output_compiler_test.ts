@@ -31,6 +31,23 @@ Deno.test("compiler status treats Anthropic without fallback reason as compiled"
   );
 });
 
+Deno.test("compiler status treats deterministic spectrum without fallback reason as compiled", () => {
+  assertEquals(
+    compilerStatusFromRenderer({
+      renderer: "deterministic_spectrum",
+      fallbackReason: null,
+    }),
+    "compiled",
+  );
+  assertEquals(
+    compilerStatusFromRenderer({
+      renderer: "deterministic_spectrum",
+      fallbackReason: "missing_seed",
+    }),
+    "fallback",
+  );
+});
+
 Deno.test("compiled output package preserves fallback archive-only discipline", () => {
   const compiler = buildOutputCompilerTrace({
     surface: "nudge",

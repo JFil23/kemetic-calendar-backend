@@ -9,6 +9,8 @@ deno check \
   supabase/functions/admin_content_preview/admin_content_preview_test.ts \
   supabase/functions/_shared/maat_guidance.ts \
   supabase/functions/_shared/maat_guidance_test.ts \
+  supabase/functions/_shared/maat_flow_response_renderer.ts \
+  supabase/functions/_shared/maat_flow_response_renderer_test.ts \
   supabase/functions/_shared/maat_flow_response_spectrum.ts \
   supabase/functions/_shared/maat_flow_response_spectrum_test.ts \
   supabase/functions/_shared/output_control.ts \
@@ -22,6 +24,7 @@ deno check \
 deno test --allow-env \
   supabase/functions/admin_content_preview/admin_content_preview_test.ts \
   supabase/functions/_shared/maat_guidance_test.ts \
+  supabase/functions/_shared/maat_flow_response_renderer_test.ts \
   supabase/functions/_shared/maat_flow_response_spectrum_test.ts \
   supabase/functions/_shared/output_control_test.ts \
   supabase/functions/_shared/output_compiler_test.ts \

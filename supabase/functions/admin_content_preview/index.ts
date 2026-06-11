@@ -1299,10 +1299,11 @@ function nudgeRenderDiagnostics(draft: GuidanceDraft) {
   });
 
   const compilerStatus = normalizeText(compiler?.status);
+  const rendererEngine = normalizeText(renderer?.renderer);
   return {
     surface: "nudge",
     status: compilerStatus === "compiled"
-      ? "llm"
+      ? rendererEngine === "anthropic" ? "llm" : rendererEngine || "compiled"
       : compilerStatus === "fallback"
       ? "fallback"
       : rendererStatus(renderer),
@@ -1413,6 +1414,7 @@ function reflectionRenderDiagnostics(params: {
     ? maatFlowPattern.interpretiveEmphasis
     : null;
   const compilerStatus = normalizeText(compiler?.status);
+  const rendererEngine = normalizeText(renderer?.renderer);
   const pushResolution = resolveCompiledPackagePushText({
     payload: outputControl,
   });
@@ -1420,7 +1422,7 @@ function reflectionRenderDiagnostics(params: {
   return {
     surface: "reflection",
     status: compilerStatus === "compiled"
-      ? "llm"
+      ? rendererEngine === "anthropic" ? "llm" : rendererEngine || "compiled"
       : compilerStatus === "fallback"
       ? "fallback"
       : rendererStatus(renderer),
@@ -1636,16 +1638,13 @@ async function generatePreview(
   ]);
   const evidence = evidenceLines(badges);
   const decanContext = getDecanContext(window.decanContextKey);
-  const allowFallback = body.allow_fallback === true ||
-    normalizeText(body.allow_fallback).toLowerCase() === "true";
   const explicitlyRequireLlm = body.require_llm === true ||
     normalizeText(body.require_llm).toLowerCase() === "true";
-  const compilerQualityArtifact = artifact === "decan_reflection" ||
-    artifact === "push_preview" ||
-    artifact === "isfet_nudge" ||
-    artifact === "maat_nudge";
-  const requireLlm = explicitlyRequireLlm ||
-    (compilerQualityArtifact && !allowFallback);
+  const requireLlm = explicitlyRequireLlm;
+  const nudgeLlmOptions: NudgeLlmRenderOptions = explicitlyRequireLlm
+    ? deps.nudgeLlmOptions ??
+      (deps.environment === "test" ? { enabled: false } : {})
+    : { enabled: false };
   const reflectionProfile = await reflectionProfileForUser(
     deps.client,
     targetUserId,
@@ -1719,11 +1718,13 @@ async function generatePreview(
           scheduled_maat_flow_events: fixtureScheduledEvents.length
             ? fixtureScheduledEvents
             : undefined,
-          admin_preview: maatFlowFixture
+          admin_preview: maatFlowFixture || explicitlyRequireLlm
             ? {
-              maat_flow_fixture: maatFlowFixture,
-              maat_flow_fixture_mode: "isolated",
-              maat_flow_evidence_mode: "fixture_only",
+              maat_flow_fixture: maatFlowFixture || null,
+              maat_flow_fixture_mode: maatFlowFixture ? "isolated" : null,
+              maat_flow_evidence_mode: maatFlowFixture ? "fixture_only" : null,
+              llm_polish: explicitlyRequireLlm,
+              allow_llm_maat_runtime: explicitlyRequireLlm,
             }
             : undefined,
         });
@@ -1869,8 +1870,7 @@ async function generatePreview(
         maturity,
         memoryBrief,
       }),
-      deps.nudgeLlmOptions ??
-        (deps.environment === "test" ? { enabled: false } : {}),
+      nudgeLlmOptions,
     );
     const preview = draftToPreview(
       draft,
@@ -1900,8 +1900,7 @@ async function generatePreview(
         triggerReason: "decan_day_5_maat",
         celebrationOnly: true,
       }),
-      deps.nudgeLlmOptions ??
-        (deps.environment === "test" ? { enabled: false } : {}),
+      nudgeLlmOptions,
     );
     const preview = draftToPreview(
       draft,

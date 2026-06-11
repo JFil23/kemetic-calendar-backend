@@ -10,6 +10,11 @@ import {
   synthesizeMaatFlowDecanPattern,
 } from "../_shared/maat_flow_response_spectrum.ts";
 import {
+  maatFlowResponseRendererMetadata,
+  renderMaatFlowResponse,
+  resolveMaatFlowRuntimeRenderMode,
+} from "../_shared/maat_flow_response_renderer.ts";
+import {
   maatFlowPatternPromptBlock,
   type MaatFlowReflectionBindingCheck,
   maatFlowReflectionBindingRepairPrompt,
@@ -215,6 +220,8 @@ type ReflectionPayload = {
     maat_flow_fixture?: string | null;
     maat_flow_fixture_mode?: string | null;
     maat_flow_evidence_mode?: string | null;
+    llm_polish?: boolean | string | null;
+    allow_llm_maat_runtime?: boolean | string | null;
   } | null;
   // Legacy fallback fields
   badge_titles?: string[];
@@ -415,6 +422,12 @@ function normalizeText(value: string | null | undefined) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function truthyFlag(value: unknown) {
+  if (value === true) return true;
+  return normalizeText(value == null ? undefined : String(value))
+    .toLowerCase() === "true";
 }
 
 function clampText(value: string, maxChars: number) {
@@ -4061,6 +4074,25 @@ serve(async (req) => {
         completionEvidence: maatFlowCompletionEvidence,
         scheduledEvents: scheduledMaatFlowEvents,
       });
+      const adminPreview = isRecord(payload.admin_preview)
+        ? payload.admin_preview
+        : null;
+      const hasMaatFlowSpectrumResponse =
+        maatFlowDecanPattern.flowSignals.length > 0 &&
+        !!maatFlowDecanPattern.selectedSeeds.reflection;
+      const explicitAdminMaatLlm = truthyFlag(adminPreview?.llm_polish) ||
+        truthyFlag(adminPreview?.allow_llm_maat_runtime);
+      const envAllowsMaatRuntimeLlm = truthyFlag(
+        Deno.env.get("ALLOW_LLM_MAAT_RUNTIME"),
+      );
+      const {
+        allowLlmForMaatFlowResponse,
+        useDeterministicMaatFlowRenderer,
+      } = resolveMaatFlowRuntimeRenderMode({
+        hasMaatFlowSpectrumResponse,
+        allowLlmMaatRuntime: envAllowsMaatRuntimeLlm,
+        explicitAdminLlmRequested: explicitAdminMaatLlm,
+      });
       const maatFlowDoNotSay = maatFlowSelectedDoNotSay(
         maatFlowDecanPattern,
       );
@@ -4293,6 +4325,18 @@ serve(async (req) => {
         renderer_version: "reflection_renderer_diagnostics_v1",
         anthropic_available: Boolean(apiKey),
         anthropic_attempted: false,
+        used_llm: false,
+        llm_cost: 0,
+        spectrum_flow_key: hasMaatFlowSpectrumResponse
+          ? maatFlowDecanPattern.selectedSeeds.reflection?.flowKey ?? null
+          : null,
+        deterministic_spectrum_available: hasMaatFlowSpectrumResponse,
+        maat_flow_llm_runtime_guard: {
+          env_allow_llm_maat_runtime: envAllowsMaatRuntimeLlm,
+          explicit_admin_llm_requested: explicitAdminMaatLlm,
+          llm_allowed_for_maat_flow: allowLlmForMaatFlowResponse,
+          deterministic_renderer_selected: useDeterministicMaatFlowRenderer,
+        },
         moral_portrait_attempted: false,
         moral_portrait_source: "deterministic",
         moral_portrait_model_used: null,
@@ -4308,10 +4352,43 @@ serve(async (req) => {
         plain_sacred_editor_error: null,
         plain_sacred_editor_removed_abstractions: [],
         plain_sacred_editor_warnings: [],
-        renderer: "local-generator-v2",
-        fallback_reason: apiKey ? null : "missing_anthropic_key",
+        renderer: useDeterministicMaatFlowRenderer
+          ? "deterministic_spectrum"
+          : "local-generator-v2",
+        fallback_reason: useDeterministicMaatFlowRenderer
+          ? null
+          : apiKey
+          ? null
+          : "missing_anthropic_key",
         error: null,
       };
+      const deterministicMaatFlowReflection = useDeterministicMaatFlowRenderer
+        ? renderMaatFlowResponse(
+          maatFlowDecanPattern,
+          "reflection",
+          {
+            decanName: payload.decan_name,
+            decanTheme: payload.decan_theme ?? null,
+            decanContextKey: payload.decan_context_key ?? null,
+          },
+        )
+        : null;
+      if (useDeterministicMaatFlowRenderer && deterministicMaatFlowReflection) {
+        reflectionText = deterministicMaatFlowReflection.body;
+        modelUsed = "deterministic_spectrum";
+        Object.assign(
+          rendererDiagnostics,
+          maatFlowResponseRendererMetadata(deterministicMaatFlowReflection),
+          {
+            model_used: modelUsed,
+            deterministic_response: deterministicMaatFlowReflection,
+          },
+        );
+      } else if (useDeterministicMaatFlowRenderer) {
+        rendererDiagnostics.fallback_reason = "missing_deterministic_seed";
+        rendererDiagnostics.error =
+          "Ma'at flow deterministic spectrum renderer had no selected reflection seed.";
+      }
       const moralPortraitInput: ReflectionMoralPortraitInput = {
         calendarFrame: reflectionCalendarFrame,
         profileSnapshot: reflectionOutputPlan.reflectionProfileSnapshot,
@@ -4323,8 +4400,11 @@ serve(async (req) => {
       };
       let reflectionMoralPortrait: ReflectionMoralPortrait =
         buildFallbackReflectionMoralPortrait(moralPortraitInput);
-      if (apiKey) {
+      if (apiKey && !useDeterministicMaatFlowRenderer) {
         rendererDiagnostics.moral_portrait_attempted = true;
+        rendererDiagnostics.used_llm = true;
+        rendererDiagnostics.llm_cost = null;
+        rendererDiagnostics.llm_cost_status = "cost_bearing_not_calculated";
         try {
           const portraitResult = await generateReflectionMoralPortrait(
             moralPortraitInput,
@@ -4357,8 +4437,11 @@ serve(async (req) => {
       };
       let reflectionJudgment: ReflectionJudgment =
         buildFallbackReflectionJudgment(judgmentInput);
-      if (apiKey) {
+      if (apiKey && !useDeterministicMaatFlowRenderer) {
         rendererDiagnostics.judgment_attempted = true;
+        rendererDiagnostics.used_llm = true;
+        rendererDiagnostics.llm_cost = null;
+        rendererDiagnostics.llm_cost_status = "cost_bearing_not_calculated";
         try {
           const judgmentResult = await generateReflectionJudgment(
             judgmentInput,
@@ -4443,8 +4526,13 @@ serve(async (req) => {
         decisionMatrixFingerprint: decisionMatrix?.fingerprint ?? null,
       });
 
-      if (apiKey) {
+      let maatFlowBindingSystemPrompt = "";
+      let maatFlowBindingUserPrompt = "";
+      if (apiKey && !useDeterministicMaatFlowRenderer) {
         rendererDiagnostics.anthropic_attempted = true;
+        rendererDiagnostics.used_llm = true;
+        rendererDiagnostics.llm_cost = null;
+        rendererDiagnostics.llm_cost_status = "cost_bearing_not_calculated";
         try {
           const systemPrompt =
             `You write decan reflections (one 10-day period). Use only the evidence provided. Target ${targetWordRange} words; this is a hard limit. Use 3 short paragraphs and no more than 7 sentences. This is not a longer nudge: the calendar/decan/day-card arc governs the spiritual frame, REFLECTION_MORAL_PORTRAIT governs the witness of who the user is becoming, REFLECTION_JUDGMENT governs the moral thesis, REFLECTION_THESIS_GATE decides whether evidence may be visible, REFLECTION_PROFILE_SNAPSHOT contains the Ma'at alignment lens and personal lens, and the case thread is one detail inside that judgment. The first sentence must name the current decan using the canonical spoken decan name from REFLECTION_CALENDAR_FRAME, then fuse the calendar demand with a living portrait of the user before any item, missed mark, task, or case diagnosis. Begin from REFLECTION_MORAL_PORTRAIT.personBecomingStatement and REFLECTION_MORAL_PORTRAIT.portraitStatement and write from REFLECTION_THESIS_GATE.finalReflectionThesis when supplied; otherwise write from REFLECTION_JUDGMENT.reflectionThesis. The selected evidence anchor is proof only when REFLECTION_THESIS_GATE.evidenceVisibility is visible_anchor. If evidenceVisibility is background_support or diagnostics_only, keep the evidence in diagnostics; do not name the item/source, do not make it the subject, and obey forbiddenSurfaceFocus. Respect REFLECTION_MORAL_PORTRAIT.forbiddenFramings and REFLECTION_JUDGMENT.falseReadingToAvoid. Address the user directly with you/your. The person is the protagonist. Record/account/mark/evidence may not become the subject or goal; use record or mark at most once if truly necessary. Do not use "the account" or the word "account" in user-facing prose; say your day, your practice, what you kept, or what you can carry. Do not expose the scaffold: never write "Where you answered", "Where restoration is still needed", "The alignment is", "The underalignment is", "The improvement direction is", or any direct label-like rendering of hidden fields. Let the portrait reveal both alignment and restoration without category labels. Use USER_PROFILE_CONTEXT to personalize interpretation, but never print profile labels, fact keys, source names, or raw user data. Treat journal badges and planner item states (checked, partial, skipped, and unchecked to-dos/nutrition) as equally valid evidence. If normalized obligation threads are supplied, treat them as authoritative: unique_item_count is the number of obligations and occurrence_count is repetition. One recurring item across the period is one thread, not several supports. For a single recurring thread, do not contrast against several/multiple supports and do not mention exact occurrence counts, "daily," "every day," or "all ten days"; if the thesis gate hides evidence, do not mention the thread at all. Use one concrete detail only when the thesis gate permits visible_anchor, then move to Ma'at synthesis in plain language. If the thesis gate hides the selected anchor, still use 1-2 non-suppressed middle details from BADGE EVIDENCE or USER_PROFILE_CONTEXT when available, especially observed flows, calendar events, reminders, visible work, or journal badges; do not quote journal text and do not dump raw inputs. If MAAT_FLOW_DECAN_PATTERN is present, its reflection_seed, reflection_tier, required_reflection_contract, authored_central_tension, and do_not_say list are binding authored evidence; the first movement after the opening decan sentence must visibly honor the selected Ma'at flow reflection signal before broader calendar, profile, Hathor, body-care, or maintenance framing. If reflection_tier is skipped_explicit, explicitly name set-aside/restorative absence and a not-opened or not-entered measure. If reflection_tier is partial, explicitly name entered/approached/opened but not completed or fully placed without diagnosing motive. Broader calendar or profile evidence may contextualize the Ma'at flow signal but must not replace it. If it conflicts with REFLECTION_JUDGMENT, preserve MAAT_FLOW_DECAN_PATTERN for the Ma'at flow sentence and reflection/action boundary. If its reflection constraints forbid imperatives, do not turn the reflection into an alignment task and do not include an imperative sentence anywhere, including the closing. If you use a Ma'at term, explain it in ordinary words in the same sentence, such as right size, clear place, truthful form, steady care, or follow-through. Avoid coded phrases: written witness, act and account, embodied order, underalignment, life accomplished, dependent on inference, account cannot prove, and the account. Hard ban system-serving phrases: next reflection, less guesswork, enough detail, record cannot show, what may already have occurred, truth asks for enough detail, improvement direction, record tells the truth, record can match, mark of care, complete today so your record, written record drift apart. Do not repeat the same activity, nutrition item, source, purpose, count, or date. Every sentence should do at least two jobs: fuse decan frame with portrait, turn evidence into meaning, or let the directive arise naturally from who the user is becoming. Do not list action options. Follow REFLECTION_JUDGMENT: end with exactly one question or exactly one charge, never both, unless MAAT_FLOW_DECAN_PATTERN forbids imperatives; then do not use a direct-command charge. Prefer weight-bearing closings such as "What would it mean to...", "What would restore...", "What are you willing to return to...", or "What must be made whole..."; avoid "what would it look like" unless the judgment explicitly requires a gentle exploratory close. Keep gravity proportionate: ordinary nutrition support should remain routine unless evidence shows real harm or clinical urgency. Do not use defensive "not failure / not judgment / not crisis" phrasing. No unsupported generalities; if you mention an activity, it must appear in the evidence and be permitted by the thesis gate. Non-judgmental, warm tone. Aim for: morally oriented toward Ma'at, not coached on habits. No bullets, no metadata, no generic advice. If hidden Ma'at/Isfet guardrails, output-control plan, moral portrait, reflection judgment, thesis gate, user profile snapshot, user profile context, calendar frame, or memory brief are present, use them only for tone, evidence visibility, structure, and closing strategy; never expose scores, gates, labels, slugs, matrix language, profile fact labels, or output-control fields.`;
@@ -4468,6 +4556,8 @@ serve(async (req) => {
               targetWordRange,
             },
           );
+          maatFlowBindingSystemPrompt = systemPrompt;
+          maatFlowBindingUserPrompt = userPrompt;
           const res = await callAnthropic([
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
@@ -4482,63 +4572,11 @@ serve(async (req) => {
               maatFlowDecanPattern,
             );
             rendererDiagnostics.maat_flow_binding_check = maatFlowBindingCheck;
-            let acceptedMaatFlowBinding = maatFlowBindingCheck.ok;
-            let finalAttemptedMaatFlowBindingCheck = maatFlowBindingCheck;
-            if (
-              !maatFlowBindingCheck.ok &&
-              maatFlowDecanPattern.flowSignals.length
-            ) {
-              rendererDiagnostics.maat_flow_binding_retry_attempted = true;
-              const retryPrompt = [
-                userPrompt,
-                maatFlowReflectionBindingRepairPrompt(
-                  maatFlowDecanPattern,
-                  maatFlowBindingCheck.reasons,
-                ),
-              ].filter((block) => block.trim().length).join("\n\n");
-              const retry = await callAnthropic([
-                { role: "system", content: systemPrompt },
-                { role: "user", content: retryPrompt },
-              ]);
-              if (retry.text && retry.text.trim().length) {
-                const retryText = sanitizeRecurringThreadReflectionLanguage(
-                  retry.text.trim(),
-                  normalizedThreadsForReflection,
-                );
-                const retryCheck = validateMaatFlowReflectionTextBinding(
-                  retryText,
-                  maatFlowDecanPattern,
-                );
-                rendererDiagnostics.maat_flow_binding_retry_check = retryCheck;
-                finalAttemptedMaatFlowBindingCheck = retryCheck;
-                if (retryCheck.ok) {
-                  reflectionText = retryText;
-                  acceptedMaatFlowBinding = true;
-                  rendererDiagnostics.maat_flow_binding_retry_applied = true;
-                } else {
-                  rendererDiagnostics.maat_flow_binding_retry_applied = false;
-                }
-              } else {
-                rendererDiagnostics.maat_flow_binding_retry_check = {
-                  ok: false,
-                  reasons: ["empty_repair_text"],
-                };
-              }
-            } else {
-              rendererDiagnostics.maat_flow_binding_retry_attempted = false;
-            }
+            rendererDiagnostics.maat_flow_binding_retry_attempted = false;
             modelUsed = res.modelUsed ?? modelUsed;
             rendererDiagnostics.renderer = "anthropic";
             rendererDiagnostics.model_used = modelUsed;
-            if (acceptedMaatFlowBinding) {
-              rendererDiagnostics.fallback_reason = null;
-            } else {
-              markMaatFlowBindingFailure(
-                rendererDiagnostics,
-                finalAttemptedMaatFlowBindingCheck,
-                "initial_render",
-              );
-            }
+            rendererDiagnostics.fallback_reason = null;
           }
         } catch (llmErr) {
           rendererDiagnostics.fallback_reason = "anthropic_error";
@@ -4585,8 +4623,11 @@ serve(async (req) => {
         calendarFrame: reflectionCalendarFrame,
         targetWordRange,
       };
-      if (apiKey && reflectionText) {
+      if (apiKey && reflectionText && !useDeterministicMaatFlowRenderer) {
         rendererDiagnostics.plain_sacred_editor_attempted = true;
+        rendererDiagnostics.used_llm = true;
+        rendererDiagnostics.llm_cost = null;
+        rendererDiagnostics.llm_cost_status = "cost_bearing_not_calculated";
         try {
           const editorResult = await generateReflectionPlainSacredEdit(
             plainSacredEditorInput,
@@ -4665,9 +4706,13 @@ serve(async (req) => {
       );
       let reflectionOutputRepair: Record<string, unknown> | null = null;
       if (
-        apiKey && !reflectionOutputGrade.pass &&
+        apiKey && !useDeterministicMaatFlowRenderer &&
+        !reflectionOutputGrade.pass &&
         reflectionOutputGrade.repairInstruction
       ) {
+        rendererDiagnostics.used_llm = true;
+        rendererDiagnostics.llm_cost = null;
+        rendererDiagnostics.llm_cost_status = "cost_bearing_not_calculated";
         try {
           const repairResult = await repairReflectionOutput({
             plan: reflectionOutputPlan,
@@ -4735,12 +4780,92 @@ serve(async (req) => {
         }
       }
 
-      const finalMaatFlowBindingCheck = validateMaatFlowReflectionTextBinding(
+      let finalMaatFlowBindingCheck = validateMaatFlowReflectionTextBinding(
         reflectionText,
         maatFlowDecanPattern,
       );
       rendererDiagnostics.maat_flow_binding_final_check =
         finalMaatFlowBindingCheck;
+      if (
+        !finalMaatFlowBindingCheck.ok &&
+        maatFlowDecanPattern.flowSignals.length &&
+        apiKey &&
+        !useDeterministicMaatFlowRenderer &&
+        maatFlowBindingSystemPrompt &&
+        maatFlowBindingUserPrompt
+      ) {
+        rendererDiagnostics.maat_flow_binding_retry_attempted = true;
+        rendererDiagnostics.used_llm = true;
+        rendererDiagnostics.llm_cost = null;
+        rendererDiagnostics.llm_cost_status = "cost_bearing_not_calculated";
+        try {
+          const retryPrompt = [
+            maatFlowBindingUserPrompt,
+            maatFlowReflectionBindingRepairPrompt(
+              maatFlowDecanPattern,
+              finalMaatFlowBindingCheck.reasons,
+              reflectionText,
+            ),
+          ].filter((block) => block.trim().length).join("\n\n");
+          const retry = await callAnthropic([
+            { role: "system", content: maatFlowBindingSystemPrompt },
+            { role: "user", content: retryPrompt },
+          ]);
+          if (retry.text && retry.text.trim().length) {
+            const retryText = sanitizeRecurringThreadReflectionLanguage(
+              retry.text.trim(),
+              normalizedThreadsForReflection,
+            );
+            const retryCheck = validateMaatFlowReflectionTextBinding(
+              retryText,
+              maatFlowDecanPattern,
+            );
+            rendererDiagnostics.maat_flow_binding_retry_check = retryCheck;
+            rendererDiagnostics.maat_flow_binding_retry_model_used =
+              retry.modelUsed;
+            if (retryCheck.ok) {
+              reflectionText = retryText;
+              modelUsed = retry.modelUsed ?? modelUsed;
+              rendererDiagnostics.renderer = "anthropic";
+              rendererDiagnostics.model_used = modelUsed;
+              rendererDiagnostics.fallback_reason = null;
+              rendererDiagnostics.error = null;
+              rendererDiagnostics.maat_flow_binding_failed = false;
+              rendererDiagnostics.maat_flow_binding_failure_stage = null;
+              rendererDiagnostics.maat_flow_binding_recovered_by_retry = true;
+              reflectionOutputValidation = validateGeneratedTextAgainstPlan(
+                reflectionOutputPlan,
+                reflectionText,
+              );
+              reflectionOutputGrade = gradeGeneratedTextAgainstPlan(
+                reflectionOutputPlan,
+                reflectionText,
+                reflectionOutputValidation,
+              );
+              finalMaatFlowBindingCheck = retryCheck;
+              rendererDiagnostics.maat_flow_binding_final_check =
+                finalMaatFlowBindingCheck;
+              rendererDiagnostics.maat_flow_binding_retry_applied = true;
+            } else {
+              rendererDiagnostics.maat_flow_binding_retry_applied = false;
+            }
+          } else {
+            rendererDiagnostics.maat_flow_binding_retry_check = {
+              ok: false,
+              reasons: ["empty_repair_text"],
+            };
+            rendererDiagnostics.maat_flow_binding_retry_applied = false;
+          }
+        } catch (retryErr) {
+          rendererDiagnostics.maat_flow_binding_retry_error =
+            retryErr instanceof Error ? retryErr.message : String(retryErr);
+          rendererDiagnostics.maat_flow_binding_retry_applied = false;
+          console.error(
+            "Ma'at flow reflection binding repair error:",
+            retryErr,
+          );
+        }
+      }
       if (
         !finalMaatFlowBindingCheck.ok &&
         maatFlowDecanPattern.flowSignals.length
@@ -4868,6 +4993,10 @@ serve(async (req) => {
                   tension_labels: memoryBrief.tensionLabels,
                   evidence_phrases: memoryBrief.evidencePhrases,
                 },
+                renderer: rendererDiagnostics.renderer,
+                used_llm: rendererDiagnostics.used_llm,
+                llm_cost: rendererDiagnostics.llm_cost,
+                spectrum_flow_key: rendererDiagnostics.spectrum_flow_key,
                 maat_flow_decan_pattern: maatFlowDecanPattern,
                 maat_flow_do_not_say: maatFlowDoNotSay,
                 maat_flow_evidence_metadata: maatFlowBadgeMetadata,
@@ -4924,6 +5053,10 @@ serve(async (req) => {
                 dimension_source: maatSnapshot.source,
                 decision_matrix: decisionMatrix?.fingerprint ?? null,
                 memory_context_quality: memoryBrief.contextQuality,
+                renderer: rendererDiagnostics.renderer,
+                used_llm: rendererDiagnostics.used_llm,
+                llm_cost: rendererDiagnostics.llm_cost,
+                spectrum_flow_key: rendererDiagnostics.spectrum_flow_key,
                 maat_flow_decan_pattern: maatFlowDecanPattern,
                 maat_flow_do_not_say: maatFlowDoNotSay,
                 maat_flow_evidence_metadata: maatFlowBadgeMetadata,
@@ -4988,6 +5121,10 @@ serve(async (req) => {
           evidenceCount: evidenceLines.length,
           topTags: topTagList,
           branch: "decan",
+          renderer: rendererDiagnostics.renderer,
+          used_llm: rendererDiagnostics.used_llm,
+          llm_cost: rendererDiagnostics.llm_cost,
+          spectrum_flow_key: rendererDiagnostics.spectrum_flow_key,
           reflection_id: reflectionId,
           reflection_generation_id: reflectionGenerationId,
           anchor_nodes: decisionMatrix?.anchorNodes ?? [],

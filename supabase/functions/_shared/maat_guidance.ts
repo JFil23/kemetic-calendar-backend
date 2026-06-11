@@ -37,6 +37,11 @@ import {
 } from "./maat_constitution.ts";
 import type { MaatFlowDecanPatternSynthesis } from "./maat_flow_response_spectrum.ts";
 import {
+  type DeterministicMaatFlowResponse,
+  maatFlowResponseRendererMetadata,
+  renderMaatFlowResponse,
+} from "./maat_flow_response_renderer.ts";
+import {
   buildCompiledOutputPackage,
   buildOutputCompilerTrace,
   type CompiledOutputDestination,
@@ -1155,6 +1160,15 @@ function firstSentence(value: string) {
   return match?.[1]?.trim() || clean;
 }
 
+function allowLlmMaatRuntime() {
+  try {
+    return normalizeText(Deno.env.get("ALLOW_LLM_MAAT_RUNTIME"))
+      .toLowerCase() === "true";
+  } catch {
+    return false;
+  }
+}
+
 function payloadOutputControlPlan(
   draft: GuidanceDraft,
 ): ControlledOutputPlan | null {
@@ -1168,7 +1182,7 @@ function payloadOutputControlPlan(
 
 function nudgeRendererPayload(params: {
   attempted: boolean;
-  renderer: "deterministic" | "anthropic";
+  renderer: "deterministic" | "anthropic" | "deterministic_spectrum";
   modelVersion: string;
   fallbackReason?: string | null;
   error?: string | null;
@@ -1276,6 +1290,166 @@ function annotateNudgeRenderer(
       nudge_renderer: renderer,
       output_compiler: compiled.compiler,
       compiled_output_package: compiled.package,
+    },
+  };
+}
+
+function deterministicSpectrumSurfaceVariants(
+  response: DeterministicMaatFlowResponse,
+  constraints: ControlledSurfaceConstraints,
+): ControlledSurfaceVariants {
+  const bodyText = compactBody(response.body);
+  const teaserBase = response.badgeBody || firstSentence(bodyText);
+  return {
+    teaserText: clampText(teaserBase, constraints.teaserCharsMax),
+    bodyText,
+    pushExcerptText: clampText(
+      firstSentence(response.badgeBody || bodyText),
+      constraints.pushExcerptCharsMax,
+    ),
+    archivePreviewText: clampText(bodyText, constraints.archivePreviewCharsMax),
+  };
+}
+
+function applyMaatFlowSpectrumNudgeDraft(
+  draft: GuidanceDraft,
+  response: DeterministicMaatFlowResponse,
+): GuidanceDraft {
+  const plan = payloadOutputControlPlan(draft);
+  const constraints = plan?.surfaceConstraints ??
+    guidanceSurfaceConstraints(draft.kind);
+  const surfaceVariants = deterministicSpectrumSurfaceVariants(
+    response,
+    constraints,
+  );
+  const renderer = nudgeRendererPayload({
+    attempted: false,
+    renderer: "deterministic_spectrum",
+    modelVersion: "deterministic_spectrum",
+    validation: {
+      ok: true,
+      source: response.source,
+      used_llm: response.usedLlm,
+    },
+    grade: {
+      pass: true,
+      source: response.source,
+    },
+  });
+  const compiled = nudgeCompilerArtifacts({
+    draft,
+    renderer,
+    status: "compiled",
+    finalText: surfaceVariants.bodyText,
+    surfaceVariants,
+    validation: renderer.validation ?? null,
+    grade: renderer.grade ?? null,
+  });
+  return {
+    ...draft,
+    teaserText: surfaceVariants.teaserText,
+    bodyText: surfaceVariants.bodyText,
+    payload: {
+      ...draft.payload,
+      surface_variants: outputSurfaceVariantsPayload(surfaceVariants),
+      nudge_renderer: renderer,
+      maat_flow_response: response,
+      maat_flow_response_renderer: maatFlowResponseRendererMetadata(response),
+      output_compiler: compiled.compiler,
+      compiled_output_package: compiled.package,
+      output_control: {
+        ...(isRecord(draft.payload.output_control)
+          ? draft.payload.output_control
+          : {}),
+        spectrum_render: {
+          responseKind: response.responseKind,
+          source: response.source,
+          usedLlm: response.usedLlm,
+          confidence: response.confidence,
+          selectedTier: response.selectedSeed.tier,
+        },
+      },
+    },
+  };
+}
+
+function applyMaatFlowSpectrumOpeningDraft(
+  draft: GuidanceDraft,
+  response: DeterministicMaatFlowResponse,
+): GuidanceDraft {
+  const constraints = guidanceSurfaceConstraints("decan_opening");
+  const surfaceVariants = deterministicSpectrumSurfaceVariants(
+    response,
+    constraints,
+  );
+  const compiler = buildOutputCompilerTrace({
+    surface: "opening",
+    renderer: "deterministic_spectrum",
+    modelVersion: "deterministic_spectrum",
+    status: "compiled",
+    deliveryRecommendation: "in_app_card",
+    caseKey: null,
+    offering: null,
+    exampleAvailable: false,
+    diagnosis: null,
+    concreteAction: null,
+    evidenceAnchorCount: 0,
+    finalText: surfaceVariants.bodyText,
+    teaserText: surfaceVariants.teaserText,
+    pushText: surfaceVariants.pushExcerptText,
+    validation: {
+      ok: true,
+      source: response.source,
+      used_llm: response.usedLlm,
+    },
+    grade: {
+      pass: true,
+      source: response.source,
+    },
+  });
+  const compiledPackage = buildCompiledOutputPackage({
+    surface: "opening",
+    finalText: compiler.final_text,
+    teaserText: compiler.teaser_text,
+    pushText: compiler.push_text,
+    archivePreviewText: surfaceVariants.archivePreviewText,
+    ctaType: draft.ctaType,
+    ctaRef: draft.ctaRef,
+    ctaLabel: typeof draft.payload.cta_label === "string"
+      ? draft.payload.cta_label
+      : null,
+    ctaReason: typeof draft.payload.cta_reason === "string"
+      ? draft.payload.cta_reason
+      : null,
+    ctaSource: typeof draft.payload.destination_source === "string"
+      ? draft.payload.destination_source
+      : null,
+    destination: destinationFromPayload(draft.payload),
+    compiler,
+  });
+  return {
+    ...draft,
+    teaserText: surfaceVariants.teaserText,
+    bodyText: surfaceVariants.bodyText,
+    payload: {
+      ...draft.payload,
+      surface_variants: outputSurfaceVariantsPayload(surfaceVariants),
+      maat_flow_response: response,
+      maat_flow_response_renderer: maatFlowResponseRendererMetadata(response),
+      output_compiler: compiler,
+      compiled_output_package: compiledPackage,
+      output_control: {
+        ...(isRecord(draft.payload.output_control)
+          ? draft.payload.output_control
+          : {}),
+        spectrum_render: {
+          responseKind: response.responseKind,
+          source: response.source,
+          usedLlm: response.usedLlm,
+          confidence: response.confidence,
+          selectedTier: response.selectedSeed.tier,
+        },
+      },
     },
   };
 }
@@ -1402,6 +1576,30 @@ export async function renderGuidanceDraftWithLlm(
 ): Promise<GuidanceDraft> {
   if (draft.kind !== "drift_nudge" && draft.kind !== "strength_nudge") {
     return draft;
+  }
+  const spectrumRenderer = isRecord(draft.payload.maat_flow_response_renderer)
+    ? draft.payload.maat_flow_response_renderer
+    : null;
+  if (spectrumRenderer?.renderer === "deterministic_spectrum") {
+    return draft;
+  }
+  const maatFlowPattern = isRecord(draft.payload.maat_flow_decan_pattern)
+    ? draft.payload.maat_flow_decan_pattern
+    : null;
+  if (
+    Array.isArray(maatFlowPattern?.flowSignals) &&
+    maatFlowPattern.flowSignals.length > 0 &&
+    !allowLlmMaatRuntime()
+  ) {
+    return annotateNudgeRenderer(
+      draft,
+      nudgeRendererPayload({
+        attempted: false,
+        renderer: "deterministic",
+        modelVersion: "deterministic",
+        fallbackReason: "maat_flow_runtime_llm_guard",
+      }),
+    );
   }
   if (options.enabled === false) {
     return annotateNudgeRenderer(
@@ -1656,8 +1854,15 @@ export function buildDecanOpeningDraft(params: {
     ctaSource: destination.source,
     destination: compiledDestinationForPackage(destination),
   });
+  const spectrumOrientation = params.maatFlowPattern
+    ? renderMaatFlowResponse(params.maatFlowPattern, "orientation", {
+      decanName: params.window.decanName,
+      decanTheme: params.window.decanTheme ?? null,
+      decanContextKey: params.window.decanContextKey ?? null,
+    })
+    : null;
 
-  return {
+  const draft: GuidanceDraft = {
     kind: "decan_opening",
     priority: guidancePriority("decan_opening"),
     teaserText: compiled.package.teaser_text ??
@@ -1698,6 +1903,9 @@ export function buildDecanOpeningDraft(params: {
     ctaRef: destination.ctaRef,
     triggerReason: "decan_boundary",
   };
+  return spectrumOrientation
+    ? applyMaatFlowSpectrumOpeningDraft(draft, spectrumOrientation)
+    : draft;
 }
 
 type GuidanceCtaResolution = {
@@ -1890,7 +2098,14 @@ export function buildDriftNudgeDraft(params: {
     },
   });
 
-  return {
+  const spectrumAlignment = params.maatFlowPattern
+    ? renderMaatFlowResponse(params.maatFlowPattern, "alignment", {
+      decanName: params.window.decanName,
+      decanTheme: params.window.decanTheme ?? null,
+      decanContextKey: params.window.decanContextKey ?? null,
+    })
+    : null;
+  const draft: GuidanceDraft = {
     kind: "drift_nudge",
     priority: guidancePriority("drift_nudge"),
     teaserText: output.surfaceVariants.teaserText,
@@ -1922,6 +2137,9 @@ export function buildDriftNudgeDraft(params: {
     ctaRef: cta.ctaRef,
     triggerReason: params.triggerReason,
   };
+  return spectrumAlignment
+    ? applyMaatFlowSpectrumNudgeDraft(draft, spectrumAlignment)
+    : draft;
 }
 
 export function buildStrengthNudgeDraft(params: {
@@ -2018,7 +2236,14 @@ export function buildStrengthNudgeDraft(params: {
     },
   });
 
-  return {
+  const spectrumAlignment = params.maatFlowPattern
+    ? renderMaatFlowResponse(params.maatFlowPattern, "alignment", {
+      decanName: params.window.decanName,
+      decanTheme: params.window.decanTheme ?? null,
+      decanContextKey: params.window.decanContextKey ?? null,
+    })
+    : null;
+  const draft: GuidanceDraft = {
     kind: "strength_nudge",
     priority: guidancePriority("strength_nudge"),
     teaserText: output.surfaceVariants.teaserText,
@@ -2050,6 +2275,9 @@ export function buildStrengthNudgeDraft(params: {
     ctaRef: cta.ctaRef,
     triggerReason,
   };
+  return spectrumAlignment
+    ? applyMaatFlowSpectrumNudgeDraft(draft, spectrumAlignment)
+    : draft;
 }
 
 export function shouldCreateDriftNudge(params: {
