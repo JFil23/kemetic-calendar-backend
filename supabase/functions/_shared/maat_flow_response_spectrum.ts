@@ -3,7 +3,7 @@ export type FlowKey = string;
 export const THE_WEIGHING_FLOW_KEY = "the-weighing" as const;
 export const THE_WEIGHING_FLOW_TITLE = "The Weighing" as const;
 export const THE_WEIGHING_THEME_SPINE =
-  "The gap between the account and the weight." as const;
+  "The person becomes trustworthy by giving a plain account before adding meaning." as const;
 export const THE_WEIGHING_SUPPORTING_CONCEPTS = [
   "record",
   "weight",
@@ -80,6 +80,7 @@ export type MaatResponseSurfaceMetadata = {
 
 export type LensSeed = {
   seed: string;
+  badgeBody?: string;
   register: "grounded" | "spacious" | "direct" | "still";
   weight: "light" | "medium" | "serious";
   openingMove: string;
@@ -261,7 +262,7 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
     tiers: {
       observed: {
         meaning:
-          "The sitting was completed. The account was brought to the scale and not adjusted before placement. The gap between what happened and what was recorded had a chance to close.",
+          "The sitting was completed. The account was made plain. This is what observed means - not success, not approval, not a performance reviewed. The account was given without arrangement beforehand.",
         inferenceMode: "affirming",
         evidenceWeight: 1,
         theme: "accountability",
@@ -270,38 +271,41 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
         secondaryThemeMode: "held",
         lenses: {
           reflection: {
-            seed:
-              "The record was brought to the scale without alteration. What the decan carried has been acknowledged and set down.",
+            seed: "The account was made plain.",
+            badgeBody: "The account was made plain.",
             register: "grounded",
             weight: "light",
-            openingMove: "name what was met",
+            openingMove: "name what was met plainly",
             sentenceRhythm: "short",
             constraints: {
               maxSentences: 2,
               imperativesAllowed: false,
-              subjectRule:
-                "The subject is the pattern or record, not the user as agent; use 'the record was brought' rather than 'you brought the record'.",
+              subjectRule: "The subject is the pattern, not the user as agent.",
               tenseRule: "Use past tense.",
               actionRequired: false,
             },
           },
           orientation: {
-            seed: "The balance holds when the measure continues.",
-            register: "still",
+            seed: "Keep the record plain before drawing meaning from it.",
+            badgeBody: "Keep the record plain before drawing meaning from it.",
+            register: "direct",
             weight: "light",
-            openingMove: "name the posture that sustains what is present",
+            openingMove: "offer posture counsel without concrete task action",
             sentenceRhythm: "short",
             constraints: {
               maxSentences: 1,
               imperativesAllowed: false,
-              subjectRule: "Address posture, not a task.",
+              subjectRule:
+                "Address posture or direction; concrete actions such as write, sit, or name belong to alignment only.",
               tenseRule: "Use present tense.",
               actionRequired: false,
             },
           },
           alignment: {
             seed:
-              "Write one sentence about this decan that you would not need to revise tomorrow.",
+              "Write one sentence about what happened, without explaining it.",
+            badgeBody:
+              "Write one sentence about what happened, without explaining it.",
             register: "direct",
             weight: "light",
             openingMove: "offer the smallest honest act",
@@ -319,15 +323,15 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
           "you did the work",
           "you showed up",
           "great job",
-          "the scale is satisfied",
           "Ma'at is pleased",
           "well done",
-          "anything that grades the practice as a performance",
+          "you passed",
+          "any language grading the practice as a performance",
         ],
       },
       partial: {
         meaning:
-          "The sitting was entered but not completed. The account was opened but the weight was not fully placed. The gap did not close, though the approach was made.",
+          "The sitting was entered but not completed. The account was opened but not all of it was named. The approach was made - that is not nothing. But what remains unfinished still waits in the same condition it was left.",
         inferenceMode: "corrective",
         evidenceWeight: 0.7,
         theme: "accountability",
@@ -337,7 +341,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
         lenses: {
           reflection: {
             seed:
-              "The sitting was entered but not completed. The scale was approached; the full account was not placed.",
+              "The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
+            badgeBody: "The account was opened, but not completed.",
             register: "grounded",
             weight: "medium",
             openingMove: "name the interruption without explaining it",
@@ -345,33 +350,34 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
             constraints: {
               maxSentences: 2,
               imperativesAllowed: false,
-              subjectRule:
-                "The subject is the pattern or record, not the user; use 'the sitting was entered' rather than 'you started but stopped'.",
+              subjectRule: "The subject is the pattern, not motive.",
               tenseRule: "Use past tense.",
               actionRequired: false,
             },
           },
           orientation: {
-            seed:
-              "The incomplete measure is still a measure - what remains can be placed without starting again.",
+            seed: "Let the next account be smaller and complete.",
+            badgeBody: "Let the next account be smaller and complete.",
             register: "grounded",
             weight: "medium",
-            openingMove: "name what is still available without demanding it",
-            sentenceRhythm: "varied",
+            openingMove: "offer posture counsel without concrete task action",
+            sentenceRhythm: "short",
             constraints: {
               maxSentences: 1,
               imperativesAllowed: false,
-              subjectRule: "Address what is possible, not what was failed.",
+              subjectRule:
+                "Address posture or direction; concrete actions such as write, sit, or name belong to alignment only.",
               tenseRule: "Use present tense.",
               actionRequired: false,
             },
           },
           alignment: {
             seed:
-              "Return to the sitting and place the one thing that was not yet named.",
+              "Name the part that remains unfinished, without explaining it.",
+            badgeBody: "Name the part that remains unfinished.",
             register: "direct",
             weight: "medium",
-            openingMove: "offer return without ceremony",
+            openingMove: "offer one behavioral action",
             sentenceRhythm: "short",
             constraints: {
               maxSentences: 1,
@@ -386,15 +392,15 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
           "you didn't finish",
           "try again",
           "you avoided the truth",
-          "you were not honest",
+          "you weren't honest",
           "something blocked you",
           "you weren't ready",
-          "anything diagnosing why the sitting was not completed",
+          "any language diagnosing why the sitting was not completed",
         ],
       },
       skipped_explicit: {
         meaning:
-          "The sitting was available and was set aside. The scale was not approached. The account was not opened. The decan moved without the measure being taken.",
+          "The sitting was available and was set aside. The account was not opened. What was set aside still needs a plain account - not because the sitting must be recovered, but because what is not named does not resolve on its own.",
         inferenceMode: "restorative",
         evidenceWeight: 0.4,
         theme: "accountability",
@@ -404,38 +410,40 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
         lenses: {
           reflection: {
             seed:
-              "The sitting was available and set aside. The decan moved without the account being opened.",
+              "The sitting was set aside. What was set aside still needs a plain account.",
+            badgeBody: "The sitting was set aside.",
             register: "grounded",
             weight: "medium",
-            openingMove: "name the absence plainly",
+            openingMove: "name the absence plainly, without verdict",
             sentenceRhythm: "short",
             constraints: {
               maxSentences: 2,
               imperativesAllowed: false,
-              subjectRule:
-                "The subject is the pattern; use 'the sitting was set aside' rather than 'you chose not to sit'.",
+              subjectRule: "The subject is the pattern.",
               tenseRule: "Use past tense.",
               actionRequired: false,
             },
           },
           orientation: {
             seed:
-              "The scale is not closed by a missed sitting - the account can be approached from where the decan actually stands.",
+              "The account can reopen with something small - one true thing, named plainly, is enough to begin.",
+            badgeBody: "The account can still be opened.",
             register: "spacious",
             weight: "medium",
-            openingMove: "restore the horizon without rewarding avoidance",
+            openingMove: "offer posture counsel without concrete task action",
             sentenceRhythm: "varied",
             constraints: {
               maxSentences: 1,
               imperativesAllowed: false,
-              subjectRule: "Address what remains possible.",
+              subjectRule:
+                "Address posture or direction; concrete actions such as write, sit, or name belong to alignment only.",
               tenseRule: "Use present tense.",
               actionRequired: false,
             },
           },
           alignment: {
-            seed:
-              "Sit for two minutes, name one true thing about this decan, and set it down without elaboration.",
+            seed: "Sit for two minutes and name one true thing plainly.",
+            badgeBody: "Sit for two minutes and name one true thing plainly.",
             register: "direct",
             weight: "medium",
             openingMove: "offer the lowest threshold of re-entry",
@@ -450,19 +458,19 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
           },
         },
         doNotSay: [
-          "you missed the practice",
-          "you failed to sit",
+          "you missed",
+          "you failed",
           "it's okay",
-          "you'll get it next time",
           "life happens",
-          "the scale forgives",
+          "try again next time",
           "Ma'at is patient",
-          "anything that either shames the skip or dismisses it",
+          "you avoided the truth",
+          "any language that shames the skip or dismisses it",
         ],
       },
       unobserved: {
         meaning:
-          "No completion record exists for this event. The sitting did not enter the record. This is absence of signal, not proof of avoidance or rest.",
+          "No record was made here. The sitting did not enter the day. Absence is not a verdict - the record simply has nothing from this point to work with.",
         inferenceMode: "neutral",
         evidenceWeight: 0.2,
         theme: "accountability",
@@ -471,8 +479,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
         secondaryThemeMode: "absent",
         lenses: {
           reflection: {
-            seed:
-              "No record exists for this sitting. The scale has nothing to weigh from this point in the decan.",
+            seed: "No record was made here. Absence is not a verdict.",
+            badgeBody: "No record was made here. Absence is not a verdict.",
             register: "still",
             weight: "light",
             openingMove: "name the absence neutrally",
@@ -481,31 +489,32 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
               maxSentences: 2,
               imperativesAllowed: false,
               subjectRule: "The subject is the record, not the user.",
-              tenseRule: "Use present tense for the current absence.",
+              tenseRule: "Use present tense.",
               actionRequired: false,
             },
           },
           orientation: {
-            seed:
-              "A lighter point of contact is still contact - the account does not require a full sitting to begin.",
+            seed: "A light record is still a record.",
+            badgeBody: "A light record is still a record.",
             register: "spacious",
             weight: "light",
-            openingMove: "offer a lower threshold without pressing",
-            sentenceRhythm: "varied",
+            openingMove: "offer posture counsel without concrete task action",
+            sentenceRhythm: "short",
             constraints: {
               maxSentences: 1,
               imperativesAllowed: false,
-              subjectRule: "Address what is available.",
+              subjectRule:
+                "Address posture or direction; concrete actions such as write, sit, or name belong to alignment only.",
               tenseRule: "Use present tense.",
               actionRequired: false,
             },
           },
           alignment: {
-            seed:
-              "Open the sitting, name one thing the decan has contained, and close it.",
+            seed: "Write one plain line from the day.",
+            badgeBody: "Write one plain line from the day.",
             register: "direct",
             weight: "light",
-            openingMove: "offer the minimum viable sitting",
+            openingMove: "offer the minimum viable action",
             sentenceRhythm: "short",
             constraints: {
               maxSentences: 1,
@@ -521,8 +530,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
           "you missed",
           "you should have",
           "don't worry",
-          "it's not too late (implies lateness)",
-          "anything implying judgment or urgency",
+          "it's not too late",
+          "any language implying urgency, lateness, or judgment",
         ],
       },
     },
@@ -531,53 +540,10 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
 
 export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
   {
-    id: "accountability-embodiment-any",
-    primaryTheme: "accountability",
-    secondaryTheme: "embodiment",
-    tension:
-      "The account is being approached in the mind before it has been carried in the body. What is known and what is lived have not yet met at the same weight.",
-    appliesTo: "all",
-    priority: 40,
-  },
-  {
-    id: "accountability-held-embodiment-interrupted",
-    primaryTheme: "accountability",
-    primaryMode: "held",
-    secondaryTheme: "embodiment",
-    secondaryMode: "interrupted",
-    tension:
-      "The account was placed honestly, but the body has not yet carried what the record revealed. Knowing and doing are not the same measure.",
-    appliesTo: "all",
-    priority: 80,
-  },
-  {
-    id: "accountability-interrupted-embodiment-absent",
-    primaryTheme: "accountability",
-    primaryMode: "interrupted",
-    secondaryTheme: "embodiment",
-    secondaryMode: "absent",
-    tension:
-      "Neither the account nor the body has completed its movement. The decan has produced awareness without either the record or the conduct that should follow it.",
-    appliesTo: "all",
-    priority: 80,
-  },
-  {
-    id: "accountability-set-aside-embodiment-set-aside",
-    primaryTheme: "accountability",
-    primaryMode: "set_aside",
-    secondaryTheme: "embodiment",
-    secondaryMode: "set_aside",
-    tension:
-      "Both the account and the body have been set aside in the same decan. The gap between what is true and what is being lived has had room to widen without witness.",
-    appliesTo: "all",
-    priority: 80,
-  },
-  {
     id: "accountability-witnessing-any",
     primaryTheme: "accountability",
     secondaryTheme: "witnessing",
-    tension:
-      "The account is present, but what is being placed on the scale may not be the unedited version. The record and the witness of it are not always the same weight.",
+    tension: "An account shaped to sound acceptable is not a plain account.",
     appliesTo: "all",
     priority: 40,
   },
@@ -588,7 +554,7 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     secondaryTheme: "witnessing",
     secondaryMode: "held",
     tension:
-      "The account was brought and placed without prior arrangement. The tongue was the plummet and the heart was the weight - and neither distorted the other.",
+      "The account was made plain and the view of it was clear. The record and the witness of it were the same thing.",
     appliesTo: "all",
     priority: 80,
   },
@@ -599,7 +565,7 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     secondaryTheme: "witnessing",
     secondaryMode: "interrupted",
     tension:
-      "The sitting was completed, but what was placed may have been shaped before it reached the scale. The account was given; whether it was the full account is what remains.",
+      "The sitting was completed, but the view of it may have been adjusted before the account was named. Whether the full account was given is what remains.",
     appliesTo: "all",
     priority: 80,
   },
@@ -610,7 +576,7 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     secondaryTheme: "witnessing",
     secondaryMode: "interrupted",
     tension:
-      "Neither the account nor the clear view of it was completed. The decan held both a partial record and a partial witness - the scale has less to work with than the period actually contained.",
+      "The account was not completed, and the clear view of it was not completed either. What the period contained is partly named and partly still unexamined.",
     appliesTo: "all",
     priority: 80,
   },
@@ -621,7 +587,59 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     secondaryTheme: "witnessing",
     secondaryMode: "set_aside",
     tension:
-      "The sitting was set aside and the clear view with it. What the decan contained has not been brought to any measure.",
+      "The sitting was set aside, and so was the plain view of what the period contained. What has not been looked at plainly cannot be named plainly.",
+    appliesTo: "all",
+    priority: 80,
+  },
+  {
+    id: "accountability-embodiment-any",
+    primaryTheme: "accountability",
+    secondaryTheme: "embodiment",
+    tension: "What is known but not carried in conduct remains unweighed.",
+    appliesTo: "all",
+    priority: 40,
+  },
+  {
+    id: "accountability-held-embodiment-interrupted",
+    primaryTheme: "accountability",
+    primaryMode: "held",
+    secondaryTheme: "embodiment",
+    secondaryMode: "interrupted",
+    tension:
+      "The account was made plain, but the conduct it describes has not yet been carried through. Knowing what is true and acting on it are two different things.",
+    appliesTo: "all",
+    priority: 80,
+  },
+  {
+    id: "accountability-interrupted-embodiment-absent",
+    primaryTheme: "accountability",
+    primaryMode: "interrupted",
+    secondaryTheme: "embodiment",
+    secondaryMode: "absent",
+    tension:
+      "Neither the account nor the practice was completed. The gap between what is known and what is being done has had room to widen.",
+    appliesTo: "all",
+    priority: 80,
+  },
+  {
+    id: "accountability-set-aside-embodiment-set-aside",
+    primaryTheme: "accountability",
+    primaryMode: "set_aside",
+    secondaryTheme: "embodiment",
+    secondaryMode: "set_aside",
+    tension:
+      "Both the account and the practice were set aside. What is neither examined nor acted on does not stay still.",
+    appliesTo: "all",
+    priority: 80,
+  },
+  {
+    id: "accountability-held-embodiment-held",
+    primaryTheme: "accountability",
+    primaryMode: "held",
+    secondaryTheme: "embodiment",
+    secondaryMode: "held",
+    tension:
+      "The account was made plain and the practice was carried. The record and the conduct are aligned.",
     appliesTo: "all",
     priority: 80,
   },
@@ -630,7 +648,7 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryTheme: "accountability",
     secondaryTheme: "orientation",
     tension:
-      "Direction requires an honest account of where things actually stand. A bearing taken from an adjusted record leads somewhere other than where it claims.",
+      "A direction set from an incomplete account tends to need correction later.",
     appliesTo: "all",
     priority: 40,
   },
@@ -641,7 +659,7 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     secondaryTheme: "orientation",
     secondaryMode: "held",
     tension:
-      "The account was placed and the direction is present. The decan has both a true record and a bearing - what follows from here is more likely to land where it aims.",
+      "The account was plain and the direction is present. The next movement has something true beneath it.",
     appliesTo: "all",
     priority: 80,
   },
@@ -652,7 +670,7 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     secondaryTheme: "orientation",
     secondaryMode: "interrupted",
     tension:
-      "The record is honest but the direction has not yet resolved. The account is ready; the bearing needs one more clear look at the horizon.",
+      "The record is plain, but the direction has not yet resolved. The account is ready — the bearing still needs to be set.",
     appliesTo: "all",
     priority: 80,
   },
@@ -663,18 +681,7 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     secondaryTheme: "orientation",
     secondaryMode: "held",
     tension:
-      "Direction is present but the account that should ground it is incomplete. The bearing is aimed at a record that has not yet been fully placed.",
-    appliesTo: "all",
-    priority: 80,
-  },
-  {
-    id: "accountability-set-aside-orientation-set-aside",
-    primaryTheme: "accountability",
-    primaryMode: "set_aside",
-    secondaryTheme: "orientation",
-    secondaryMode: "set_aside",
-    tension:
-      "Neither the account nor the direction was taken up. The decan moved without measure and without bearing - both need to be re-established before the next threshold.",
+      "A direction is present, but the account beneath it is unfinished. The bearing may need revision once the account is complete.",
     appliesTo: "all",
     priority: 80,
   },
@@ -685,7 +692,71 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     secondaryTheme: "orientation",
     secondaryMode: "interrupted",
     tension:
-      "The direction was approached but could not hold without a true account beneath it. Orientation built on an unweighed record tends to correct itself later, and less gently.",
+      "Neither the account nor the direction was completed. Direction without a plain account beneath it is harder to trust.",
+    appliesTo: "all",
+    priority: 80,
+  },
+  {
+    id: "accountability-set-aside-orientation-held",
+    primaryTheme: "accountability",
+    primaryMode: "set_aside",
+    secondaryTheme: "orientation",
+    secondaryMode: "held",
+    tension:
+      "A direction is being followed, but the account that should ground it was set aside. Moving forward without a plain record does not make the record unnecessary.",
+    appliesTo: "all",
+    priority: 80,
+  },
+  {
+    id: "accountability-release-any",
+    primaryTheme: "accountability",
+    secondaryTheme: "release",
+    tension:
+      "What is still being held tends to shape the account before it is named.",
+    appliesTo: "all",
+    priority: 40,
+  },
+  {
+    id: "accountability-held-release-interrupted",
+    primaryTheme: "accountability",
+    primaryMode: "held",
+    secondaryTheme: "release",
+    secondaryMode: "interrupted",
+    tension:
+      "The account was made plain, but something from this period has not yet been set down. The record is honest as far as it goes.",
+    appliesTo: "all",
+    priority: 80,
+  },
+  {
+    id: "accountability-interrupted-release-set-aside",
+    primaryTheme: "accountability",
+    primaryMode: "interrupted",
+    secondaryTheme: "release",
+    secondaryMode: "set_aside",
+    tension:
+      "The account was not completed, and what might have made it easier to complete was also not released. Each one makes the other harder.",
+    appliesTo: "all",
+    priority: 80,
+  },
+  {
+    id: "accountability-set-aside-release-set-aside",
+    primaryTheme: "accountability",
+    primaryMode: "set_aside",
+    secondaryTheme: "release",
+    secondaryMode: "set_aside",
+    tension:
+      "Neither the account nor the release was taken up. What is neither named nor set down accumulates without notice.",
+    appliesTo: "all",
+    priority: 80,
+  },
+  {
+    id: "accountability-held-release-held",
+    primaryTheme: "accountability",
+    primaryMode: "held",
+    secondaryTheme: "release",
+    secondaryMode: "held",
+    tension:
+      "The account was made plain and what needed to be set down was set down. Both happened in the same period.",
     appliesTo: "all",
     priority: 80,
   },
@@ -697,7 +768,7 @@ export const MAAT_FLOW_TENSION_TEMPLATES: TensionTemplate[] = [
     primaryFlow: THE_WEIGHING_FLOW_KEY,
     primaryTier: "observed",
     tension:
-      "The account was brought to the scale. The question the decan now holds is whether what was placed was the full weight or the arranged version of it.",
+      "The account was made plain. What was named can now be carried without decoration.",
     appliesTo: ["reflection"],
     priority: 1,
   },
@@ -706,7 +777,7 @@ export const MAAT_FLOW_TENSION_TEMPLATES: TensionTemplate[] = [
     primaryFlow: THE_WEIGHING_FLOW_KEY,
     primaryTier: "partial",
     tension:
-      "The scale was approached and the account opened, but not all of it reached the scale.",
+      "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left.",
     appliesTo: ["reflection"],
     priority: 1,
   },
@@ -715,7 +786,7 @@ export const MAAT_FLOW_TENSION_TEMPLATES: TensionTemplate[] = [
     primaryFlow: THE_WEIGHING_FLOW_KEY,
     primaryTier: "skipped_explicit",
     tension:
-      "The sitting was available. The account was not opened. The gap between what happened and what has been named continues to hold whatever was not yet ready to be weighed.",
+      "The sitting was set aside and the account was not opened. What is not named does not resolve on its own. Return is still available through one plain account of what the period actually contained.",
     appliesTo: ["reflection"],
     priority: 1,
   },
@@ -724,7 +795,7 @@ export const MAAT_FLOW_TENSION_TEMPLATES: TensionTemplate[] = [
     primaryFlow: THE_WEIGHING_FLOW_KEY,
     primaryTier: "unobserved",
     tension:
-      "The scale received no account from this point in the decan. What the period contained is still unweighed.",
+      "No record was made here. The absence is not a conclusion — it is a part of the period that has not yet been named.",
     appliesTo: ["reflection"],
     priority: 1,
   },

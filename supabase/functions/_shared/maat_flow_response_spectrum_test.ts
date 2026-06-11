@@ -105,32 +105,70 @@ Deno.test("The Weighing authored spectrum copy loads from the final manifest", (
   assertEquals(spectrum.secondaryTheme, "witnessing");
   assertEquals(
     spectrum.interpretiveSpine,
-    "The gap between the account and the weight.",
+    "The person becomes trustworthy by giving a plain account before adding meaning.",
   );
 
   assertEquals(
     spectrum.tiers.observed.meaning,
-    "The sitting was completed. The account was brought to the scale and not adjusted before placement. The gap between what happened and what was recorded had a chance to close.",
+    "The sitting was completed. The account was made plain. This is what observed means - not success, not approval, not a performance reviewed. The account was given without arrangement beforehand.",
   );
   assertEquals(
     spectrum.tiers.observed.lenses.reflection.seed,
-    "The record was brought to the scale without alteration. What the decan carried has been acknowledged and set down.",
+    "The account was made plain.",
+  );
+  assertEquals(
+    spectrum.tiers.observed.lenses.reflection.badgeBody,
+    "The account was made plain.",
   );
   assertEquals(
     spectrum.tiers.partial.meaning,
-    "The sitting was entered but not completed. The account was opened but the weight was not fully placed. The gap did not close, though the approach was made.",
+    "The sitting was entered but not completed. The account was opened but not all of it was named. The approach was made - that is not nothing. But what remains unfinished still waits in the same condition it was left.",
   );
   assertEquals(
     spectrum.tiers.partial.lenses.reflection.seed,
-    "The sitting was entered but not completed. The scale was approached; the full account was not placed.",
+    "The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
+  );
+  assertEquals(
+    spectrum.tiers.partial.lenses.reflection.badgeBody,
+    "The account was opened, but not completed.",
   );
   assertEquals(
     spectrum.tiers.skipped_explicit.meaning,
-    "The sitting was available and was set aside. The scale was not approached. The account was not opened. The decan moved without the measure being taken.",
+    "The sitting was available and was set aside. The account was not opened. What was set aside still needs a plain account - not because the sitting must be recovered, but because what is not named does not resolve on its own.",
+  );
+  assertEquals(
+    spectrum.tiers.skipped_explicit.lenses.reflection.seed,
+    "The sitting was set aside. What was set aside still needs a plain account.",
   );
   assertEquals(
     spectrum.tiers.unobserved.meaning,
-    "No completion record exists for this event. The sitting did not enter the record. This is absence of signal, not proof of avoidance or rest.",
+    "No record was made here. The sitting did not enter the day. Absence is not a verdict - the record simply has nothing from this point to work with.",
+  );
+  assertEquals(
+    spectrum.tiers.unobserved.lenses.reflection.seed,
+    "No record was made here. Absence is not a verdict.",
+  );
+  assertEquals(
+    spectrum.tiers.observed.lenses.orientation.seed,
+    "Keep the record plain before drawing meaning from it.",
+  );
+  assertEquals(
+    spectrum.tiers.partial.lenses.orientation.seed,
+    "Let the next account be smaller and complete.",
+  );
+});
+
+Deno.test("The Weighing V4 solo tensions load exact authored text", () => {
+  const tension = (id: string) =>
+    MAAT_FLOW_TENSION_TEMPLATES.find((entry) => entry.id === id)?.tension;
+
+  assertEquals(
+    tension("weighing-observed-solo"),
+    "The account was made plain. What was named can now be carried without decoration.",
+  );
+  assertEquals(
+    tension("weighing-partial-solo"),
+    "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left.",
   );
 });
 
@@ -300,10 +338,10 @@ Deno.test("partial solo tension uses cleaned non-diagnostic wording", () => {
   );
   assertEquals(
     synthesis.centralTension,
-    "The scale was approached and the account opened, but not all of it reached the scale.",
+    "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left.",
   );
   assertEquals(
-    (synthesis.centralTension?.match(/account opened/g) ?? []).length,
+    (synthesis.centralTension?.match(/account was opened/g) ?? []).length,
     1,
   );
   assertEquals(
@@ -339,21 +377,21 @@ Deno.test("observed plus partial splits response-kind tiers and aligns tension t
   assertEquals(synthesis.selectedSeeds.reflection?.tier, "partial");
   assertEquals(
     synthesis.selectedSeeds.reflection?.seed,
-    "The sitting was entered but not completed. The scale was approached; the full account was not placed.",
+    "The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
   );
   assertEquals(synthesis.selectedSeeds.orientation?.tier, "observed");
   assertEquals(
     synthesis.selectedSeeds.orientation?.seed,
-    "The balance holds when the measure continues.",
+    "Keep the record plain before drawing meaning from it.",
   );
   assertEquals(synthesis.selectedSeeds.alignment?.tier, "partial");
   assertEquals(
     synthesis.selectedSeeds.alignment?.seed,
-    "Return to the sitting and place the one thing that was not yet named.",
+    "Name the part that remains unfinished, without explaining it.",
   );
   assertEquals(
     synthesis.centralTension,
-    "The scale was approached and the account opened, but not all of it reached the scale.",
+    "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left.",
   );
   assertEquals(synthesis.selectedTensionTemplateId, "weighing-partial-solo");
   assertEquals(
@@ -385,21 +423,21 @@ Deno.test("partial plus skipped reflects latest set-aside tier while orienting f
   assertEquals(synthesis.selectedSeeds.reflection?.tier, "skipped_explicit");
   assertEquals(
     synthesis.selectedSeeds.reflection?.seed,
-    "The sitting was available and set aside. The decan moved without the account being opened.",
+    "The sitting was set aside. What was set aside still needs a plain account.",
   );
   assertEquals(synthesis.selectedSeeds.orientation?.tier, "partial");
   assertEquals(
     synthesis.selectedSeeds.orientation?.seed,
-    "The incomplete measure is still a measure - what remains can be placed without starting again.",
+    "Let the next account be smaller and complete.",
   );
   assertEquals(synthesis.selectedSeeds.alignment?.tier, "skipped_explicit");
   assertEquals(
     synthesis.selectedSeeds.alignment?.seed,
-    "Sit for two minutes, name one true thing about this decan, and set it down without elaboration.",
+    "Sit for two minutes and name one true thing plainly.",
   );
   assertEquals(
     synthesis.centralTension,
-    "The sitting was available. The account was not opened. The gap between what happened and what has been named continues to hold whatever was not yet ready to be weighed.",
+    "The sitting was set aside and the account was not opened. What is not named does not resolve on its own. Return is still available through one plain account of what the period actually contained.",
   );
   assertEquals(synthesis.selectedTensionTemplateId, "weighing-skipped-solo");
   assertEquals(
@@ -407,9 +445,7 @@ Deno.test("partial plus skipped reflects latest set-aside tier while orienting f
     "weighing-skipped-solo",
   );
   assert(
-    synthesis.selectedSeeds.reflection?.doNotSay.includes(
-      "you failed to sit",
-    ),
+    synthesis.selectedSeeds.reflection?.doNotSay.includes("you failed"),
   );
   assert(
     synthesis.selectedSeeds.orientation?.doNotSay.includes(
@@ -418,7 +454,7 @@ Deno.test("partial plus skipped reflects latest set-aside tier while orienting f
   );
   assert(
     synthesis.selectedSeeds.alignment?.doNotSay.includes(
-      "you failed to sit",
+      "you failed",
     ),
   );
 });
@@ -483,6 +519,14 @@ Deno.test("reflection, orientation, and alignment seeds are selected separately 
   assertEquals(orientation.constraints.actionRequired, false);
   assertEquals(orientation.constraints.imperativesAllowed, false);
   assertEquals(orientation.constraints.maxSentences, 1);
+  assertEquals(
+    orientation.seed,
+    "Keep the record plain before drawing meaning from it.",
+  );
+  assertEquals(
+    /\b(write|sit|name)\b/i.test(orientation.seed),
+    false,
+  );
 
   assertEquals(alignment.lensType, "alignment");
   assertEquals(alignment.responseKind, "alignment");
@@ -492,12 +536,53 @@ Deno.test("reflection, orientation, and alignment seeds are selected separately 
   assertEquals(alignment.constraints.actionRequired, true);
   assertEquals(alignment.constraints.imperativesAllowed, true);
   assertEquals(alignment.constraints.maxSentences, 1);
+  assertEquals(/\b(write|sit|name)\b/i.test(alignment.seed), true);
 
   assert(reflection.doNotSay.includes("you did the work"));
-  assert(alignment.doNotSay.includes("the scale is satisfied"));
+  assert(alignment.doNotSay.includes("you passed"));
 });
 
-Deno.test("theme relationship templates load with Eloquent Peasant image only in the held witnessing variant", () => {
+Deno.test("orientation allows posture counsel while alignment owns concrete task verbs", () => {
+  const spectrum = MAAT_FLOW_RESPONSE_SPECTRUM[THE_WEIGHING_FLOW_KEY];
+  assertEquals(
+    spectrum.tiers.observed.lenses.orientation.seed,
+    "Keep the record plain before drawing meaning from it.",
+  );
+  assertEquals(
+    spectrum.tiers.partial.lenses.orientation.seed,
+    "Let the next account be smaller and complete.",
+  );
+
+  for (
+    const tier of [
+      "observed",
+      "partial",
+      "skipped_explicit",
+      "unobserved",
+    ] as const
+  ) {
+    const lenses = spectrum.tiers[tier].lenses;
+    assertEquals(
+      /\b(write|sit|name)\b/i.test(lenses.reflection.seed),
+      false,
+      `${tier} reflection should not carry concrete task verbs`,
+    );
+    assertEquals(
+      /\b(write|sit|name)\b/i.test(lenses.orientation.seed),
+      false,
+      `${tier} orientation should not carry concrete task verbs`,
+    );
+    assertEquals(
+      /\b(write|sit|name)\b/i.test(lenses.alignment.seed),
+      true,
+      `${tier} alignment should carry the concrete action surface`,
+    );
+    assertEquals(lenses.orientation.constraints.actionRequired, false);
+    assertEquals(lenses.alignment.constraints.actionRequired, true);
+  }
+});
+
+Deno.test("theme relationship templates load V4 accountability variants", () => {
   assertExists(
     MAAT_THEME_RELATIONSHIP_TEMPLATES.find((entry) =>
       entry.id === "accountability-embodiment-any"
@@ -512,21 +597,14 @@ Deno.test("theme relationship templates load with Eloquent Peasant image only in
       entry.id === "accountability-orientation-any"
     ),
   );
-
-  const peasantImage =
-    "The tongue was the plummet and the heart was the weight";
-  assertEquals(witnessing.tension.includes(peasantImage), false);
-  assertEquals(
-    MAAT_THEME_RELATIONSHIP_TEMPLATES.filter((entry) =>
-      entry.tension.includes(peasantImage)
-    ).length,
-    1,
+  assertExists(
+    MAAT_THEME_RELATIONSHIP_TEMPLATES.find((entry) =>
+      entry.id === "accountability-release-any"
+    ),
   );
   assertEquals(
-    MAAT_THEME_RELATIONSHIP_TEMPLATES.find((entry) =>
-      entry.tension.includes(peasantImage)
-    )?.id,
-    "accountability-held-witnessing-held",
+    witnessing.tension,
+    "An account shaped to sound acceptable is not a plain account.",
   );
 });
 

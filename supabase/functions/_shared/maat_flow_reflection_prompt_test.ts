@@ -62,11 +62,11 @@ Deno.test("Ma'at flow reflection prompt binds Weighing partial semantics", () =>
   assertStringIncludes(prompt, "reflection_tier: partial");
   assertStringIncludes(
     prompt,
-    "authored_central_tension: The scale was approached and the account opened, but not all of it reached the scale.",
+    "authored_central_tension: The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left.",
   );
   assertStringIncludes(
     prompt,
-    "reflection_seed: The sitting was entered but not completed. The scale was approached; the full account was not placed.",
+    "reflection_seed: The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
   );
   assertStringIncludes(prompt, "do_not_say:");
   assertStringIncludes(prompt, "you didn't finish");
@@ -74,14 +74,14 @@ Deno.test("Ma'at flow reflection prompt binds Weighing partial semantics", () =>
   assertStringIncludes(prompt, "required_reflection_contract:");
   assertStringIncludes(
     prompt,
-    "the sitting or measure was entered/approached but was not completed or not fully placed",
+    "the account was opened but not completed, and not all of it was named",
   );
   assertStringIncludes(prompt, "conflict_priority:");
   assertStringIncludes(prompt, "required_surface_order:");
   assertStringIncludes(prompt, "visibly honor reflection_seed");
   assertStringIncludes(
     prompt,
-    "name entered/approached/opened but not completed or fully placed without motive",
+    "name that the account was opened but not completed and not all of it was named",
   );
   assertStringIncludes(prompt, "must not contain an imperative sentence");
 });
@@ -139,7 +139,7 @@ Deno.test("Ma'at flow reflection binding accepts partial interruption without im
     ],
   });
   const check = validateMaatFlowReflectionTextBinding(
-    "The sitting was entered but not completed; the measure was approached without being fully placed. What would restore proportion without turning care into performance?",
+    "The account was opened but not completed, and not all of it was named. What would restore proportion without turning care into performance?",
     pattern,
   );
 
@@ -186,7 +186,7 @@ Deno.test("Ma'at flow reflection binding requires skipped set-aside semantics", 
   );
 
   const validCheck = validateMaatFlowReflectionTextBinding(
-    "The sitting was available and set aside; the measure was not opened. Hathor's care can remain context around that quieter absence. What remains true when the unopened measure is seen without shame?",
+    "The sitting was set aside. What was set aside still needs a plain account. Hathor's care can remain context around that quieter absence. What remains true when the plain account is seen without shame?",
     pattern,
   );
   assertEquals(validCheck, { ok: true, reasons: [] });
@@ -201,7 +201,7 @@ Deno.test("Ma'at flow reflection binding rejects partial motive diagnosis", () =
     ],
   });
   const check = validateMaatFlowReflectionTextBinding(
-    "The sitting was entered but not completed; the measure was approached without being fully placed because you were not ready to face it. What would restore proportion without turning care into performance?",
+    "The account was opened but not completed, and not all of it was named because you were not ready to face it. What would restore proportion without turning care into performance?",
     pattern,
   );
 

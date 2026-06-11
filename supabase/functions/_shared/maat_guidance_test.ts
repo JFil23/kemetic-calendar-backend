@@ -157,7 +157,7 @@ Deno.test("Ma'at spectrum opening uses orientation seed as deterministic output"
 
   assertEquals(
     draft.bodyText,
-    "The balance holds when the measure continues.",
+    "Keep the record plain before drawing meaning from it.",
   );
   assertEquals(
     (draft.payload.maat_flow_response_renderer as { renderer?: string })
@@ -200,7 +200,7 @@ Deno.test("Ma'at spectrum nudge uses alignment seed without calling LLM", async 
 
   assertEquals(
     rendered.bodyText,
-    "Return to the sitting and place the one thing that was not yet named.",
+    "Name the part that remains unfinished, without explaining it.",
   );
   assertEquals(
     (rendered.payload.nudge_renderer as { renderer?: string }).renderer,

@@ -859,20 +859,20 @@ Deno.test("admin_content_preview wires Weighing fixture semantics into reflectio
       );
       assertEquals(
         pattern.centralTension,
-        "The scale was approached and the account opened, but not all of it reached the scale.",
+        "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left.",
       );
       assertEquals(pattern.selectedTensionTemplateId, "weighing-partial-solo");
       assertEquals(
         pattern.selectedSeeds.reflection?.seed,
-        "The sitting was entered but not completed. The scale was approached; the full account was not placed.",
+        "The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
       );
       assertEquals(
         pattern.selectedSeeds.orientation?.seed,
-        "The balance holds when the measure continues.",
+        "Keep the record plain before drawing meaning from it.",
       );
       assertEquals(
         pattern.selectedSeeds.alignment?.seed,
-        "Return to the sitting and place the one thing that was not yet named.",
+        "Name the part that remains unfinished, without explaining it.",
       );
       const doNotSay = pattern.selectedSeeds.reflection?.doNotSay ?? [];
       assert(doNotSay.includes("you didn't finish"));
@@ -942,15 +942,15 @@ Deno.test("admin_content_preview wires Weighing fixture semantics into reflectio
   assertEquals(pattern.selectedTensionTemplateId, "weighing-partial-solo");
   assertEquals(
     pattern.selectedSeeds.reflection.seed,
-    "The sitting was entered but not completed. The scale was approached; the full account was not placed.",
+    "The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
   );
   assertEquals(
     pattern.selectedSeeds.orientation.seed,
-    "The balance holds when the measure continues.",
+    "Keep the record plain before drawing meaning from it.",
   );
   assertEquals(
     pattern.selectedSeeds.alignment.seed,
-    "Return to the sitting and place the one thing that was not yet named.",
+    "Name the part that remains unfinished, without explaining it.",
   );
   assertEquals(
     pattern.selectedSeeds.reflection.preferredSurface,
@@ -1036,7 +1036,7 @@ Deno.test("admin_content_preview accepts Ma'at spectrum preview without Anthropi
       });
       return {
         reflection:
-          "The sitting was entered but not completed. The scale was approached; the full account was not placed.",
+          "The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
         modelUsed: "deterministic_spectrum",
         badgeCount: badges.length,
         evidenceCount: badges.length,
@@ -1059,7 +1059,7 @@ Deno.test("admin_content_preview accepts Ma'at spectrum preview without Anthropi
             package_version: "compiled_output_package_v1",
             fallback_used: false,
             not_quality_proof: false,
-            push_text: "The sitting was entered but not completed.",
+            push_text: "The account was opened, but not completed.",
           },
           maatFlowDecanPattern: pattern,
           maatFlowDoNotSay: pattern.selectedSeeds.reflection?.doNotSay ?? [],
@@ -1101,7 +1101,7 @@ Deno.test("admin_content_preview accepts Ma'at spectrum preview without Anthropi
   );
   assertStringIncludes(
     payload.preview.generated_text,
-    "entered but not completed",
+    "opened, but not completed",
   );
 });
 

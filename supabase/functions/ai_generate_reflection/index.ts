@@ -4807,7 +4807,6 @@ serve(async (req) => {
             maatFlowReflectionBindingRepairPrompt(
               maatFlowDecanPattern,
               finalMaatFlowBindingCheck.reasons,
-              reflectionText,
             ),
           ].filter((block) => block.trim().length).join("\n\n");
           const retry = await callAnthropic([

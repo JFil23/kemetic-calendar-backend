@@ -69,8 +69,9 @@ export function renderMaatFlowResponse(
   if (!selectedSeed) return null;
 
   const seedBody = compactText(selectedSeed.seed);
+  const seedBadgeBody = compactText(selectedSeed.badgeBody);
   const centralTension = compactText(pattern.centralTension);
-  const badgeBody = seedBody;
+  const badgeBody = seedBadgeBody || seedBody;
   let body = seedBody;
   let detailBody: string | undefined;
 

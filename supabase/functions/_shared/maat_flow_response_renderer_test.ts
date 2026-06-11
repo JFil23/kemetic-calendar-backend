@@ -112,7 +112,7 @@ function renderFixture(fixture: string, kind: MaatResponseKind = "reflection") {
 
 function assertNoReflectionImperative(text: string) {
   assertEquals(
-    /\b(Return|Complete|Sit|Write|Name|Choose|Open)\b/.test(text),
+    /\b(Return to|Complete|Sit|Write|Name|Choose|Open)\b/.test(text),
     false,
   );
 }
@@ -147,9 +147,35 @@ Deno.test("Weighing observed reflection renders without LLM", () => {
   assertEquals(response.usedLlm, false);
   assertEquals(response.selectedSeed.tier, "observed");
   assertEquals(response.badgeTitle, "Reflection");
-  assertStringIncludes(
-    response.body,
-    "The record was brought to the scale without alteration.",
+  assertEquals(response.body, "The account was made plain.");
+  assertEquals(response.badgeBody, "The account was made plain.");
+  assertEquals(response.detailBody, "The account was made plain.");
+  assertNoReflectionImperative(response.body);
+});
+
+Deno.test("Weighing observed medium reflection uses V4 solo tension", () => {
+  const response = renderMaatFlowResponse(
+    synthesizeMaatFlowDecanPattern({
+      ...decan,
+      completionEvidence: [
+        badgeFor("observed", "2026-05-18"),
+        badgeFor("observed", "2026-05-19"),
+      ],
+    }),
+    "reflection",
+  );
+  assertExists(response);
+
+  assertEquals(response.usedLlm, false);
+  assertEquals(response.selectedSeed.tier, "observed");
+  assertEquals(
+    response.centralTension,
+    "The account was made plain. What was named can now be carried without decoration.",
+  );
+  assertEquals(response.badgeBody, "The account was made plain.");
+  assertEquals(
+    response.detailBody,
+    "The account was made plain. What was named can now be carried without decoration. The account was made plain.",
   );
   assertNoReflectionImperative(response.body);
 });
@@ -159,8 +185,18 @@ Deno.test("Weighing partial reflection renders without LLM and names interruptio
 
   assertEquals(response.usedLlm, false);
   assertEquals(response.selectedSeed.tier, "partial");
-  assertStringIncludes(response.body, "entered but not completed");
-  assertStringIncludes(response.body, "the full account was not placed");
+  assertEquals(
+    response.body,
+    "The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
+  );
+  assertEquals(
+    response.badgeBody,
+    "The account was opened, but not completed.",
+  );
+  assertEquals(
+    response.detailBody,
+    "The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
+  );
   assertNoReflectionImperative(response.body);
 });
 
@@ -169,8 +205,11 @@ Deno.test("Weighing skipped reflection renders without LLM and names set-aside a
 
   assertEquals(response.usedLlm, false);
   assertEquals(response.selectedSeed.tier, "skipped_explicit");
-  assertStringIncludes(response.body, "available and set aside");
-  assertStringIncludes(response.body, "account being opened");
+  assertEquals(
+    response.body,
+    "The sitting was set aside. What was set aside still needs a plain account.",
+  );
+  assertEquals(response.badgeBody, "The sitting was set aside.");
   assertNoReflectionImperative(response.body);
 });
 
@@ -179,8 +218,14 @@ Deno.test("Weighing unobserved reflection renders without LLM and stays neutral"
 
   assertEquals(response.usedLlm, false);
   assertEquals(response.selectedSeed.tier, "unobserved");
-  assertStringIncludes(response.body, "No record exists for this sitting.");
-  assertStringIncludes(response.body, "nothing to weigh");
+  assertEquals(
+    response.body,
+    "No record was made here. Absence is not a verdict.",
+  );
+  assertEquals(
+    response.badgeBody,
+    "No record was made here. Absence is not a verdict.",
+  );
   assertEquals(
     /\b(avoid|refus|shame|failure|failed|lazy|dishonest|urgent)\b/i.test(
       response.body,
@@ -196,15 +241,23 @@ Deno.test("Weighing observed plus partial reflection uses central tension and pa
   assertEquals(response.confidence, "medium");
   assertEquals(
     response.centralTension,
-    "The scale was approached and the account opened, but not all of it reached the scale.",
+    "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left.",
   );
   assertStringIncludes(
     response.body,
-    "The scale was approached and the account opened, but not all of it reached the scale.",
+    "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left.",
   );
   assertStringIncludes(
     response.body,
-    "The sitting was entered but not completed. The scale was approached; the full account was not placed.",
+    "The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
+  );
+  assertEquals(
+    response.badgeBody,
+    "The account was opened, but not completed.",
+  );
+  assertEquals(
+    response.detailBody,
+    "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left. The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
   );
   assertEquals(response.selectedSeed.tier, "partial");
   assertNoReflectionImperative(response.body);
@@ -215,9 +268,19 @@ Deno.test("Weighing partial plus skipped reflection uses skipped set-aside seman
 
   assertEquals(response.confidence, "medium");
   assertEquals(response.selectedSeed.tier, "skipped_explicit");
-  assertStringIncludes(response.body, "The sitting was available.");
-  assertStringIncludes(response.body, "The account was not opened.");
-  assertStringIncludes(response.body, "available and set aside");
+  assertStringIncludes(
+    response.body,
+    "The sitting was set aside and the account was not opened.",
+  );
+  assertStringIncludes(
+    response.body,
+    "What is not named does not resolve on its own.",
+  );
+  assertStringIncludes(
+    response.body,
+    "What was set aside still needs a plain account.",
+  );
+  assertEquals(response.badgeBody, "The sitting was set aside.");
   assertNoReflectionImperative(response.body);
 });
 
@@ -230,17 +293,27 @@ Deno.test("orientation and alignment use selected seeds with lower-third badge m
 
   assertEquals(orientation.usedLlm, false);
   assertEquals(orientation.body, orientation.selectedSeed.seed);
+  assertEquals(
+    orientation.body,
+    "Keep the record plain before drawing meaning from it.",
+  );
   assertEquals(orientation.badgeTitle, "Orientation");
   assertEquals(orientation.selectedSeed.badgeRole, "opening_orientation");
   assertEquals(orientation.selectedSeed.preferredSurface, "lower_third_badge");
   assertEquals(orientation.selectedSeed.constraints.actionRequired, false);
+  assertEquals(/\b(write|sit|name)\b/i.test(orientation.body), false);
 
   assertEquals(alignment.usedLlm, false);
   assertEquals(alignment.body, alignment.selectedSeed.seed);
+  assertEquals(
+    alignment.body,
+    "Name the part that remains unfinished, without explaining it.",
+  );
   assertEquals(alignment.badgeTitle, "Alignment");
   assertEquals(alignment.selectedSeed.badgeRole, "mid_decan_alignment");
   assertEquals(alignment.selectedSeed.preferredSurface, "lower_third_badge");
   assertEquals(alignment.selectedSeed.constraints.actionRequired, true);
+  assertEquals(/\b(write|sit|name)\b/i.test(alignment.body), true);
 });
 
 Deno.test("deterministic renderer excludes selected doNotSay phrases", () => {

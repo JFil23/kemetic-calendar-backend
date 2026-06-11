@@ -77,7 +77,7 @@ export function maatFlowPatternPromptBlock(
     alignmentSeed ? `alignment_seed: ${alignmentSeed.seed}` : "",
     `do_not_say: ${maatFlowSelectedDoNotSay(pattern).join(" | ")}`,
     "Binding instruction: when selectedSeeds.reflection exists, the first reflection movement must visibly honor reflection_seed, reflection_tier, required_reflection_contract, and authored_central_tension before broader decan, care, maintenance, calendar, or profile interpretation. Other evidence may contextualize them, but must not replace them.",
-    "Reflection tier rule: if reflection_tier is partial, name entered/approached/opened but not completed or fully placed without motive; if skipped_explicit, name set-aside/restorative absence and a not-opened/not-entered measure without shame; if unobserved, keep the language neutral and do not imply avoidance.",
+    "Reflection tier rule: if reflection_tier is partial, name that the account was opened but not completed and not all of it was named, without motive; if skipped_explicit, name that the sitting was set aside and still needs a plain account, without shame; if unobserved, keep the language neutral and do not imply avoidance.",
     "Reflection/action boundary: do not convert this reflection into an alignment instruction. If reflection_constraints says imperatives_allowed=false, the output must not contain an imperative sentence anywhere, including the closing.",
     "Preserve the selected tier meaning; do not invent motive for partial, do not shame skipped, and keep unobserved as absence of signal.",
   ].filter(Boolean).join("\n");
@@ -88,10 +88,10 @@ export function maatFlowReflectionContractInstruction(
 ) {
   const reflectionTier = pattern.interpretiveEmphasis.reflectionTier;
   if (reflectionTier === "partial") {
-    return "include a reflection sentence that names interruption or incompletion in The Weighing: the sitting or measure was entered/approached but was not completed or not fully placed; do not explain why.";
+    return "include a reflection sentence that names interruption or incompletion in The Weighing: the account was opened but not completed, and not all of it was named; do not explain why.";
   }
   if (reflectionTier === "skipped_explicit") {
-    return "include a reflection sentence that names the sitting as available and set aside/restorative absence, and names that the measure was not opened or entered; do not shame the skip or dismiss it.";
+    return "include a reflection sentence that names the sitting as set aside and names that what was set aside still needs a plain account; do not shame the skip or dismiss it.";
   }
   if (reflectionTier === "unobserved") {
     return "keep the Weighing signal as neutral absence of signal; do not imply avoidance, refusal, or dishonesty.";
@@ -142,7 +142,7 @@ function namesSkippedSetAside(text: string) {
     /\b(set aside|set-aside|was available|sitting was available|available and set aside|restorative absence|left unentered|set down unopened)\b/
       .test(lower);
   const hasNotOpenedMeaning =
-    /\b(account was not opened|without the account being opened|not opened|was not opened|measure was not opened|measure was not entered|not entered|was not entered|sitting was not entered|scale was not approached|nothing was opened)\b/
+    /\b(account was not opened|without the account being opened|not opened|was not opened|measure was not opened|measure was not entered|not entered|was not entered|sitting was not entered|scale was not approached|nothing was opened|still needs a plain account|needs a plain account)\b/
       .test(lower);
   return hasSetAsideMeaning && hasNotOpenedMeaning;
 }
