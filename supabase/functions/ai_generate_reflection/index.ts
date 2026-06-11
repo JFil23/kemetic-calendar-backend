@@ -6,10 +6,15 @@ import {
   guidanceEvidencePhrasesFromLines,
 } from "../_shared/guidance_evidence.ts";
 import {
-  type MaatFlowDecanPatternSynthesis,
   type MaatFlowScheduledEventInput,
   synthesizeMaatFlowDecanPattern,
 } from "../_shared/maat_flow_response_spectrum.ts";
+import {
+  maatFlowPatternPromptBlock,
+  maatFlowReflectionBindingRepairPrompt,
+  maatFlowSelectedDoNotSay,
+  validateMaatFlowReflectionTextBinding,
+} from "../_shared/maat_flow_reflection_prompt.ts";
 import {
   buildGuidanceShapingFingerprint,
   type GuidanceGoalProfile,
@@ -127,6 +132,7 @@ type BadgeRow = {
   occurred_on: string;
   flow_id?: number | null;
   event_id?: string | null;
+  client_event_id?: string | null;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -204,6 +210,11 @@ type ReflectionPayload = {
   badges?: InputBadge[]; // optional client-provided badges
   scheduled_maat_flow_events?: MaatFlowScheduledEventInput[];
   maat_flow_scheduled_events?: MaatFlowScheduledEventInput[];
+  admin_preview?: {
+    maat_flow_fixture?: string | null;
+    maat_flow_fixture_mode?: string | null;
+    maat_flow_evidence_mode?: string | null;
+  } | null;
   // Legacy fallback fields
   badge_titles?: string[];
   badge_count?: number;
@@ -2886,16 +2897,6 @@ function uniqueTexts(values: Array<string | null | undefined>) {
   return out;
 }
 
-function maatFlowSelectedDoNotSay(
-  pattern: MaatFlowDecanPatternSynthesis,
-) {
-  return uniqueTexts([
-    ...(pattern.selectedSeeds.reflection?.doNotSay ?? []),
-    ...(pattern.selectedSeeds.orientation?.doNotSay ?? []),
-    ...(pattern.selectedSeeds.alignment?.doNotSay ?? []),
-  ]);
-}
-
 function maatFlowEvidenceMetadata(badges: BadgeRow[]) {
   return badges
     .map((badge) => badge.metadata)
@@ -2907,38 +2908,51 @@ function maatFlowEvidenceMetadata(badges: BadgeRow[]) {
     );
 }
 
-function maatFlowPatternPromptBlock(
-  pattern: MaatFlowDecanPatternSynthesis,
-) {
-  if (!pattern.flowSignals.length) return "";
-  return [
-    "MAAT_FLOW_DECAN_PATTERN (hidden authored synthesis input)",
-    `confidence: ${pattern.confidence}`,
-    pattern.fallbackReason ? `fallback_reason: ${pattern.fallbackReason}` : "",
-    `dominant_tier: ${pattern.dominantTier ?? "none"}`,
-    `last_explicit_tier: ${
-      pattern.interpretiveEmphasis.lastExplicitTier ?? "none"
-    }`,
-    `reflection_tier: ${pattern.interpretiveEmphasis.reflectionTier ?? "none"}`,
-    `orientation_tier: ${
-      pattern.interpretiveEmphasis.orientationTier ?? "none"
-    }`,
-    `alignment_tier: ${pattern.interpretiveEmphasis.alignmentTier ?? "none"}`,
-    pattern.centralTension
-      ? `authored_central_tension: ${pattern.centralTension}`
-      : "",
-    pattern.selectedSeeds.reflection
-      ? `reflection_seed: ${pattern.selectedSeeds.reflection.seed}`
-      : "",
-    pattern.selectedSeeds.orientation
-      ? `orientation_seed: ${pattern.selectedSeeds.orientation.seed}`
-      : "",
-    pattern.selectedSeeds.alignment
-      ? `alignment_seed: ${pattern.selectedSeeds.alignment.seed}`
-      : "",
-    `do_not_say: ${maatFlowSelectedDoNotSay(pattern).join(" | ")}`,
-    "Instruction: use the reflection seed and central tension as authored semantic seasoning for this decan reflection. Do not quote the seed verbatim when it conflicts with surface bans. Preserve the selected tier meaning; do not invent motive for partial, do not shame skipped, and keep unobserved as absence of signal.",
-  ].filter(Boolean).join("\n");
+function adminPreviewMaatFlowFixture(payload: ReflectionPayload) {
+  const preview = isRecord(payload.admin_preview)
+    ? payload.admin_preview
+    : null;
+  return normalizeText(
+    preview?.maat_flow_fixture == null
+      ? null
+      : String(preview.maat_flow_fixture),
+  );
+}
+
+function usesIsolatedAdminMaatFlowFixture(payload: ReflectionPayload) {
+  const preview = isRecord(payload.admin_preview)
+    ? payload.admin_preview
+    : null;
+  if (!preview || !adminPreviewMaatFlowFixture(payload)) return false;
+  const evidenceMode = normalizeText(
+    preview.maat_flow_evidence_mode == null
+      ? null
+      : String(preview.maat_flow_evidence_mode),
+  ).toLowerCase();
+  const fixtureMode = normalizeText(
+    preview.maat_flow_fixture_mode == null
+      ? null
+      : String(preview.maat_flow_fixture_mode),
+  ).toLowerCase();
+  return evidenceMode !== "blend_real_evidence" &&
+    fixtureMode !== "blend_real_evidence";
+}
+
+function isAdminPreviewMaatFlowFixtureBadge(badge: BadgeRow) {
+  const metadata = isRecord(badge.metadata) ? badge.metadata : {};
+  const metadataSource = normalizeText(
+    metadata.source == null ? null : String(metadata.source),
+  ).toLowerCase();
+  if (
+    metadata.admin_preview_fixture === true ||
+    metadataSource === "admin_preview_fixture"
+  ) {
+    return true;
+  }
+  const eventId = normalizeText(badge.event_id);
+  const clientEventId = normalizeText(badge.client_event_id);
+  return eventId.startsWith("flow-completion:admin-fixture-weighing-") ||
+    clientEventId.startsWith("admin-fixture-weighing-");
 }
 
 async function fetchHistoricalWindows(
@@ -3236,7 +3250,7 @@ ${
   const targetWordRange = options?.targetWordRange ?? "90-140";
 
   const instructions =
-    `Write a reflection in ${targetWordRange} words. This is a hard word range, not a suggestion. Use 3 short paragraphs and no more than 7 sentences. Reflect only on this decan. This is not a longer nudge: the calendar/decan/day-card arc governs the spiritual frame, REFLECTION_MORAL_PORTRAIT governs the witness of who the user is becoming, REFLECTION_JUDGMENT governs the moral thesis, REFLECTION_THESIS_GATE decides what evidence may be visible, REFLECTION_PROFILE_SNAPSHOT contains the Ma'at alignment lens and personal lens, and evidence illustrates only when the gate allows it. The opening sentence must name the current decan using the canonical spoken decan name from REFLECTION_CALENDAR_FRAME, then fuse the calendar's demand with a living portrait of the user before any item, missed mark, task, or case diagnosis. Begin from REFLECTION_MORAL_PORTRAIT.personBecomingStatement and REFLECTION_MORAL_PORTRAIT.portraitStatement and render from REFLECTION_THESIS_GATE.finalReflectionThesis when supplied; otherwise render from REFLECTION_JUDGMENT.reflectionThesis. The thesis is the topic, the Ma'at lens is the moral frame, and the user lens only translates it into this user's pattern. The directive must arise from REFLECTION_MORAL_PORTRAIT.serudjDirective as serudj/restoration, not as a request for better app evidence. Respect REFLECTION_MORAL_PORTRAIT.forbiddenFramings, REFLECTION_JUDGMENT.falseReadingToAvoid, and REFLECTION_THESIS_GATE.forbiddenSurfaceFocus. If REFLECTION_THESIS_GATE.evidenceVisibility is background_support or diagnostics_only, do not name the evidence item/source, do not make the anchor subject, and keep it in diagnostics only. If evidenceVisibility is visible_anchor, use the EVIDENCE ANCHOR once as proof, not as the story. Use the INTERPRETIVE SPECIFICITY BRIDGE only to support the judgment; do not replace the thesis with generic phrases like proper place, account heavier, recording home, or simple rhythm. Obey SUPPRESSED EVIDENCE explicitly: suppressed evidence must not lead, repeat, or become the reflection topic. Address the user directly with you/your. The person is the protagonist. Record/account/mark/evidence may not become the subject or goal; use record or mark at most once if truly necessary. Do not use "the account" or the word "account" in user-facing prose; say your day, your practice, what you kept, or what you can carry. Do not expose the scaffold: never write "Where you answered", "Where restoration is still needed", "The alignment is", "The underalignment is", "The improvement direction is", or any direct label-like rendering of hidden fields. Let the portrait reveal both alignment and restoration without category labels. Use USER_PROFILE_CONTEXT to personalize the interpretation, but never print profile labels, fact keys, source names, or raw user data. Treat journal badges and planner item states (checked, partial, skipped, and unchecked to-dos/nutrition) as real evidence. If normalized obligation threads are supplied, treat them as authoritative: unique_item_count is the number of obligations and occurrence_count is repetition. One recurring item across the period is one thread, not several supports. For a single recurring thread, do not contrast against several/multiple supports and do not mention exact occurrence counts, "daily," "every day," or "all ten days"; if the gate hides evidence, do not mention the thread at all. Use specificity with restraint: name one concrete user detail only when REFLECTION_THESIS_GATE permits visible_anchor, then translate it into plain language from the selected Ma'at dimension: truth, witness, measure, order, care, reciprocity, justice, restraint, becoming, continuity, or repair. If the thesis gate hides the selected anchor, still use 1-2 non-suppressed middle details from BADGE EVIDENCE or USER_PROFILE_CONTEXT when available, especially observed flows, calendar events, reminders, visible work, or journal badges; do not quote journal text and do not dump raw inputs. If you use a Ma'at term, explain it in ordinary words in the same sentence, such as right size, clear place, truthful form, steady care, or follow-through. Avoid coded phrases: written witness, act and account, embodied order, underalignment, life accomplished, dependent on inference, account cannot prove, and the account. Hard ban system-serving phrases: next reflection, less guesswork, enough detail, record cannot show, what may already have occurred, truth asks for enough detail, improvement direction, record tells the truth, record can match, mark of care, complete today so your record, written record drift apart. Do not keep repeating item names, sources, purposes, counts, or dates, even in hypotheticals. Every sentence should do at least two jobs: fuse decan frame with portrait, turn evidence into meaning, or let the directive arise naturally from who the user is becoming. Do not list several corrective options; end with exactly one question or exactly one charge according to REFLECTION_JUDGMENT.closingKind and REFLECTION_JUDGMENT.closingText. Prefer weight-bearing closings such as "What would it mean to...", "What would restore...", "What are you willing to return to...", or "What must be made whole..."; avoid "what would it look like" unless the judgment explicitly requires a gentle exploratory close. Do not make an ordinary nutrition support sound more serious than it is; calibrate gravity to routine practice unless the evidence shows real harm or clinical urgency. Do not use defensive "not failure / not judgment / not crisis" phrasing. Do not generalize (e.g. avoid "across a range of disciplines" unless the evidence shows it). Note trajectory and connect to the theme; end with the single closing move required by the judgment. Non-judgmental, warm tone. Goal: they feel morally oriented toward Ma'at, not coached on habits. No bullets, no metadata. If a memory brief, calendar frame, moral portrait, reflection judgment, thesis gate, user profile snapshot, user profile context, output-control plan, or hidden decision matrix is supplied, use it only to choose tone, continuity, evidence visibility, structure, and one closing move; never mention scores, gates, bands, slugs, matrix language, profile fact labels, or output-control fields.`;
+    `Write a reflection in ${targetWordRange} words. This is a hard word range, not a suggestion. Use 3 short paragraphs and no more than 7 sentences. Reflect only on this decan. This is not a longer nudge: the calendar/decan/day-card arc governs the spiritual frame, REFLECTION_MORAL_PORTRAIT governs the witness of who the user is becoming, REFLECTION_JUDGMENT governs the moral thesis, REFLECTION_THESIS_GATE decides what evidence may be visible, REFLECTION_PROFILE_SNAPSHOT contains the Ma'at alignment lens and personal lens, and evidence illustrates only when the gate allows it. The opening sentence must name the current decan using the canonical spoken decan name from REFLECTION_CALENDAR_FRAME, then fuse the calendar's demand with a living portrait of the user before any item, missed mark, task, or case diagnosis. Begin from REFLECTION_MORAL_PORTRAIT.personBecomingStatement and REFLECTION_MORAL_PORTRAIT.portraitStatement and render from REFLECTION_THESIS_GATE.finalReflectionThesis when supplied; otherwise render from REFLECTION_JUDGMENT.reflectionThesis. The thesis is the topic, the Ma'at lens is the moral frame, and the user lens only translates it into this user's pattern. The directive must arise from REFLECTION_MORAL_PORTRAIT.serudjDirective as serudj/restoration, not as a request for better app evidence. Respect REFLECTION_MORAL_PORTRAIT.forbiddenFramings, REFLECTION_JUDGMENT.falseReadingToAvoid, and REFLECTION_THESIS_GATE.forbiddenSurfaceFocus. If REFLECTION_THESIS_GATE.evidenceVisibility is background_support or diagnostics_only, do not name the evidence item/source, do not make the anchor subject, and keep it in diagnostics only. If evidenceVisibility is visible_anchor, use the EVIDENCE ANCHOR once as proof, not as the story. Use the INTERPRETIVE SPECIFICITY BRIDGE only to support the judgment; do not replace the thesis with generic phrases like proper place, account heavier, recording home, or simple rhythm. Obey SUPPRESSED EVIDENCE explicitly: suppressed evidence must not lead, repeat, or become the reflection topic. Address the user directly with you/your. The person is the protagonist. Record/account/mark/evidence may not become the subject or goal; use record or mark at most once if truly necessary. Do not use "the account" or the word "account" in user-facing prose; say your day, your practice, what you kept, or what you can carry. Do not expose the scaffold: never write "Where you answered", "Where restoration is still needed", "The alignment is", "The underalignment is", "The improvement direction is", or any direct label-like rendering of hidden fields. Let the portrait reveal both alignment and restoration without category labels. Use USER_PROFILE_CONTEXT to personalize the interpretation, but never print profile labels, fact keys, source names, or raw user data. Treat journal badges and planner item states (checked, partial, skipped, and unchecked to-dos/nutrition) as real evidence. If normalized obligation threads are supplied, treat them as authoritative: unique_item_count is the number of obligations and occurrence_count is repetition. One recurring item across the period is one thread, not several supports. For a single recurring thread, do not contrast against several/multiple supports and do not mention exact occurrence counts, "daily," "every day," or "all ten days"; if the gate hides evidence, do not mention the thread at all. Use specificity with restraint: name one concrete user detail only when REFLECTION_THESIS_GATE permits visible_anchor, then translate it into plain language from the selected Ma'at dimension: truth, witness, measure, order, care, reciprocity, justice, restraint, becoming, continuity, or repair. If the thesis gate hides the selected anchor, still use 1-2 non-suppressed middle details from BADGE EVIDENCE or USER_PROFILE_CONTEXT when available, especially observed flows, calendar events, reminders, visible work, or journal badges; do not quote journal text and do not dump raw inputs. If MAAT_FLOW_DECAN_PATTERN is present, honor its required_reflection_contract before broader decan/profile interpretation. If it conflicts with REFLECTION_JUDGMENT closingKind or closingText, MAAT_FLOW_DECAN_PATTERN wins for the Ma'at flow sentence and the reflection/action boundary. If you use a Ma'at term, explain it in ordinary words in the same sentence, such as right size, clear place, truthful form, steady care, or follow-through. Avoid coded phrases: written witness, act and account, embodied order, underalignment, life accomplished, dependent on inference, account cannot prove, and the account. Hard ban system-serving phrases: next reflection, less guesswork, enough detail, record cannot show, what may already have occurred, truth asks for enough detail, improvement direction, record tells the truth, record can match, mark of care, complete today so your record, written record drift apart. Do not keep repeating item names, sources, purposes, counts, or dates, even in hypotheticals. Every sentence should do at least two jobs: fuse decan frame with portrait, turn evidence into meaning, or let the directive arise naturally from who the user is becoming. Do not list several corrective options; end with exactly one question or exactly one charge according to REFLECTION_JUDGMENT.closingKind and REFLECTION_JUDGMENT.closingText, unless MAAT_FLOW_DECAN_PATTERN says imperatives are forbidden; in that case, do not use a direct command or task imperative as the closing. Prefer weight-bearing closings such as "What would it mean to...", "What would restore...", "What are you willing to return to...", or "What must be made whole..."; avoid "what would it look like" unless the judgment explicitly requires a gentle exploratory close. Do not make an ordinary nutrition support sound more serious than it is; calibrate gravity to routine practice unless the evidence shows real harm or clinical urgency. Do not use defensive "not failure / not judgment / not crisis" phrasing. Do not generalize (e.g. avoid "across a range of disciplines" unless the evidence shows it). Note trajectory and connect to the theme; end with the single closing move required by the judgment unless Ma'at flow reflection constraints forbid that closing form. Non-judgmental, warm tone. Goal: they feel morally oriented toward Ma'at, not coached on habits. No bullets, no metadata. If a memory brief, calendar frame, moral portrait, reflection judgment, thesis gate, user profile snapshot, user profile context, output-control plan, or hidden decision matrix is supplied, use it only to choose tone, continuity, evidence visibility, structure, and one closing move; never mention scores, gates, bands, slugs, matrix language, profile fact labels, or output-control fields.`;
 
   return `${instructions}
 
@@ -3984,6 +3998,9 @@ serve(async (req) => {
         payload.use_decision_matrix === true;
       const useDecisionMatrix = payload.use_decision_matrix === true;
 
+      const isolateAdminMaatFlowFixture = usesIsolatedAdminMaatFlowFixture(
+        payload,
+      );
       const serverBadges = await fetchBadges(
         client,
         payload.user_id!,
@@ -4004,30 +4021,37 @@ serve(async (req) => {
         }));
       }
       const currentBadges = dedupeBadges([...clientBadges, ...serverBadges]);
-      const serverScheduledMaatFlowEvents = await fetchScheduledMaatFlowEvents(
-        client,
-        payload.user_id!,
-        currentWindow.start,
-        currentWindow.end,
-      ).catch((error) => {
-        console.error("Scheduled Ma'at flow event fetch error:", error);
-        return [] as MaatFlowScheduledEventInput[];
-      });
+      const serverScheduledMaatFlowEvents = isolateAdminMaatFlowFixture
+        ? []
+        : await fetchScheduledMaatFlowEvents(
+          client,
+          payload.user_id!,
+          currentWindow.start,
+          currentWindow.end,
+        ).catch((error) => {
+          console.error("Scheduled Ma'at flow event fetch error:", error);
+          return [] as MaatFlowScheduledEventInput[];
+        });
       const scheduledMaatFlowEvents = [
         ...serverScheduledMaatFlowEvents,
         ...payloadScheduledMaatFlowEvents(payload),
       ];
+      const maatFlowCompletionEvidence = isolateAdminMaatFlowFixture
+        ? clientBadges.filter(isAdminPreviewMaatFlowFixtureBadge)
+        : currentBadges;
       const maatFlowDecanPattern = synthesizeMaatFlowDecanPattern({
         decanId: decanPeriodKey,
         decanStart: currentWindow.start,
         decanEnd: currentWindow.end,
-        completionEvidence: currentBadges,
+        completionEvidence: maatFlowCompletionEvidence,
         scheduledEvents: scheduledMaatFlowEvents,
       });
       const maatFlowDoNotSay = maatFlowSelectedDoNotSay(
         maatFlowDecanPattern,
       );
-      const maatFlowBadgeMetadata = maatFlowEvidenceMetadata(currentBadges);
+      const maatFlowBadgeMetadata = maatFlowEvidenceMetadata(
+        maatFlowCompletionEvidence,
+      );
       const evidenceLines = buildEvidenceLines(currentBadges);
       const tagStr = topTags(currentBadges);
       const topTagList = tagStr
@@ -4408,7 +4432,7 @@ serve(async (req) => {
         rendererDiagnostics.anthropic_attempted = true;
         try {
           const systemPrompt =
-            `You write decan reflections (one 10-day period). Use only the evidence provided. Target ${targetWordRange} words; this is a hard limit. Use 3 short paragraphs and no more than 7 sentences. This is not a longer nudge: the calendar/decan/day-card arc governs the spiritual frame, REFLECTION_MORAL_PORTRAIT governs the witness of who the user is becoming, REFLECTION_JUDGMENT governs the moral thesis, REFLECTION_THESIS_GATE decides whether evidence may be visible, REFLECTION_PROFILE_SNAPSHOT contains the Ma'at alignment lens and personal lens, and the case thread is one detail inside that judgment. The first sentence must name the current decan using the canonical spoken decan name from REFLECTION_CALENDAR_FRAME, then fuse the calendar demand with a living portrait of the user before any item, missed mark, task, or case diagnosis. Begin from REFLECTION_MORAL_PORTRAIT.personBecomingStatement and REFLECTION_MORAL_PORTRAIT.portraitStatement and write from REFLECTION_THESIS_GATE.finalReflectionThesis when supplied; otherwise write from REFLECTION_JUDGMENT.reflectionThesis. The selected evidence anchor is proof only when REFLECTION_THESIS_GATE.evidenceVisibility is visible_anchor. If evidenceVisibility is background_support or diagnostics_only, keep the evidence in diagnostics; do not name the item/source, do not make it the subject, and obey forbiddenSurfaceFocus. Respect REFLECTION_MORAL_PORTRAIT.forbiddenFramings and REFLECTION_JUDGMENT.falseReadingToAvoid. Address the user directly with you/your. The person is the protagonist. Record/account/mark/evidence may not become the subject or goal; use record or mark at most once if truly necessary. Do not use "the account" or the word "account" in user-facing prose; say your day, your practice, what you kept, or what you can carry. Do not expose the scaffold: never write "Where you answered", "Where restoration is still needed", "The alignment is", "The underalignment is", "The improvement direction is", or any direct label-like rendering of hidden fields. Let the portrait reveal both alignment and restoration without category labels. Use USER_PROFILE_CONTEXT to personalize interpretation, but never print profile labels, fact keys, source names, or raw user data. Treat journal badges and planner item states (checked, partial, skipped, and unchecked to-dos/nutrition) as equally valid evidence. If normalized obligation threads are supplied, treat them as authoritative: unique_item_count is the number of obligations and occurrence_count is repetition. One recurring item across the period is one thread, not several supports. For a single recurring thread, do not contrast against several/multiple supports and do not mention exact occurrence counts, "daily," "every day," or "all ten days"; if the thesis gate hides evidence, do not mention the thread at all. Use one concrete detail only when the thesis gate permits visible_anchor, then move to Ma'at synthesis in plain language. If the thesis gate hides the selected anchor, still use 1-2 non-suppressed middle details from BADGE EVIDENCE or USER_PROFILE_CONTEXT when available, especially observed flows, calendar events, reminders, visible work, or journal badges; do not quote journal text and do not dump raw inputs. If you use a Ma'at term, explain it in ordinary words in the same sentence, such as right size, clear place, truthful form, steady care, or follow-through. Avoid coded phrases: written witness, act and account, embodied order, underalignment, life accomplished, dependent on inference, account cannot prove, and the account. Hard ban system-serving phrases: next reflection, less guesswork, enough detail, record cannot show, what may already have occurred, truth asks for enough detail, improvement direction, record tells the truth, record can match, mark of care, complete today so your record, written record drift apart. Do not repeat the same activity, nutrition item, source, purpose, count, or date. Every sentence should do at least two jobs: fuse decan frame with portrait, turn evidence into meaning, or let the directive arise naturally from who the user is becoming. Do not list action options. Follow REFLECTION_JUDGMENT: end with exactly one question or exactly one charge, never both. Prefer weight-bearing closings such as "What would it mean to...", "What would restore...", "What are you willing to return to...", or "What must be made whole..."; avoid "what would it look like" unless the judgment explicitly requires a gentle exploratory close. Keep gravity proportionate: ordinary nutrition support should remain routine unless evidence shows real harm or clinical urgency. Do not use defensive "not failure / not judgment / not crisis" phrasing. No unsupported generalities; if you mention an activity, it must appear in the evidence and be permitted by the thesis gate. Non-judgmental, warm tone. Aim for: morally oriented toward Ma'at, not coached on habits. No bullets, no metadata, no generic advice. If hidden Ma'at/Isfet guardrails, output-control plan, moral portrait, reflection judgment, thesis gate, user profile snapshot, user profile context, calendar frame, or memory brief are present, use them only for tone, evidence visibility, structure, and closing strategy; never expose scores, gates, labels, slugs, matrix language, profile fact labels, or output-control fields.`;
+            `You write decan reflections (one 10-day period). Use only the evidence provided. Target ${targetWordRange} words; this is a hard limit. Use 3 short paragraphs and no more than 7 sentences. This is not a longer nudge: the calendar/decan/day-card arc governs the spiritual frame, REFLECTION_MORAL_PORTRAIT governs the witness of who the user is becoming, REFLECTION_JUDGMENT governs the moral thesis, REFLECTION_THESIS_GATE decides whether evidence may be visible, REFLECTION_PROFILE_SNAPSHOT contains the Ma'at alignment lens and personal lens, and the case thread is one detail inside that judgment. The first sentence must name the current decan using the canonical spoken decan name from REFLECTION_CALENDAR_FRAME, then fuse the calendar demand with a living portrait of the user before any item, missed mark, task, or case diagnosis. Begin from REFLECTION_MORAL_PORTRAIT.personBecomingStatement and REFLECTION_MORAL_PORTRAIT.portraitStatement and write from REFLECTION_THESIS_GATE.finalReflectionThesis when supplied; otherwise write from REFLECTION_JUDGMENT.reflectionThesis. The selected evidence anchor is proof only when REFLECTION_THESIS_GATE.evidenceVisibility is visible_anchor. If evidenceVisibility is background_support or diagnostics_only, keep the evidence in diagnostics; do not name the item/source, do not make it the subject, and obey forbiddenSurfaceFocus. Respect REFLECTION_MORAL_PORTRAIT.forbiddenFramings and REFLECTION_JUDGMENT.falseReadingToAvoid. Address the user directly with you/your. The person is the protagonist. Record/account/mark/evidence may not become the subject or goal; use record or mark at most once if truly necessary. Do not use "the account" or the word "account" in user-facing prose; say your day, your practice, what you kept, or what you can carry. Do not expose the scaffold: never write "Where you answered", "Where restoration is still needed", "The alignment is", "The underalignment is", "The improvement direction is", or any direct label-like rendering of hidden fields. Let the portrait reveal both alignment and restoration without category labels. Use USER_PROFILE_CONTEXT to personalize interpretation, but never print profile labels, fact keys, source names, or raw user data. Treat journal badges and planner item states (checked, partial, skipped, and unchecked to-dos/nutrition) as equally valid evidence. If normalized obligation threads are supplied, treat them as authoritative: unique_item_count is the number of obligations and occurrence_count is repetition. One recurring item across the period is one thread, not several supports. For a single recurring thread, do not contrast against several/multiple supports and do not mention exact occurrence counts, "daily," "every day," or "all ten days"; if the thesis gate hides evidence, do not mention the thread at all. Use one concrete detail only when the thesis gate permits visible_anchor, then move to Ma'at synthesis in plain language. If the thesis gate hides the selected anchor, still use 1-2 non-suppressed middle details from BADGE EVIDENCE or USER_PROFILE_CONTEXT when available, especially observed flows, calendar events, reminders, visible work, or journal badges; do not quote journal text and do not dump raw inputs. If MAAT_FLOW_DECAN_PATTERN is present, its reflection_seed, reflection_tier, required_reflection_contract, authored_central_tension, and do_not_say list are binding authored evidence; broader calendar or profile evidence may contextualize them but must not replace them. If it conflicts with REFLECTION_JUDGMENT, preserve MAAT_FLOW_DECAN_PATTERN for the Ma'at flow sentence and reflection/action boundary. If its reflection constraints forbid imperatives, do not turn the reflection into an alignment task or end with a direct command. If you use a Ma'at term, explain it in ordinary words in the same sentence, such as right size, clear place, truthful form, steady care, or follow-through. Avoid coded phrases: written witness, act and account, embodied order, underalignment, life accomplished, dependent on inference, account cannot prove, and the account. Hard ban system-serving phrases: next reflection, less guesswork, enough detail, record cannot show, what may already have occurred, truth asks for enough detail, improvement direction, record tells the truth, record can match, mark of care, complete today so your record, written record drift apart. Do not repeat the same activity, nutrition item, source, purpose, count, or date. Every sentence should do at least two jobs: fuse decan frame with portrait, turn evidence into meaning, or let the directive arise naturally from who the user is becoming. Do not list action options. Follow REFLECTION_JUDGMENT: end with exactly one question or exactly one charge, never both, unless MAAT_FLOW_DECAN_PATTERN forbids imperatives; then do not use a direct-command charge. Prefer weight-bearing closings such as "What would it mean to...", "What would restore...", "What are you willing to return to...", or "What must be made whole..."; avoid "what would it look like" unless the judgment explicitly requires a gentle exploratory close. Keep gravity proportionate: ordinary nutrition support should remain routine unless evidence shows real harm or clinical urgency. Do not use defensive "not failure / not judgment / not crisis" phrasing. No unsupported generalities; if you mention an activity, it must appear in the evidence and be permitted by the thesis gate. Non-judgmental, warm tone. Aim for: morally oriented toward Ma'at, not coached on habits. No bullets, no metadata, no generic advice. If hidden Ma'at/Isfet guardrails, output-control plan, moral portrait, reflection judgment, thesis gate, user profile snapshot, user profile context, calendar frame, or memory brief are present, use them only for tone, evidence visibility, structure, and closing strategy; never expose scores, gates, labels, slugs, matrix language, profile fact labels, or output-control fields.`;
           const userPrompt = buildAnthropicPrompt(
             payload,
             currentBadges,
@@ -4438,6 +4462,47 @@ serve(async (req) => {
               res.text.trim(),
               normalizedThreadsForReflection,
             );
+            const maatFlowBindingCheck = validateMaatFlowReflectionTextBinding(
+              reflectionText,
+              maatFlowDecanPattern,
+            );
+            rendererDiagnostics.maat_flow_binding_check = maatFlowBindingCheck;
+            if (
+              !maatFlowBindingCheck.ok &&
+              maatFlowDecanPattern.flowSignals.length
+            ) {
+              rendererDiagnostics.maat_flow_binding_retry_attempted = true;
+              const retryPrompt = [
+                userPrompt,
+                maatFlowReflectionBindingRepairPrompt(
+                  maatFlowDecanPattern,
+                  maatFlowBindingCheck.reasons,
+                ),
+              ].filter((block) => block.trim().length).join("\n\n");
+              const retry = await callAnthropic([
+                { role: "system", content: systemPrompt },
+                { role: "user", content: retryPrompt },
+              ]);
+              if (retry.text && retry.text.trim().length) {
+                const retryText = sanitizeRecurringThreadReflectionLanguage(
+                  retry.text.trim(),
+                  normalizedThreadsForReflection,
+                );
+                const retryCheck = validateMaatFlowReflectionTextBinding(
+                  retryText,
+                  maatFlowDecanPattern,
+                );
+                rendererDiagnostics.maat_flow_binding_retry_check = retryCheck;
+                if (retryCheck.ok) {
+                  reflectionText = retryText;
+                  rendererDiagnostics.maat_flow_binding_retry_applied = true;
+                } else {
+                  rendererDiagnostics.maat_flow_binding_retry_applied = false;
+                }
+              }
+            } else {
+              rendererDiagnostics.maat_flow_binding_retry_attempted = false;
+            }
             modelUsed = res.modelUsed ?? modelUsed;
             rendererDiagnostics.renderer = "anthropic";
             rendererDiagnostics.model_used = modelUsed;

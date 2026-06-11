@@ -726,12 +726,22 @@ Deno.test("admin_content_preview wires Weighing fixture semantics into reflectio
     environment: "test",
     reflectionGenerator: async (input) => {
       await Promise.resolve();
+      assertEquals(input.admin_preview, {
+        maat_flow_fixture: "observed_plus_partial",
+        maat_flow_fixture_mode: "isolated",
+        maat_flow_evidence_mode: "fixture_only",
+      });
+      assertEquals(input.scheduled_maat_flow_events, undefined);
       const badges = Array.isArray(input.badges) ? input.badges : [];
       assertEquals(badges.length, 2);
       assertEquals(badges[0].metadata.status, "observed");
       assertEquals(badges[0].metadata.flow_key, "the-weighing");
+      assertEquals(badges[0].metadata.admin_preview_fixture, true);
+      assertEquals(badges[0].metadata.source, "admin_preview_fixture");
       assertEquals(badges[1].metadata.status, "observed_partly");
       assertEquals(badges[1].metadata.flow_key, "the-weighing");
+      assertEquals(badges[1].metadata.admin_preview_fixture, true);
+      assertEquals(badges[1].metadata.source, "admin_preview_fixture");
 
       const pattern = synthesizeMaatFlowDecanPattern({
         decanId: "2026-05-19:2026-05-28:Hathor - s3h",
@@ -743,10 +753,17 @@ Deno.test("admin_content_preview wires Weighing fixture semantics into reflectio
           : [],
       });
       assertEquals(pattern.dominantTier, "observed");
+      assertEquals(pattern.lastTier, "partial");
       assertEquals(pattern.interpretiveEmphasis.lastExplicitTier, "partial");
       assertEquals(pattern.interpretiveEmphasis.reflectionTier, "partial");
       assertEquals(pattern.interpretiveEmphasis.orientationTier, "observed");
       assertEquals(pattern.interpretiveEmphasis.alignmentTier, "partial");
+      assertEquals(
+        pattern.flowSignals.some((signal) =>
+          signal.source === "scheduled_uncompleted"
+        ),
+        false,
+      );
       assertEquals(
         pattern.centralTension,
         "The scale was approached and the account opened, but not all of it reached the scale.",
@@ -876,6 +893,9 @@ Deno.test("admin_content_preview wires Weighing fixture semantics into reflectio
     guidance.admin_preview_fixture.maat_flow_fixture,
     "observed_plus_partial",
   );
+  assertEquals(guidance.admin_preview_fixture.fixture_mode, "isolated");
+  assertEquals(guidance.admin_preview_fixture.evidence_mode, "fixture_only");
+  assertEquals(guidance.admin_preview_fixture.scheduled_event_count, 0);
   assertStringIncludes(
     payload.preview.generated_text,
     "interrupted Weighing sitting",

@@ -582,6 +582,8 @@ function weighingFixtureCompletion(params: {
     completed_at: `${params.completedOn}T17:00:00.000Z`,
     source: "admin_preview_fixture",
     metadata: {
+      source: "admin_preview_fixture",
+      admin_preview_fixture: true,
       status: params.status,
       flow_key: THE_WEIGHING_FLOW_KEY,
       flow_title: THE_WEIGHING_FLOW_TITLE,
@@ -1720,6 +1722,8 @@ async function generatePreview(
           admin_preview: maatFlowFixture
             ? {
               maat_flow_fixture: maatFlowFixture,
+              maat_flow_fixture_mode: "isolated",
+              maat_flow_evidence_mode: "fixture_only",
             }
             : undefined,
         });
@@ -1771,6 +1775,8 @@ async function generatePreview(
         admin_preview_fixture: maatFlowFixture
           ? {
             maat_flow_fixture: maatFlowFixture,
+            fixture_mode: "isolated",
+            evidence_mode: "fixture_only",
             fixture_badge_count: fixtureBadges.length,
             scheduled_event_count: fixtureScheduledEvents.length,
           }
