@@ -121,6 +121,10 @@ Deno.test("The Weighing authored spectrum copy loads from the final manifest", (
     "The account was made plain.",
   );
   assertEquals(
+    spectrum.tiers.observed.lenses.reflection.semanticFamily,
+    "account_completed",
+  );
+  assertEquals(
     spectrum.tiers.partial.meaning,
     "The sitting was entered but not completed. The account was opened but not all of it was named. The approach was made - that is not nothing. But what remains unfinished still waits in the same condition it was left.",
   );
@@ -133,6 +137,10 @@ Deno.test("The Weighing authored spectrum copy loads from the final manifest", (
     "The account was opened, but not completed.",
   );
   assertEquals(
+    spectrum.tiers.partial.lenses.reflection.semanticFamily,
+    "account_opened_incomplete",
+  );
+  assertEquals(
     spectrum.tiers.skipped_explicit.meaning,
     "The sitting was available and was set aside. The account was not opened. What was set aside still needs a plain account - not because the sitting must be recovered, but because what is not named does not resolve on its own.",
   );
@@ -141,12 +149,20 @@ Deno.test("The Weighing authored spectrum copy loads from the final manifest", (
     "The sitting was set aside. What was set aside still needs a plain account.",
   );
   assertEquals(
+    spectrum.tiers.skipped_explicit.lenses.reflection.semanticFamily,
+    "sitting_set_aside",
+  );
+  assertEquals(
     spectrum.tiers.unobserved.meaning,
     "No record was made here. The sitting did not enter the day. Absence is not a verdict - the record simply has nothing from this point to work with.",
   );
   assertEquals(
     spectrum.tiers.unobserved.lenses.reflection.seed,
     "No record was made here. Absence is not a verdict.",
+  );
+  assertEquals(
+    spectrum.tiers.unobserved.lenses.reflection.semanticFamily,
+    "no_record",
   );
   assertEquals(
     spectrum.tiers.observed.lenses.orientation.seed,
@@ -169,6 +185,58 @@ Deno.test("The Weighing V4 solo tensions load exact authored text", () => {
   assertEquals(
     tension("weighing-partial-solo"),
     "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left.",
+  );
+  assertEquals(
+    tension("weighing-skipped-solo"),
+    "The sitting was set aside and the account was not opened. What is not named does not resolve on its own. The account can still be reopened with one plain statement of what the period contained.",
+  );
+});
+
+Deno.test("The Weighing semantic families are tier-specific and role-specific", () => {
+  const spectrum = MAAT_FLOW_RESPONSE_SPECTRUM[THE_WEIGHING_FLOW_KEY];
+  const expectedFamilies = {
+    observed: "account_completed",
+    partial: "account_opened_incomplete",
+    skipped_explicit: "sitting_set_aside",
+    unobserved: "no_record",
+  } as const;
+
+  for (const [tier, family] of Object.entries(expectedFamilies)) {
+    const lenses = spectrum.tiers[tier as keyof typeof expectedFamilies].lenses;
+    assertEquals(lenses.reflection.semanticFamily, family);
+    assertEquals(lenses.reflection.compositionRole, "status_pattern");
+    assertEquals(lenses.orientation.semanticFamily, family);
+    assertEquals(lenses.orientation.compositionRole, "orientation_posture");
+    assertEquals(lenses.alignment.semanticFamily, family);
+    assertEquals(lenses.alignment.compositionRole, "alignment_action");
+  }
+
+  for (const template of MAAT_FLOW_TENSION_TEMPLATES) {
+    assertEquals(template.compositionRole, "decan_pattern");
+  }
+  assertEquals(
+    MAAT_FLOW_TENSION_TEMPLATES.find((entry) =>
+      entry.id === "weighing-observed-solo"
+    )?.semanticFamily,
+    "account_completed",
+  );
+  assertEquals(
+    MAAT_FLOW_TENSION_TEMPLATES.find((entry) =>
+      entry.id === "weighing-partial-solo"
+    )?.semanticFamily,
+    "account_opened_incomplete",
+  );
+  assertEquals(
+    MAAT_FLOW_TENSION_TEMPLATES.find((entry) =>
+      entry.id === "weighing-skipped-solo"
+    )?.semanticFamily,
+    "sitting_set_aside",
+  );
+  assertEquals(
+    MAAT_FLOW_TENSION_TEMPLATES.find((entry) =>
+      entry.id === "weighing-unobserved-solo"
+    )?.semanticFamily,
+    "no_record",
   );
 });
 
@@ -437,7 +505,7 @@ Deno.test("partial plus skipped reflects latest set-aside tier while orienting f
   );
   assertEquals(
     synthesis.centralTension,
-    "The sitting was set aside and the account was not opened. What is not named does not resolve on its own. Return is still available through one plain account of what the period actually contained.",
+    "The sitting was set aside and the account was not opened. What is not named does not resolve on its own. The account can still be reopened with one plain statement of what the period contained.",
   );
   assertEquals(synthesis.selectedTensionTemplateId, "weighing-skipped-solo");
   assertEquals(

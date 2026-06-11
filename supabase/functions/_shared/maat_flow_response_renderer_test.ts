@@ -3,7 +3,6 @@
 import {
   assertEquals,
   assertExists,
-  assertStringIncludes,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
 import { buildMaatFlowCompletionEvidenceBadges } from "./guidance_evidence.ts";
@@ -18,6 +17,7 @@ import {
   renderMaatFlowResponse,
   resolveMaatFlowRuntimeRenderMode,
 } from "./maat_flow_response_renderer.ts";
+import { validateMaatFlowReflectionTextBinding } from "./maat_flow_reflection_prompt.ts";
 
 const decan = {
   decanId: "2026-05-16:2026-05-25:1-1",
@@ -112,9 +112,13 @@ function renderFixture(fixture: string, kind: MaatResponseKind = "reflection") {
 
 function assertNoReflectionImperative(text: string) {
   assertEquals(
-    /\b(Return to|Complete|Sit|Write|Name|Choose|Open)\b/.test(text),
+    /\b(Return|Complete|Sit|Write|Name|Choose|Open)\b/.test(text),
     false,
   );
+}
+
+function occurrenceCount(text: string, phrase: string) {
+  return text.match(new RegExp(phrase, "g"))?.length ?? 0;
 }
 
 function assertDoNotSayAbsent(pattern: MaatFlowDecanPatternSynthesis) {
@@ -173,10 +177,13 @@ Deno.test("Weighing observed medium reflection uses V4 solo tension", () => {
     "The account was made plain. What was named can now be carried without decoration.",
   );
   assertEquals(response.badgeBody, "The account was made plain.");
+  assertEquals(response.selectedSeed.semanticFamily, "account_completed");
+  assertEquals(response.centralTensionSemanticFamily, "account_completed");
   assertEquals(
     response.detailBody,
-    "The account was made plain. What was named can now be carried without decoration. The account was made plain.",
+    "The account was made plain. What was named can now be carried without decoration.",
   );
+  assertEquals(response.body, response.centralTension);
   assertNoReflectionImperative(response.body);
 });
 
@@ -197,6 +204,11 @@ Deno.test("Weighing partial reflection renders without LLM and names interruptio
     response.detailBody,
     "The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
   );
+  assertEquals(response.centralTension, undefined);
+  assertEquals(
+    response.selectedSeed.semanticFamily,
+    "account_opened_incomplete",
+  );
   assertNoReflectionImperative(response.body);
 });
 
@@ -209,6 +221,11 @@ Deno.test("Weighing skipped reflection renders without LLM and names set-aside a
     response.body,
     "The sitting was set aside. What was set aside still needs a plain account.",
   );
+  assertEquals(
+    response.detailBody,
+    "The sitting was set aside. What was set aside still needs a plain account.",
+  );
+  assertEquals(response.centralTension, undefined);
   assertEquals(response.badgeBody, "The sitting was set aside.");
   assertNoReflectionImperative(response.body);
 });
@@ -235,7 +252,7 @@ Deno.test("Weighing unobserved reflection renders without LLM and stays neutral"
   assertNoReflectionImperative(response.body);
 });
 
-Deno.test("Weighing observed plus partial reflection uses central tension and partial seed", () => {
+Deno.test("Weighing observed plus partial suppresses same-family seed append", () => {
   const response = renderFixture("observed_plus_partial");
 
   assertEquals(response.confidence, "medium");
@@ -243,13 +260,13 @@ Deno.test("Weighing observed plus partial reflection uses central tension and pa
     response.centralTension,
     "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left.",
   );
-  assertStringIncludes(
-    response.body,
-    "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left.",
+  assertEquals(
+    response.selectedSeed.semanticFamily,
+    "account_opened_incomplete",
   );
-  assertStringIncludes(
-    response.body,
-    "The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
+  assertEquals(
+    response.centralTensionSemanticFamily,
+    "account_opened_incomplete",
   );
   assertEquals(
     response.badgeBody,
@@ -257,31 +274,69 @@ Deno.test("Weighing observed plus partial reflection uses central tension and pa
   );
   assertEquals(
     response.detailBody,
-    "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left. The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
+    "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left.",
+  );
+  assertEquals(response.body, response.detailBody);
+  assertEquals(
+    occurrenceCount(response.detailBody ?? "", "account was opened"),
+    1,
+  );
+  assertEquals(
+    response.detailBody?.includes(
+      "The account was opened, but not completed. What remains unnamed",
+    ),
+    false,
   );
   assertEquals(response.selectedSeed.tier, "partial");
   assertNoReflectionImperative(response.body);
 });
 
-Deno.test("Weighing partial plus skipped reflection uses skipped set-aside semantics", () => {
+Deno.test("Weighing partial plus skipped suppresses repeated set-aside seed", () => {
   const response = renderFixture("partial_plus_skipped");
 
   assertEquals(response.confidence, "medium");
   assertEquals(response.selectedSeed.tier, "skipped_explicit");
-  assertStringIncludes(
+  assertEquals(
     response.body,
-    "The sitting was set aside and the account was not opened.",
+    "The sitting was set aside and the account was not opened. What is not named does not resolve on its own. The account can still be reopened with one plain statement of what the period contained.",
   );
-  assertStringIncludes(
-    response.body,
-    "What is not named does not resolve on its own.",
-  );
-  assertStringIncludes(
-    response.body,
-    "What was set aside still needs a plain account.",
+  assertEquals(response.detailBody, response.body);
+  assertEquals(response.centralTensionSemanticFamily, "sitting_set_aside");
+  assertEquals(response.selectedSeed.semanticFamily, "sitting_set_aside");
+  assertEquals(occurrenceCount(response.detailBody ?? "", "set aside"), 1);
+  assertEquals(
+    response.detailBody?.includes("What was set aside still needs"),
+    false,
   );
   assertEquals(response.badgeBody, "The sitting was set aside.");
   assertNoReflectionImperative(response.body);
+});
+
+Deno.test("Weighing reflection composes different semantic families", () => {
+  const basePattern = patternForFixture("observed");
+  const response = renderMaatFlowResponse(
+    {
+      ...basePattern,
+      centralTension:
+        "What is known but not carried in conduct remains unweighed.",
+      centralTensionSemanticFamily: "accountability_embodiment",
+      centralTensionCompositionRole: "decan_pattern",
+      confidence: "medium",
+    },
+    "reflection",
+  );
+  assertExists(response);
+
+  assertEquals(response.selectedSeed.semanticFamily, "account_completed");
+  assertEquals(
+    response.centralTensionSemanticFamily,
+    "accountability_embodiment",
+  );
+  assertEquals(
+    response.detailBody,
+    "What is known but not carried in conduct remains unweighed. The account was made plain.",
+  );
+  assertEquals(response.badgeBody, "The account was made plain.");
 });
 
 Deno.test("orientation and alignment use selected seeds with lower-third badge metadata", () => {
@@ -328,6 +383,30 @@ Deno.test("deterministic renderer excludes selected doNotSay phrases", () => {
     ]
   ) {
     assertDoNotSayAbsent(patternForFixture(fixture));
+  }
+});
+
+Deno.test("deterministic reflection outputs pass Ma'at binding validation", () => {
+  for (
+    const fixture of [
+      "observed",
+      "partial",
+      "skipped_explicit",
+      "unobserved",
+      "observed_plus_partial",
+      "partial_plus_skipped",
+    ]
+  ) {
+    const pattern = patternForFixture(fixture);
+    const response = renderMaatFlowResponse(pattern, "reflection");
+    assertExists(response);
+    const check = validateMaatFlowReflectionTextBinding(response.body, pattern);
+    assertEquals(
+      check.reasons.includes("imperative_sentence_forbidden"),
+      false,
+      `${fixture} should not trigger imperative_sentence_forbidden`,
+    );
+    assertEquals(check.ok, true, `${fixture}: ${check.reasons.join(", ")}`);
   }
 });
 

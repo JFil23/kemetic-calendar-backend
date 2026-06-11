@@ -1,6 +1,8 @@
 import type {
+  MaatCompositionRole,
   MaatFlowDecanPatternSynthesis,
   MaatResponseKind,
+  MaatSemanticFamily,
   SelectedLensSeed,
 } from "./maat_flow_response_spectrum.ts";
 
@@ -12,6 +14,8 @@ export type DeterministicMaatFlowResponse = {
   badgeBody: string;
   detailBody?: string;
   centralTension?: string;
+  centralTensionSemanticFamily?: MaatSemanticFamily;
+  centralTensionCompositionRole?: MaatCompositionRole;
   selectedSeed: SelectedLensSeed;
   confidence: "low" | "medium" | "high";
   fallbackReason?: string;
@@ -36,6 +40,23 @@ function compactText(value: unknown) {
 
 function joinSentences(parts: Array<string | null | undefined>) {
   return parts.map(compactText).filter(Boolean).join(" ");
+}
+
+function composeReflectionDetail(
+  pattern: MaatFlowDecanPatternSynthesis,
+  selectedSeed: SelectedLensSeed,
+  seedBody: string,
+) {
+  const centralTension = compactText(pattern.centralTension);
+  if (!centralTension) return seedBody;
+  if (!seedBody) return centralTension;
+  if (
+    pattern.centralTensionSemanticFamily &&
+    pattern.centralTensionSemanticFamily === selectedSeed.semanticFamily
+  ) {
+    return centralTension;
+  }
+  return joinSentences([centralTension, seedBody]);
 }
 
 function selectedSeedForKind(
@@ -76,9 +97,7 @@ export function renderMaatFlowResponse(
   let detailBody: string | undefined;
 
   if (responseKind === "reflection") {
-    detailBody = centralTension
-      ? joinSentences([centralTension, seedBody])
-      : seedBody;
+    detailBody = composeReflectionDetail(pattern, selectedSeed, seedBody);
     body = detailBody;
   }
 
@@ -90,6 +109,10 @@ export function renderMaatFlowResponse(
     badgeBody,
     detailBody,
     centralTension: centralTension || undefined,
+    centralTensionSemanticFamily: pattern.centralTensionSemanticFamily ??
+      undefined,
+    centralTensionCompositionRole: pattern.centralTensionCompositionRole ??
+      undefined,
     selectedSeed,
     confidence: pattern.confidence,
     fallbackReason: pattern.fallbackReason,
@@ -125,6 +148,13 @@ export function maatFlowResponseRendererMetadata(
     response_kind: response.responseKind,
     selected_tier: response.selectedSeed.tier,
     selected_seed: response.selectedSeed.seed,
+    selected_seed_semantic_family: response.selectedSeed.semanticFamily,
+    selected_seed_composition_role: response.selectedSeed.compositionRole ??
+      null,
+    central_tension_semantic_family: response.centralTensionSemanticFamily ??
+      null,
+    central_tension_composition_role: response.centralTensionCompositionRole ??
+      null,
     confidence: response.confidence,
     spectrum_fallback_reason: response.fallbackReason ?? null,
     badge_title: response.badgeTitle,

@@ -71,6 +71,22 @@ export type MaatResponseBadgeRole =
   | "opening_orientation"
   | "mid_decan_alignment";
 
+export type MaatSemanticFamily =
+  | "account_completed"
+  | "account_opened_incomplete"
+  | "sitting_set_aside"
+  | "no_record"
+  | "accountability_witnessing"
+  | "accountability_embodiment"
+  | "accountability_orientation"
+  | "accountability_release";
+
+export type MaatCompositionRole =
+  | "decan_pattern"
+  | "status_pattern"
+  | "orientation_posture"
+  | "alignment_action";
+
 export type MaatResponseSurfaceMetadata = {
   responseKind: MaatResponseKind;
   preferredSurface: MaatResponseSurface;
@@ -81,6 +97,8 @@ export type MaatResponseSurfaceMetadata = {
 export type LensSeed = {
   seed: string;
   badgeBody?: string;
+  semanticFamily: MaatSemanticFamily;
+  compositionRole?: MaatCompositionRole;
   register: "grounded" | "spacious" | "direct" | "still";
   weight: "light" | "medium" | "serious";
   openingMove: string;
@@ -116,6 +134,8 @@ export type TensionTemplate = {
   secondaryFlow?: FlowKey;
   primaryTier: CanonicalCompletionTier;
   secondaryTier?: CanonicalCompletionTier;
+  semanticFamily: MaatSemanticFamily;
+  compositionRole?: MaatCompositionRole;
   tension: string;
   appliesTo: LensType[] | "all";
   priority: number;
@@ -127,6 +147,8 @@ export type ThemeRelationshipTemplate = {
   primaryMode?: ThemeMode;
   secondaryTheme?: ThemeAxis;
   secondaryMode?: ThemeMode;
+  semanticFamily: MaatSemanticFamily;
+  compositionRole?: MaatCompositionRole;
   tension: string;
   appliesTo: LensType[] | "all";
   priority: number;
@@ -227,6 +249,8 @@ export type MaatFlowDecanPatternSynthesis = {
   dominantThemeMode: ThemeMode | null;
   lastTier: CanonicalCompletionTier | null;
   centralTension: string | null;
+  centralTensionSemanticFamily: MaatSemanticFamily | null;
+  centralTensionCompositionRole: MaatCompositionRole | null;
   selectedThemeRelationshipTemplateId: string | null;
   selectedTensionTemplateId: string | null;
   selectedFlowTensionTemplateId: string | null;
@@ -273,6 +297,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
           reflection: {
             seed: "The account was made plain.",
             badgeBody: "The account was made plain.",
+            semanticFamily: "account_completed",
+            compositionRole: "status_pattern",
             register: "grounded",
             weight: "light",
             openingMove: "name what was met plainly",
@@ -288,6 +314,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
           orientation: {
             seed: "Keep the record plain before drawing meaning from it.",
             badgeBody: "Keep the record plain before drawing meaning from it.",
+            semanticFamily: "account_completed",
+            compositionRole: "orientation_posture",
             register: "direct",
             weight: "light",
             openingMove: "offer posture counsel without concrete task action",
@@ -306,6 +334,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
               "Write one sentence about what happened, without explaining it.",
             badgeBody:
               "Write one sentence about what happened, without explaining it.",
+            semanticFamily: "account_completed",
+            compositionRole: "alignment_action",
             register: "direct",
             weight: "light",
             openingMove: "offer the smallest honest act",
@@ -343,6 +373,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
             seed:
               "The account was opened, but not completed. What remains unnamed should stay simple enough to return to.",
             badgeBody: "The account was opened, but not completed.",
+            semanticFamily: "account_opened_incomplete",
+            compositionRole: "status_pattern",
             register: "grounded",
             weight: "medium",
             openingMove: "name the interruption without explaining it",
@@ -358,6 +390,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
           orientation: {
             seed: "Let the next account be smaller and complete.",
             badgeBody: "Let the next account be smaller and complete.",
+            semanticFamily: "account_opened_incomplete",
+            compositionRole: "orientation_posture",
             register: "grounded",
             weight: "medium",
             openingMove: "offer posture counsel without concrete task action",
@@ -375,6 +409,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
             seed:
               "Name the part that remains unfinished, without explaining it.",
             badgeBody: "Name the part that remains unfinished.",
+            semanticFamily: "account_opened_incomplete",
+            compositionRole: "alignment_action",
             register: "direct",
             weight: "medium",
             openingMove: "offer one behavioral action",
@@ -412,6 +448,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
             seed:
               "The sitting was set aside. What was set aside still needs a plain account.",
             badgeBody: "The sitting was set aside.",
+            semanticFamily: "sitting_set_aside",
+            compositionRole: "status_pattern",
             register: "grounded",
             weight: "medium",
             openingMove: "name the absence plainly, without verdict",
@@ -428,6 +466,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
             seed:
               "The account can reopen with something small - one true thing, named plainly, is enough to begin.",
             badgeBody: "The account can still be opened.",
+            semanticFamily: "sitting_set_aside",
+            compositionRole: "orientation_posture",
             register: "spacious",
             weight: "medium",
             openingMove: "offer posture counsel without concrete task action",
@@ -444,6 +484,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
           alignment: {
             seed: "Sit for two minutes and name one true thing plainly.",
             badgeBody: "Sit for two minutes and name one true thing plainly.",
+            semanticFamily: "sitting_set_aside",
+            compositionRole: "alignment_action",
             register: "direct",
             weight: "medium",
             openingMove: "offer the lowest threshold of re-entry",
@@ -481,6 +523,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
           reflection: {
             seed: "No record was made here. Absence is not a verdict.",
             badgeBody: "No record was made here. Absence is not a verdict.",
+            semanticFamily: "no_record",
+            compositionRole: "status_pattern",
             register: "still",
             weight: "light",
             openingMove: "name the absence neutrally",
@@ -496,6 +540,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
           orientation: {
             seed: "A light record is still a record.",
             badgeBody: "A light record is still a record.",
+            semanticFamily: "no_record",
+            compositionRole: "orientation_posture",
             register: "spacious",
             weight: "light",
             openingMove: "offer posture counsel without concrete task action",
@@ -512,6 +558,8 @@ export const MAAT_FLOW_RESPONSE_SPECTRUM: Record<
           alignment: {
             seed: "Write one plain line from the day.",
             badgeBody: "Write one plain line from the day.",
+            semanticFamily: "no_record",
+            compositionRole: "alignment_action",
             register: "direct",
             weight: "light",
             openingMove: "offer the minimum viable action",
@@ -543,6 +591,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     id: "accountability-witnessing-any",
     primaryTheme: "accountability",
     secondaryTheme: "witnessing",
+    semanticFamily: "accountability_witnessing",
+    compositionRole: "decan_pattern",
     tension: "An account shaped to sound acceptable is not a plain account.",
     appliesTo: "all",
     priority: 40,
@@ -553,6 +603,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "held",
     secondaryTheme: "witnessing",
     secondaryMode: "held",
+    semanticFamily: "accountability_witnessing",
+    compositionRole: "decan_pattern",
     tension:
       "The account was made plain and the view of it was clear. The record and the witness of it were the same thing.",
     appliesTo: "all",
@@ -564,6 +616,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "held",
     secondaryTheme: "witnessing",
     secondaryMode: "interrupted",
+    semanticFamily: "accountability_witnessing",
+    compositionRole: "decan_pattern",
     tension:
       "The sitting was completed, but the view of it may have been adjusted before the account was named. Whether the full account was given is what remains.",
     appliesTo: "all",
@@ -575,6 +629,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "interrupted",
     secondaryTheme: "witnessing",
     secondaryMode: "interrupted",
+    semanticFamily: "accountability_witnessing",
+    compositionRole: "decan_pattern",
     tension:
       "The account was not completed, and the clear view of it was not completed either. What the period contained is partly named and partly still unexamined.",
     appliesTo: "all",
@@ -586,6 +642,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "set_aside",
     secondaryTheme: "witnessing",
     secondaryMode: "set_aside",
+    semanticFamily: "accountability_witnessing",
+    compositionRole: "decan_pattern",
     tension:
       "The sitting was set aside, and so was the plain view of what the period contained. What has not been looked at plainly cannot be named plainly.",
     appliesTo: "all",
@@ -595,6 +653,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     id: "accountability-embodiment-any",
     primaryTheme: "accountability",
     secondaryTheme: "embodiment",
+    semanticFamily: "accountability_embodiment",
+    compositionRole: "decan_pattern",
     tension: "What is known but not carried in conduct remains unweighed.",
     appliesTo: "all",
     priority: 40,
@@ -605,6 +665,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "held",
     secondaryTheme: "embodiment",
     secondaryMode: "interrupted",
+    semanticFamily: "accountability_embodiment",
+    compositionRole: "decan_pattern",
     tension:
       "The account was made plain, but the conduct it describes has not yet been carried through. Knowing what is true and acting on it are two different things.",
     appliesTo: "all",
@@ -616,6 +678,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "interrupted",
     secondaryTheme: "embodiment",
     secondaryMode: "absent",
+    semanticFamily: "accountability_embodiment",
+    compositionRole: "decan_pattern",
     tension:
       "Neither the account nor the practice was completed. The gap between what is known and what is being done has had room to widen.",
     appliesTo: "all",
@@ -627,6 +691,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "set_aside",
     secondaryTheme: "embodiment",
     secondaryMode: "set_aside",
+    semanticFamily: "accountability_embodiment",
+    compositionRole: "decan_pattern",
     tension:
       "Both the account and the practice were set aside. What is neither examined nor acted on does not stay still.",
     appliesTo: "all",
@@ -638,6 +704,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "held",
     secondaryTheme: "embodiment",
     secondaryMode: "held",
+    semanticFamily: "accountability_embodiment",
+    compositionRole: "decan_pattern",
     tension:
       "The account was made plain and the practice was carried. The record and the conduct are aligned.",
     appliesTo: "all",
@@ -647,6 +715,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     id: "accountability-orientation-any",
     primaryTheme: "accountability",
     secondaryTheme: "orientation",
+    semanticFamily: "accountability_orientation",
+    compositionRole: "decan_pattern",
     tension:
       "A direction set from an incomplete account tends to need correction later.",
     appliesTo: "all",
@@ -658,6 +728,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "held",
     secondaryTheme: "orientation",
     secondaryMode: "held",
+    semanticFamily: "accountability_orientation",
+    compositionRole: "decan_pattern",
     tension:
       "The account was plain and the direction is present. The next movement has something true beneath it.",
     appliesTo: "all",
@@ -669,6 +741,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "held",
     secondaryTheme: "orientation",
     secondaryMode: "interrupted",
+    semanticFamily: "accountability_orientation",
+    compositionRole: "decan_pattern",
     tension:
       "The record is plain, but the direction has not yet resolved. The account is ready — the bearing still needs to be set.",
     appliesTo: "all",
@@ -680,6 +754,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "interrupted",
     secondaryTheme: "orientation",
     secondaryMode: "held",
+    semanticFamily: "accountability_orientation",
+    compositionRole: "decan_pattern",
     tension:
       "A direction is present, but the account beneath it is unfinished. The bearing may need revision once the account is complete.",
     appliesTo: "all",
@@ -691,6 +767,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "set_aside",
     secondaryTheme: "orientation",
     secondaryMode: "interrupted",
+    semanticFamily: "accountability_orientation",
+    compositionRole: "decan_pattern",
     tension:
       "Neither the account nor the direction was completed. Direction without a plain account beneath it is harder to trust.",
     appliesTo: "all",
@@ -702,6 +780,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "set_aside",
     secondaryTheme: "orientation",
     secondaryMode: "held",
+    semanticFamily: "accountability_orientation",
+    compositionRole: "decan_pattern",
     tension:
       "A direction is being followed, but the account that should ground it was set aside. Moving forward without a plain record does not make the record unnecessary.",
     appliesTo: "all",
@@ -711,6 +791,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     id: "accountability-release-any",
     primaryTheme: "accountability",
     secondaryTheme: "release",
+    semanticFamily: "accountability_release",
+    compositionRole: "decan_pattern",
     tension:
       "What is still being held tends to shape the account before it is named.",
     appliesTo: "all",
@@ -722,6 +804,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "held",
     secondaryTheme: "release",
     secondaryMode: "interrupted",
+    semanticFamily: "accountability_release",
+    compositionRole: "decan_pattern",
     tension:
       "The account was made plain, but something from this period has not yet been set down. The record is honest as far as it goes.",
     appliesTo: "all",
@@ -733,6 +817,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "interrupted",
     secondaryTheme: "release",
     secondaryMode: "set_aside",
+    semanticFamily: "accountability_release",
+    compositionRole: "decan_pattern",
     tension:
       "The account was not completed, and what might have made it easier to complete was also not released. Each one makes the other harder.",
     appliesTo: "all",
@@ -744,6 +830,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "set_aside",
     secondaryTheme: "release",
     secondaryMode: "set_aside",
+    semanticFamily: "accountability_release",
+    compositionRole: "decan_pattern",
     tension:
       "Neither the account nor the release was taken up. What is neither named nor set down accumulates without notice.",
     appliesTo: "all",
@@ -755,6 +843,8 @@ export const MAAT_THEME_RELATIONSHIP_TEMPLATES: ThemeRelationshipTemplate[] = [
     primaryMode: "held",
     secondaryTheme: "release",
     secondaryMode: "held",
+    semanticFamily: "accountability_release",
+    compositionRole: "decan_pattern",
     tension:
       "The account was made plain and what needed to be set down was set down. Both happened in the same period.",
     appliesTo: "all",
@@ -767,6 +857,8 @@ export const MAAT_FLOW_TENSION_TEMPLATES: TensionTemplate[] = [
     id: "weighing-observed-solo",
     primaryFlow: THE_WEIGHING_FLOW_KEY,
     primaryTier: "observed",
+    semanticFamily: "account_completed",
+    compositionRole: "decan_pattern",
     tension:
       "The account was made plain. What was named can now be carried without decoration.",
     appliesTo: ["reflection"],
@@ -776,6 +868,8 @@ export const MAAT_FLOW_TENSION_TEMPLATES: TensionTemplate[] = [
     id: "weighing-partial-solo",
     primaryFlow: THE_WEIGHING_FLOW_KEY,
     primaryTier: "partial",
+    semanticFamily: "account_opened_incomplete",
+    compositionRole: "decan_pattern",
     tension:
       "The account was opened, but not all of it was named. What remains unfinished does not disappear — it waits in the same condition it was left.",
     appliesTo: ["reflection"],
@@ -785,8 +879,10 @@ export const MAAT_FLOW_TENSION_TEMPLATES: TensionTemplate[] = [
     id: "weighing-skipped-solo",
     primaryFlow: THE_WEIGHING_FLOW_KEY,
     primaryTier: "skipped_explicit",
+    semanticFamily: "sitting_set_aside",
+    compositionRole: "decan_pattern",
     tension:
-      "The sitting was set aside and the account was not opened. What is not named does not resolve on its own. Return is still available through one plain account of what the period actually contained.",
+      "The sitting was set aside and the account was not opened. What is not named does not resolve on its own. The account can still be reopened with one plain statement of what the period contained.",
     appliesTo: ["reflection"],
     priority: 1,
   },
@@ -794,6 +890,8 @@ export const MAAT_FLOW_TENSION_TEMPLATES: TensionTemplate[] = [
     id: "weighing-unobserved-solo",
     primaryFlow: THE_WEIGHING_FLOW_KEY,
     primaryTier: "unobserved",
+    semanticFamily: "no_record",
+    compositionRole: "decan_pattern",
     tension:
       "No record was made here. The absence is not a conclusion — it is a part of the period that has not yet been named.",
     appliesTo: ["reflection"],
@@ -1381,6 +1479,7 @@ export function synthesizeMaatFlowDecanPattern(params: {
       primaryTier: interpretiveEmphasis.reflectionTier,
     })
     : null;
+  const selectedTensionTemplate = themeTemplate ?? fallbackFlowTemplate ?? null;
   const selectedSeeds = {
     ...(reflectionFlow && interpretiveEmphasis.reflectionTier
       ? {
@@ -1428,11 +1527,13 @@ export function synthesizeMaatFlowDecanPattern(params: {
     dominantTheme: dominantThemeSignal?.theme ?? null,
     dominantThemeMode: dominantThemeSignal?.mode ?? null,
     lastTier: lastTier(flowSignals),
-    centralTension: themeTemplate?.tension ?? fallbackFlowTemplate?.tension ??
+    centralTension: selectedTensionTemplate?.tension ?? null,
+    centralTensionSemanticFamily: selectedTensionTemplate?.semanticFamily ??
+      null,
+    centralTensionCompositionRole: selectedTensionTemplate?.compositionRole ??
       null,
     selectedThemeRelationshipTemplateId: themeTemplate?.id ?? null,
-    selectedTensionTemplateId: themeTemplate?.id ?? fallbackFlowTemplate?.id ??
-      null,
+    selectedTensionTemplateId: selectedTensionTemplate?.id ?? null,
     selectedFlowTensionTemplateId: fallbackFlowTemplate?.id ?? null,
     selectedSeeds,
     interpretiveEmphasis,
