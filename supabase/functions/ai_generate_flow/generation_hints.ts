@@ -136,9 +136,9 @@ const STUDY_PROMPT_RE =
 const MEDU_NETER_PROMPT_RE =
   /\b(?:medu\s+neter|mdw\s*n(?:t|ṯ)r|metu\s+neter|hieroglyphs?|hieroglyphics?|kemetic\s+(?:writing|language|script)|egyptian\s+(?:writing|hieroglyphs?|language))\b/i;
 const PRACTICE_PROMPT_RE =
-  /\b(?:practice|guit[ae]r|guidar|bass|piano|keys?|drums?|voice|singing|song|riff|chords?|solo|strumming|drawing|writing|coding|programming|meditation|journaling)\b/i;
+  /\b(?:practice|guit[ae]r|guidar|bass|piano|keys?|drums?|voice|singing|song|riff|chords?|solo|strumming|scales?|arpeggios?|instrument|drawing|writing|coding|programming|meditation|journaling)\b/i;
 const MUSIC_PROMPT_RE =
-  /\b(?:guit[ae]r|guidar|bass|piano|keys?|drums?|voice|singing|song|riff|chords?|solo|strumming|tab|tabs?|tuning|bpm|metronome)\b/i;
+  /\b(?:guit[ae]r|guidar|bass|piano|keys?|drums?|voice|singing|song|riff|chords?|solo|strumming|scales?|arpeggios?|instrument|tab|tabs?|tuning|bpm|metronome)\b/i;
 const NAMED_SONG_PROMPT_RE =
   /\b(?:learn|play|practice|cover|perform)\b[\s\S]{0,80}\b(?:by|from)\b[\s\S]{0,80}\b(?:on|with|for)?\s*(?:electric\s+)?(?:guit[ae]r|guidar|bass|piano|keys?|drums?|voice|singing)?\b/i;
 const SYNTHESIS_SOURCE_KEYWORD_RE =
@@ -1613,6 +1613,7 @@ export function buildSparsePromptExpertDefaults(args: {
           : "- If the prompt names a song but no source chart is supplied, create a working chart task immediately: tuning, key, tempo, chord progression, section order, hardest riff/transition, and one recording checkpoint.";
         return [
           "- For named-song music practice, build the flow around the song's actual sections, chords, timing landmarks, and playable checkpoints, not generic skill practice.",
+          "- For broad music or piano practice prompts, default to concrete technical actions such as five-finger pattern, C major scale, Hanon-style finger independence drill, left-hand/right-hand isolation, C-F-G chord inversion drill, metronome slow pass, measure-by-measure trouble spot loop, and final clean run-through.",
           knownAnchors,
           "- Assume a beginner guitarist unless the user says otherwise: define standard tuning as E-A-D-G-B-E from lowest to highest, and describe a song map/chart as the page where the user writes tuning, tempo, key, main chords, section landmarks, and the first weak spot.",
           "- Event details must name the musical target: chord names, riff/fret or tab anchors, section timestamps, rhythm feel, tempo target, tone setting, or a recorded pass. Do not write placeholders like intro riff, verse chords, chord progression, song structure, or strumming pattern unless the same note names the specific music.",
@@ -1948,6 +1949,171 @@ function beyond7thSkyGuitarPracticeDetails(dayIndex: number): {
   return templates[dayIndex % templates.length];
 }
 
+function genericMusicPracticeLabel(
+  description: string | null | undefined,
+): string {
+  const text = normalizeWhitespace(description ?? "");
+  if (/\bpiano|keys?\b/i.test(text)) return "piano";
+  if (/\bguit[ae]r|guidar\b/i.test(text)) return "guitar";
+  if (/\bvoice|singing\b/i.test(text)) return "voice";
+  if (/\bdrums?\b/i.test(text)) return "drums";
+  if (/\bbass\b/i.test(text)) return "bass";
+  return "music";
+}
+
+function genericMusicPracticeDetails(dayIndex: number, label: string): {
+  title: string;
+  details: string;
+} {
+  if (label === "guitar") return genericGuitarPracticeDetails(dayIndex);
+
+  const templates = [
+    {
+      title: `${label} five-finger pattern`,
+      details:
+        "Start with a C-position five-finger pattern: C-D-E-F-G and back to C for 6 slow passes. Keep each note even, then play the same shape with the left hand alone, right hand alone, and both hands together. Use a metronome at 60 BPM and stop when two clean passes sound steady.",
+    },
+    {
+      title: "C major scale control",
+      details:
+        "Play the C major scale one octave up and down with finger numbers named before each pass. Use 4 slow passes at 60 BPM, then 2 passes at 70 BPM only if the thumb-under motion stays relaxed. Circle the exact note where timing slips so tomorrow has a clear repair spot.",
+    },
+    {
+      title: "Finger independence drill",
+      details:
+        "Run a Hanon-style 1-2-3-4-5, 2-3-4-5-1 finger independence drill for 8 careful repetitions. Keep the wrist quiet, release each finger after it plays, and listen for equal volume. Finish with one C-D-E-F-G pattern at the same tempo to check whether the hand feels lighter.",
+    },
+    {
+      title: "Hands-apart isolation",
+      details:
+        "Practice left-hand C-F-G bass notes for 10 slow cycles, then right-hand C, F, and G triads for 10 cycles. Put the hands together for only 5 cycles after each hand can move without pausing. Use a 55 BPM metronome and count out loud through every change.",
+    },
+    {
+      title: "Chord inversion drill",
+      details:
+        "Work C major inversions: root position C-E-G, first inversion E-G-C, and second inversion G-C-E. Play each shape 5 times, then connect C to F to G using the nearest comfortable inversion. The drill is done when the chord names and finger shapes stay clear without looking away.",
+    },
+    {
+      title: "Metronome slow pass",
+      details:
+        "Choose a four-measure passage or a simple C-F-G-C loop and play it at 50 BPM for 5 clean passes. If one measure breaks, isolate only that measure for 8 repetitions before returning to the full loop. Record the final pass and listen for steady tempo before increasing speed.",
+    },
+    {
+      title: "Trouble spot loop",
+      details:
+        "Pick the hardest measure from yesterday's recording and loop only that measure for 12 careful repetitions. Name the exact issue before starting: late left hand, uneven scale fingers, missed C-F-G chord change, or rushed rhythm. Then play one measure before and after it 3 times without stopping.",
+    },
+    {
+      title: "Clean run-through",
+      details:
+        "Run the full practice sequence once: C-position five-finger pattern, C major scale, C-F-G chord change, and the selected four-measure passage. Keep the tempo comfortable enough for one clean take. Save a short recording and write the first repair target for the next session.",
+    },
+  ];
+  return templates[dayIndex % templates.length];
+}
+
+function genericGuitarPracticeDetails(dayIndex: number): {
+  title: string;
+  details: string;
+} {
+  const templates = [
+    {
+      title: "Guitar chromatic picking",
+      details:
+        "Play frets 1-2-3-4 on the low E string, then the A string, using strict down-up alternate picking. Use 6 slow passes at 60 BPM, keep each fingertip close to the fret, and stop only after two passes sound even without string buzz.",
+    },
+    {
+      title: "G-C-D chord changes",
+      details:
+        "Practice open G, C, and D major chords in a G-C-D-G loop. Strum each chord once, move on beat 4, and repeat for 12 slow cycles at 55 BPM. Name the exact switch that drags, such as C to D or D to G, before the next round.",
+    },
+    {
+      title: "Muted strumming control",
+      details:
+        "Mute the strings with the fretting hand and play down-up eighth-note strums for 4 sets of 30 seconds. Keep the wrist loose, accent beats 2 and 4, and check that the pick angle stays shallow enough to avoid snagging.",
+    },
+    {
+      title: "Single-string coordination",
+      details:
+        "On the G string, play frets 2-4-5-4-2 with alternate picking for 8 careful repetitions. Say the fret numbers before each pass, keep the unused fingers hovering close, and restart any pass where the pick direction flips by accident.",
+    },
+    {
+      title: "Am-C-G-D transition drill",
+      details:
+        "Cycle through Am, C, G, and D with one bar per chord at 60 BPM. Use one down-strum on beat 1 for the first 8 cycles, then add down-up strums for 4 cycles only if the chord shapes land cleanly.",
+    },
+    {
+      title: "Metronome chord loop",
+      details:
+        "Choose a four-bar loop: G for one bar, C for one bar, D for one bar, then G for one bar. Play 5 clean passes at 50 BPM. If the G, C, or D shape buzzes, isolate that named change for 8 repetitions before restarting the full loop.",
+    },
+    {
+      title: "Trouble change repair",
+      details:
+        "Pick yesterday's hardest named change, such as G to C, C to D, D to G, or Am to C, and loop only that two-shape move for 12 repetitions. Name the issue before starting: slow ring finger, muted high E string, late strum, or rushed pick hand. Then play one bar before and after it 3 times.",
+    },
+    {
+      title: "Clean guitar run-through",
+      details:
+        "Run the full practice sequence once: 1-2-3-4 chromatic picking, G-C-D-G chord loop, muted down-up strumming, and the selected trouble change. Keep the tempo comfortable enough for one clean take, then record 30 seconds and write tomorrow's first repair target.",
+    },
+  ];
+  return templates[dayIndex % templates.length];
+}
+
+function genericMusicReflectionDetails(
+  dayIndex: number,
+  label: string,
+): string {
+  if (label === "guitar") {
+    const focus = [
+      "which chord change stayed cleanest: G to C, C to D, D to G, or Am to C",
+      "whether the pick hand kept steady down-up motion at the chosen BPM",
+      "which fret or string buzzed during the 1-2-3-4 chromatic drill",
+      "the exact two-chord move or two-beat strum that needs tomorrow's slow loop",
+    ][dayIndex % 4];
+    return `Take 6 minutes to review today's guitar practice. Write ${focus}, then choose one concrete starting point for tomorrow such as G-C-D-G, Am-C-G-D, frets 1-2-3-4, muted down-up strums, or the same trouble change.`;
+  }
+
+  const focus = [
+    "which hand or finger pattern stayed most even",
+    "whether the C major scale or C-F-G chord change broke first",
+    "the metronome tempo that stayed clean without tension",
+    "the exact measure or two-beat spot that needs the next slow loop",
+  ][dayIndex % 4];
+  return `Take 6 minutes to review today's ${label} practice. Write ${focus}, then choose one concrete starting point for tomorrow such as C-D-E-F-G, C major scale, C-F-G inversions, or the same four-measure loop.`;
+}
+
+function buildGenericMusicSparsePromptRoutineNotes(
+  description: string | null | undefined,
+  dateRangeDays: number,
+): SparsePromptRoutineNote[] {
+  const label = genericMusicPracticeLabel(description);
+  const notes: SparsePromptRoutineNote[] = [];
+  for (let dayIndex = 0; dayIndex < dateRangeDays; dayIndex++) {
+    const practice = genericMusicPracticeDetails(dayIndex, label);
+    notes.push(
+      {
+        day_index: dayIndex,
+        title: practice.title,
+        details: practice.details,
+        all_day: false,
+        start_time: "18:00",
+        end_time: "18:35",
+      },
+      {
+        day_index: dayIndex,
+        title: "Practice review",
+        details: genericMusicReflectionDetails(dayIndex, label),
+        all_day: false,
+        start_time: "20:30",
+        end_time: "20:40",
+      },
+    );
+  }
+  return notes;
+}
+
 function musicReflectionDetails(dayIndex: number): string {
   const focus = [
     "the section that stayed most in time",
@@ -2057,6 +2223,12 @@ export function buildSparsePromptRoutineNotes(args: {
   const domain = inferSparsePromptDomain(description, sourceText);
   if (domain === "martial_arts" && KUNG_FU_PROMPT_RE.test(description ?? "")) {
     return buildKungFuSparsePromptRoutineNotes(description, dateRangeDays);
+  }
+  if (domain === "music") {
+    return buildGenericMusicSparsePromptRoutineNotes(
+      description,
+      dateRangeDays,
+    );
   }
   if (domain !== "skincare") return null;
 

@@ -1652,6 +1652,90 @@ Deno.test("buildSparsePromptRoutineNotes creates a playable Beyond the 7th Sky p
   }
 });
 
+Deno.test("buildSparsePromptRoutineNotes creates concrete piano practice notes", () => {
+  const notes = buildSparsePromptRoutineNotes({
+    description: "practice piano",
+    dateRangeDays: 10,
+    flowFormat: "REGIMEN",
+  });
+
+  assertExists(notes);
+  assertEquals(notes.length, 20);
+  assertEquals(inferSparsePromptDomain("practice piano"), "music");
+
+  const allText = notes.map((note) => `${note.title}\n${note.details}`).join(
+    "\n\n",
+  );
+  assertStringIncludes(allText, "five-finger pattern");
+  assertStringIncludes(allText, "C major scale");
+  assertStringIncludes(allText, "Hanon-style");
+  assertStringIncludes(allText, "left-hand");
+  assertStringIncludes(allText, "right-hand");
+  assertStringIncludes(allText, "C-F-G");
+  assertStringIncludes(allText, "metronome");
+  assertStringIncludes(allText, "Trouble spot loop");
+  assertStringIncludes(allText, "Clean run-through");
+  assertEquals(/\bwarm\s*up\b/i.test(allText), false);
+
+  for (let dayIndex = 0; dayIndex < 10; dayIndex++) {
+    const dayNotes = notes.filter((note) => note.day_index === dayIndex);
+    assertEquals(dayNotes.length, 2);
+    assertEquals(dayNotes[1].title, "Practice review");
+    for (const note of dayNotes) {
+      assertEquals(findUnderSpecifiedActionPlaceholder(note.details), null);
+      assertEquals(hasUnsafeVisibleRepeatReference(note.details), false);
+      assertEquals(/^\s*(?:[-*•]|\d+[.)])\s+/m.test(note.details), false);
+    }
+  }
+});
+
+Deno.test("buildSparsePromptRoutineNotes covers generic music sparse prompts", () => {
+  for (const description of ["practice scales", "learn a song"]) {
+    const notes = buildSparsePromptRoutineNotes({
+      description,
+      dateRangeDays: 7,
+      flowFormat: "REGIMEN",
+    });
+
+    assertExists(notes);
+    assertEquals(notes.length, 14);
+    const allText = notes.map((note) => note.details).join("\n\n");
+    assertStringIncludes(allText, "C major scale");
+    assertStringIncludes(allText, "C-F-G");
+    assertEquals(/\bwarm\s*up\b/i.test(allText), false);
+    for (const note of notes) {
+      assertEquals(findUnderSpecifiedActionPlaceholder(note.details), null);
+    }
+  }
+});
+
+Deno.test("buildSparsePromptRoutineNotes keeps guitar practice guitar-specific", () => {
+  const notes = buildSparsePromptRoutineNotes({
+    description: "practice guitar",
+    dateRangeDays: 7,
+    flowFormat: "REGIMEN",
+  });
+
+  assertExists(notes);
+  assertEquals(notes.length, 14);
+  const allText = notes.map((note) => `${note.title}\n${note.details}`).join(
+    "\n\n",
+  );
+  assertStringIncludes(allText, "G-C-D");
+  assertStringIncludes(allText, "frets 1-2-3-4");
+  assertStringIncludes(allText, "down-up");
+  assertStringIncludes(allText, "Am-C-G-D");
+  assertEquals(/\bC major scale\b/i.test(allText), false);
+  assertEquals(/\bHanon\b/i.test(allText), false);
+  assertEquals(/\bleft-hand\b/i.test(allText), false);
+  assertEquals(/\bright-hand\b/i.test(allText), false);
+  assertEquals(/\bwarm\s*up\b/i.test(allText), false);
+  for (const note of notes) {
+    assertEquals(findUnderSpecifiedActionPlaceholder(note.details), null);
+    assertEquals(hasUnsafeVisibleRepeatReference(note.details), false);
+  }
+});
+
 Deno.test("mergePreservedDetails keeps generated framing and source detail blocks", () => {
   const merged = mergePreservedDetails(
     `
