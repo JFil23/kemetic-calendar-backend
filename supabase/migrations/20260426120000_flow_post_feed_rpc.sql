@@ -2,7 +2,9 @@ create index if not exists flow_posts_visible_created_at_idx
   on public.flow_posts (created_at desc)
   where coalesce(is_hidden, false) = false;
 
-create or replace function public.get_flow_post_feed(
+drop function if exists public.get_flow_post_feed(integer, integer);
+
+create function public.get_flow_post_feed(
   p_limit integer default 24,
   p_offset integer default 0
 )

@@ -20,7 +20,7 @@ begin
     where schemaname = 'public' and tablename = 'push_tokens' and policyname = 'insert_own_push_token'
   ) then
     create policy insert_own_push_token on public.push_tokens
-      for insert using (auth.uid() = user_id);
+      for insert with check (auth.uid() = user_id);
   end if;
 
   if not exists (
@@ -28,7 +28,8 @@ begin
     where schemaname = 'public' and tablename = 'push_tokens' and policyname = 'update_own_push_token'
   ) then
     create policy update_own_push_token on public.push_tokens
-      for update using (auth.uid() = user_id);
+      for update using (auth.uid() = user_id)
+      with check (auth.uid() = user_id);
   end if;
 
   if not exists (

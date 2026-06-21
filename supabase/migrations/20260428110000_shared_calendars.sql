@@ -572,6 +572,8 @@ grant select on public.user_events_with_calendars to authenticated;
 alter table public.shared_calendars enable row level security;
 alter table public.shared_calendar_members enable row level security;
 
+drop policy if exists shared_calendars_select_member
+on public.shared_calendars;
 create policy shared_calendars_select_member
 on public.shared_calendars
 for select
@@ -586,6 +588,8 @@ using (
   )
 );
 
+drop policy if exists shared_calendar_members_select_visible
+on public.shared_calendar_members;
 create policy shared_calendar_members_select_visible
 on public.shared_calendar_members
 for select
@@ -600,6 +604,8 @@ using (
   )
 );
 
+drop policy if exists user_events_select_shared_calendars
+on public.user_events;
 create policy user_events_select_shared_calendars
 on public.user_events
 for select
@@ -613,6 +619,8 @@ using (
   )
 );
 
+drop policy if exists user_events_insert_shared_calendars
+on public.user_events;
 create policy user_events_insert_shared_calendars
 on public.user_events
 for insert
@@ -628,6 +636,8 @@ with check (
   )
 );
 
+drop policy if exists user_events_update_shared_calendars
+on public.user_events;
 create policy user_events_update_shared_calendars
 on public.user_events
 for update
@@ -652,6 +662,8 @@ with check (
   )
 );
 
+drop policy if exists user_events_delete_shared_calendars
+on public.user_events;
 create policy user_events_delete_shared_calendars
 on public.user_events
 for delete

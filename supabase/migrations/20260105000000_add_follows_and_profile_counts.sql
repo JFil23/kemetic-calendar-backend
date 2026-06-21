@@ -9,18 +9,21 @@ create table if not exists public.follows (
 
 alter table public.follows enable row level security;
 
+drop policy if exists "Users can follow others" on public.follows;
 create policy "Users can follow others"
   on public.follows
   for insert
   to authenticated
   with check ((auth.uid() = follower_id) and follower_id <> followee_id);
 
+drop policy if exists "Users can unfollow" on public.follows;
 create policy "Users can unfollow"
   on public.follows
   for delete
   to authenticated
   using (auth.uid() = follower_id);
 
+drop policy if exists "Anyone can view follows" on public.follows;
 create policy "Anyone can view follows"
   on public.follows
   for select
@@ -45,7 +48,8 @@ select
   count(distinct f.id) filter (where f.active is true) as active_flows_count,
   count(distinct ue.id) as total_flow_events_count,
   coalesce(followers.cnt, 0) as followers_count,
-  coalesce(following.cnt, 0) as following_count
+  coalesce(following.cnt, 0) as following_count,
+  p.avatar_glyphs
 from public.profiles p
 left join public.flows f on f.user_id = p.id
 left join public.user_events ue on ue.flow_local_id = f.id and ue.user_id = p.id
