@@ -4,8 +4,8 @@ revoke all on schema private from public;
 grant usage on schema private to service_role;
 
 drop view if exists public.user_event_filing_items;
-drop view if exists public.user_event_filing_items_client;
-drop view if exists private.user_event_filing_items_internal;
+drop view if exists public.user_event_filing_items_client cascade;
+drop view if exists private.user_event_filing_items_internal cascade;
 
 create view private.user_event_filing_items_internal
 with (security_invoker = true) as

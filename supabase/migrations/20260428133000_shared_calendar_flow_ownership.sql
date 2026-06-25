@@ -149,7 +149,11 @@ drop policy if exists flows_insert_owned on public.flows;
 drop policy if exists flows_select on public.flows;
 drop policy if exists flows_select_own on public.flows;
 drop policy if exists flows_select_shared on public.flows;
+drop policy if exists flows_select_visible on public.flows;
 drop policy if exists flows_update_own on public.flows;
+drop policy if exists flows_insert_calendar_member on public.flows;
+drop policy if exists flows_update_calendar_editor on public.flows;
+drop policy if exists flows_delete_calendar_editor on public.flows;
 
 create policy flows_select_visible
 on public.flows
