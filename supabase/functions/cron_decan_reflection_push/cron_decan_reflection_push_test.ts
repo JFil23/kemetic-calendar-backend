@@ -14,6 +14,22 @@ type PushInvokeBody = Row & {
   notification?: Row;
   data?: Row;
 };
+type CapturedPushBody = PushInvokeBody & {
+  notification: Row;
+  data: Row;
+};
+
+function firstPushBody(pushBodies: PushInvokeBody[]): CapturedPushBody {
+  const pushBody = pushBodies.at(0);
+  assert(pushBody);
+  assert(pushBody.notification);
+  assert(pushBody.data);
+  return {
+    ...pushBody,
+    notification: pushBody.notification,
+    data: pushBody.data,
+  };
+}
 
 const nowIso = "2026-05-19T12:00:00.000Z";
 const baseConfig = {
@@ -391,28 +407,29 @@ Deno.test("cron_decan_reflection_push drains due batches and keeps no-token rows
       ),
     );
   }
+  const pushBody = firstPushBody(stats.pushBodies);
   assertEquals(
-    stats.pushBodies[0].notification.body,
+    pushBody.notification.body,
     "Compiled reflection push.",
   );
   assertEquals(
-    stats.pushBodies[0].data.push_source,
+    pushBody.data.push_source,
     "compiled_package.push_text",
   );
   assertEquals(
-    stats.pushBodies[0].data.compiled_output_package.package_version,
+    pushBody.data.compiled_output_package.package_version,
     "compiled_output_package_v1",
   );
-  assertEquals(stats.pushBodies[0].data.node_ref, "instruction_amenemope");
+  assertEquals(pushBody.data.node_ref, "instruction_amenemope");
   assertEquals(
-    stats.pushBodies[0].data.node_deep_link,
+    pushBody.data.node_deep_link,
     "/nodes/instruction_amenemope",
   );
   assertEquals(
-    stats.pushBodies[0].data.node_title,
+    pushBody.data.node_title,
     "Instruction of Amenemope",
   );
-  assertEquals(stats.pushBodies[0].data.node_source, "destination.fallback");
+  assertEquals(pushBody.data.node_source, "destination.fallback");
 });
 
 Deno.test("cron_decan_reflection_push uses graph anchor for canonical node when destination has no node fallback", async () => {
@@ -456,10 +473,11 @@ Deno.test("cron_decan_reflection_push uses graph anchor for canonical node when 
 
   assertEquals(response.status, 200);
   assertEquals(stats.pushBodies.length, 1);
-  assertEquals(stats.pushBodies[0].data.node_ref, "renenutet");
-  assertEquals(stats.pushBodies[0].data.node_deep_link, "/nodes/renenutet");
-  assertEquals(stats.pushBodies[0].data.node_title, "Renenutet");
-  assertEquals(stats.pushBodies[0].data.node_source, "graph.anchor");
+  const pushBody = firstPushBody(stats.pushBodies);
+  assertEquals(pushBody.data.node_ref, "renenutet");
+  assertEquals(pushBody.data.node_deep_link, "/nodes/renenutet");
+  assertEquals(pushBody.data.node_title, "Renenutet");
+  assertEquals(pushBody.data.node_source, "graph.anchor");
 });
 
 Deno.test("cron_decan_reflection_push blocks fallback-quality compiled push text", async () => {

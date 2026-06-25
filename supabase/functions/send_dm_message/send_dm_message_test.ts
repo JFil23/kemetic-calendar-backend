@@ -12,6 +12,14 @@ import {
 } from "./index.ts";
 import { authorizeUserJwtDmPush } from "../send_push/user_jwt_dm_auth.ts";
 
+function parseJsonRecord(value: unknown): Record<string, unknown> {
+  const decoded: unknown = JSON.parse(String(value));
+  if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
+    throw new TypeError("Expected JSON object");
+  }
+  return decoded as Record<string, unknown>;
+}
+
 function dmRequest(body: Record<string, unknown>, token = "sender-token") {
   return new Request("https://example.test/functions/v1/send_dm_message", {
     method: "POST",
@@ -219,15 +227,17 @@ Deno.test("send_dm_message push payload passes user-JWT DM authorization guard",
 });
 
 Deno.test("default DM push store sends user JWT with internal key for send_push fallback auth", async () => {
-  let capturedHeaders: Headers | null = null;
-  let capturedBody: Record<string, unknown> | null = null;
+  const capturedRequest: {
+    headers?: Headers;
+    body?: Record<string, unknown>;
+  } = {};
   const store = createSupabaseDmStore({
     client: {} as unknown,
     supabaseUrl: "https://project.supabase.co",
     internalFunctionKey: "internal-secret",
     fetchImpl: async (_input, init) => {
-      capturedHeaders = new Headers(init?.headers);
-      capturedBody = JSON.parse(String(init?.body));
+      capturedRequest.headers = new Headers(init?.headers);
+      capturedRequest.body = parseJsonRecord(init?.body);
       return new Response(JSON.stringify({ sent: 1, delivered: true }), {
         status: 200,
       });
@@ -245,8 +255,10 @@ Deno.test("default DM push store sends user JWT with internal key for send_push 
     }),
   );
 
-  assertExists(capturedHeaders);
-  assertEquals(capturedHeaders.get("x-internal-key"), "internal-secret");
-  assertEquals(capturedHeaders.get("authorization"), "Bearer sender-token");
-  assertEquals(capturedBody?.userIds, ["user-b"]);
+  const { headers, body } = capturedRequest;
+  assertExists(headers);
+  assertExists(body);
+  assertEquals(headers.get("x-internal-key"), "internal-secret");
+  assertEquals(headers.get("authorization"), "Bearer sender-token");
+  assertEquals(body.userIds, ["user-b"]);
 });

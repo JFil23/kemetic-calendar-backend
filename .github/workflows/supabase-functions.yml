@@ -14,7 +14,7 @@ jobs:
 
       - uses: denoland/setup-deno@v2
         with:
-          deno-version: v2.x
+          deno-version: 2.8.3
 
       - uses: supabase/setup-cli@v1
         with:
@@ -55,6 +55,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
+          docker version
+          supabase start
+          supabase status
           supabase db reset
           DB_URL="$(supabase status -o env | sed -n 's/^DB_URL="\(.*\)"$/\1/p')"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/maat_output_truth_loop_smoke.sql
@@ -74,3 +77,7 @@ jobs:
           end
           \$\$;
           "
+
+      - name: Stop Supabase local services
+        if: always()
+        run: supabase stop --no-backup || true
