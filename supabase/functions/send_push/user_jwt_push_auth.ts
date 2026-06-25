@@ -200,8 +200,10 @@ function normalizedStringSet(values?: string[]) {
   return new Set(normalizedStringArray(values));
 }
 
-function requireRequester(requesterUid: string | null) {
-  if (requesterUid) return null;
+function requireRequester(
+  requesterUid: string | null,
+): string | UserJwtPushAuthorizationResult {
+  if (requesterUid) return requesterUid;
   return denied(403, "Authenticated requester required", "missing_requester");
 }
 
@@ -273,9 +275,8 @@ async function authorizeUserJwtPushTest(params: {
   data: Record<string, unknown>;
   lookupActiveDeviceIds: ActiveDeviceLookup;
 }): Promise<UserJwtPushAuthorizationResult> {
-  const requesterError = requireRequester(params.requesterUid);
-  if (requesterError) return requesterError;
-  const requesterUid = params.requesterUid;
+  const requesterUid = requireRequester(params.requesterUid);
+  if (typeof requesterUid !== "string") return requesterUid;
 
   if (!hasExactPushTestShape(params.data)) {
     return denied(
@@ -344,9 +345,8 @@ async function authorizeFlowSharePush(params: {
   data: Record<string, unknown>;
   lookupShare: DmShareLookup;
 }): Promise<UserJwtPushAuthorizationResult> {
-  const requesterError = requireRequester(params.requesterUid);
-  if (requesterError) return requesterError;
-  const requesterUid = params.requesterUid;
+  const requesterUid = requireRequester(params.requesterUid);
+  if (typeof requesterUid !== "string") return requesterUid;
 
   if (!matchesKind(params.data, "flow_share")) {
     return denied(
@@ -420,9 +420,8 @@ async function authorizeEventInvitePush(params: {
   data: Record<string, unknown>;
   lookupEventShare: (shareId: string) => Promise<EventShareRow | null>;
 }): Promise<UserJwtPushAuthorizationResult> {
-  const requesterError = requireRequester(params.requesterUid);
-  if (requesterError) return requesterError;
-  const requesterUid = params.requesterUid;
+  const requesterUid = requireRequester(params.requesterUid);
+  if (typeof requesterUid !== "string") return requesterUid;
 
   if (!matchesKind(params.data, "event_invite")) {
     return denied(
@@ -546,9 +545,8 @@ async function authorizeSharedCalendarPush(params: {
     userIds: string[];
   }) => Promise<SharedCalendarMemberRow[]>;
 }): Promise<UserJwtPushAuthorizationResult> {
-  const requesterError = requireRequester(params.requesterUid);
-  if (requesterError) return requesterError;
-  const requesterUid = params.requesterUid;
+  const requesterUid = requireRequester(params.requesterUid);
+  if (typeof requesterUid !== "string") return requesterUid;
 
   if (!matchesKind(params.data, params.kind)) {
     return denied(
@@ -617,7 +615,11 @@ async function authorizeSharedCalendarPush(params: {
         },
       );
     }
-    const inviteeMember = memberByUserId(memberRows, recipients[0]);
+    const inviteeId = recipients.at(0);
+    if (!inviteeId) {
+      return denied(403, "Push recipient mismatch", "recipient_count_mismatch");
+    }
+    const inviteeMember = memberByUserId(memberRows, inviteeId);
     if (
       !inviteeMember ||
       inviteeMember.status !== "pending" ||
@@ -629,7 +631,7 @@ async function authorizeSharedCalendarPush(params: {
         "invite_row_mismatch",
         {
           calendarId,
-          recipientId: recipients[0],
+          recipientId: inviteeId,
         },
       );
     }
@@ -640,6 +642,10 @@ async function authorizeSharedCalendarPush(params: {
     if (recipients.length !== 1) {
       return denied(403, "Push recipient mismatch", "recipient_count_mismatch");
     }
+    const inviterId = recipients.at(0);
+    if (!inviterId) {
+      return denied(403, "Push recipient mismatch", "recipient_count_mismatch");
+    }
     const responderMember = requesterMember;
     const inviteStatus = dataString(
       params.data,
@@ -648,7 +654,7 @@ async function authorizeSharedCalendarPush(params: {
     );
     if (
       !responderMember ||
-      responderMember.invited_by !== recipients[0] ||
+      responderMember.invited_by !== inviterId ||
       !["accepted", "declined"].includes(responderMember.status ?? "")
     ) {
       return denied(
@@ -720,9 +726,8 @@ async function authorizeFollowPush(params: {
     followeeId: string;
   }) => Promise<boolean>;
 }): Promise<UserJwtPushAuthorizationResult> {
-  const requesterError = requireRequester(params.requesterUid);
-  if (requesterError) return requesterError;
-  const requesterUid = params.requesterUid;
+  const requesterUid = requireRequester(params.requesterUid);
+  if (typeof requesterUid !== "string") return requesterUid;
 
   if (!matchesKind(params.data, "follow")) {
     return denied(400, "Malformed follow payload", "malformed_follow_payload");
@@ -735,7 +740,10 @@ async function authorizeFollowPush(params: {
     ? null
     : denied(403, "Push recipient mismatch", "recipient_count_mismatch");
   if (recipientError) return recipientError;
-  const followeeId = recipients[0];
+  const followeeId = recipients.at(0);
+  if (!followeeId) {
+    return denied(403, "Push recipient mismatch", "recipient_count_mismatch");
+  }
   if (
     !await params.lookupFollow({ followerId: requesterUid, followeeId })
   ) {
@@ -774,9 +782,8 @@ async function authorizeFlowSocialPush(params: {
     userId: string;
   }) => Promise<boolean>;
 }): Promise<UserJwtPushAuthorizationResult> {
-  const requesterError = requireRequester(params.requesterUid);
-  if (requesterError) return requesterError;
-  const requesterUid = params.requesterUid;
+  const requesterUid = requireRequester(params.requesterUid);
+  if (typeof requesterUid !== "string") return requesterUid;
 
   if (!matchesKind(params.data, params.kind)) {
     return denied(
@@ -928,7 +935,18 @@ async function authorizeFlowSocialPush(params: {
     return { ok: true, kind: "flow_comment_reply" };
   }
 
-  if (comment.user_id === requesterUid) {
+  const commentUserId = comment.user_id;
+  if (!commentUserId) {
+    return denied(
+      403,
+      "Flow social push not authorized",
+      "comment_author_missing",
+      {
+        commentId: comment.id,
+      },
+    );
+  }
+  if (commentUserId === requesterUid) {
     return denied(
       403,
       "Flow social push not authorized",
@@ -955,7 +973,7 @@ async function authorizeFlowSocialPush(params: {
   }
   const recipientError = requireExactRecipients(
     params.userIds,
-    [comment.user_id ?? ""],
+    [commentUserId],
     "recipient_mismatch",
   );
   if (recipientError) return recipientError;

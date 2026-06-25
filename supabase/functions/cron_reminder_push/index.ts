@@ -1100,9 +1100,10 @@ export function createCronReminderPushHandler() {
       );
     } catch (e) {
       console.error("cron_reminder_push error", e);
+      const message = e instanceof Error ? e.message : String(e);
       return new Response(
         JSON.stringify({
-          error: e?.message ?? String(e),
+          error: message,
           durationMs: Date.now() - start,
         }),
         { status: 500, headers: { "Content-Type": "application/json" } },

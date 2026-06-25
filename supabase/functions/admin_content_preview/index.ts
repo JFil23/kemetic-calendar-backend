@@ -2230,7 +2230,7 @@ async function deliverNudge(
     },
   );
   if (error) {
-    const detail = serializeError(error);
+    const detail = serializeError(error) ?? String(error);
     const errorCode = isRecord(error) && typeof error.code === "string"
       ? error.code
       : "";

@@ -245,8 +245,11 @@ Deno.test("default DM push store sends user JWT with internal key for send_push 
     }),
   );
 
-  assertExists(capturedHeaders);
-  assertEquals(capturedHeaders.get("x-internal-key"), "internal-secret");
-  assertEquals(capturedHeaders.get("authorization"), "Bearer sender-token");
-  assertEquals(capturedBody?.userIds, ["user-b"]);
+  const headers = capturedHeaders;
+  const body = capturedBody;
+  assertExists(headers);
+  assertExists(body);
+  assertEquals(headers.get("x-internal-key"), "internal-secret");
+  assertEquals(headers.get("authorization"), "Bearer sender-token");
+  assertEquals(body.userIds, ["user-b"]);
 });
