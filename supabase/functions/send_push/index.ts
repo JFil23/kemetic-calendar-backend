@@ -743,11 +743,81 @@ async function recordPushTestDeliveryTiming(
   });
 }
 
+const asciiPushTextByChar: Record<string, string> = {
+  "\u02BE": "'",
+  "\u02BF": "'",
+  "\u2018": "'",
+  "\u2019": "'",
+  "\u201C": '"',
+  "\u201D": '"',
+  "\u2013": "-",
+  "\u2014": "-",
+  "\u2026": "...",
+  "Š": "Sh",
+  "š": "sh",
+  "Ḏ": "Dj",
+  "ḏ": "dj",
+  "Ḥ": "H",
+  "ḥ": "h",
+  "Ḫ": "Kh",
+  "ḫ": "kh",
+  "Ṯ": "Tj",
+  "ṯ": "tj",
+  "ẖ": "kh",
+  "Ỉ": "I",
+  "ỉ": "i",
+  "Ꜣ": "A",
+  "ꜣ": "A",
+  "Ꜥ": "A",
+  "ꜥ": "a",
+};
+
+function isEgyptianHieroglyphCodePoint(codePoint: number) {
+  return (codePoint >= 0x13000 && codePoint <= 0x1342f) ||
+    (codePoint >= 0x13430 && codePoint <= 0x1345f) ||
+    (codePoint >= 0x13460 && codePoint <= 0x143ff);
+}
+
+function asciiSafePushText(value: string) {
+  let source = value
+    .replaceAll("Ḥꜣw", "HAw")
+    .replaceAll("ḥꜣw", "HAw")
+    .replaceAll("Ma’at", "Ma'at")
+    .replaceAll("Maʿat", "Ma'at");
+  let output = "";
+  for (const char of source) {
+    const codePoint = char.codePointAt(0) ?? 0;
+    if (
+      isEgyptianHieroglyphCodePoint(codePoint) ||
+      (codePoint >= 0x0300 && codePoint <= 0x036f)
+    ) {
+      continue;
+    }
+    const mapped = asciiPushTextByChar[char];
+    if (mapped !== undefined) {
+      output += mapped;
+    } else if (codePoint <= 0x7e) {
+      output += char;
+    } else if (/\s/u.test(char)) {
+      output += " ";
+    }
+  }
+  source = output
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n+ */g, "\n")
+    .trim();
+  return source;
+}
+
 function normalizeNotification(
   notification?: { title?: string; body?: string },
 ) {
-  const title = firstString(notification?.title) ?? "Kemetic Calendar";
-  const body = firstString(notification?.body) ?? "Tap to open in Kemetic.";
+  const title = asciiSafePushText(
+    firstString(notification?.title) ?? "Kemetic Calendar",
+  ) || "Kemetic Calendar";
+  const body = asciiSafePushText(
+    firstString(notification?.body) ?? "Tap to open in Kemetic.",
+  ) || "Tap to open in Kemetic.";
   return { title, body };
 }
 
@@ -1136,8 +1206,11 @@ Deno.serve(async (req) => {
       const notification = normalizeNotification(body.notification);
       body.notification = {
         ...notification,
-        body: pushResolution.text,
+        body: asciiSafePushText(pushResolution.text) || notification.body,
       };
+    }
+    if (body.notification) {
+      body.notification = normalizeNotification(body.notification);
     }
     body.data = {
       ...(body.data ?? {}),
