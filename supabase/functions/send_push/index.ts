@@ -176,6 +176,45 @@ async function lookupDmShareForPushAuth(shareId: string) {
   }
 }
 
+async function lookupDmConversationMembersForPushAuth(conversationId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("dm_conversation_members")
+      .select("conversation_id, user_id, left_at, deleted_at")
+      .eq("conversation_id", conversationId);
+    if (error) throw error;
+    return (data ?? []) as {
+      conversation_id: string;
+      user_id: string;
+      left_at?: string | null;
+      deleted_at?: string | null;
+    }[];
+  } catch (e) {
+    throw new Error(
+      `dm_conversation_members auth lookup failed: ${serializeError(e)}`,
+    );
+  }
+}
+
+async function lookupDmMessageForPushAuth(messageId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("dm_messages")
+      .select("id, conversation_id, sender_id, deleted_at")
+      .eq("id", messageId)
+      .maybeSingle();
+    if (error) throw error;
+    return data as {
+      id: string;
+      conversation_id: string;
+      sender_id: string | null;
+      deleted_at?: string | null;
+    } | null;
+  } catch (e) {
+    throw new Error(`dm_messages auth lookup failed: ${serializeError(e)}`);
+  }
+}
+
 async function lookupActiveDeviceIdsForPushAuth(params: {
   requesterUid: string;
   deviceIds: string[];
@@ -383,6 +422,36 @@ async function deleteTokens(deviceIds: string[]) {
   }
 }
 
+function privateLogFieldReplacement(key: string, value: unknown) {
+  const normalized = key.toLowerCase();
+  const isPrivateField = normalized.includes("userid") ||
+    normalized.includes("uid") ||
+    normalized.includes("recipientid") ||
+    normalized.includes("senderid") ||
+    normalized.includes("shareid") ||
+    normalized.includes("conversationid") ||
+    normalized.includes("messageid") ||
+    normalized.includes("deviceid") ||
+    normalized.includes("token");
+  if (!isPrivateField) return undefined;
+  if (Array.isArray(value)) return value.length;
+  if (typeof value === "string") return value.length > 0;
+  return value == null ? false : true;
+}
+
+function sanitizeLogFields(extra: Record<string, unknown>) {
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(extra)) {
+    const replacement = privateLogFieldReplacement(key, value);
+    if (replacement !== undefined) {
+      sanitized[key] = replacement;
+      continue;
+    }
+    sanitized[key] = value;
+  }
+  return sanitized;
+}
+
 function chunked<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
@@ -457,6 +526,9 @@ function buildAppTargetUrl(data?: Record<string, unknown>) {
 
   const initialDeliveryKey = firstString(data?.delivery_key) ??
     firstString(data?.deliveryKey);
+  const pushType = firstString(data?.type);
+  const notificationType = firstString(data?.notification_type) ??
+    firstString(data?.notificationType);
   const kind = firstString(data?.kind) ?? firstString(data?.type) ??
     (initialDeliveryKey?.startsWith("maat_guidance:") ? "maat_guidance" : null);
   if (kind === "maat_guidance") {
@@ -510,6 +582,30 @@ function buildAppTargetUrl(data?: Record<string, unknown>) {
     }
     if (senderId) {
       params.set("sender_id", senderId);
+    }
+    return `/?${params.toString()}`;
+  }
+
+  if (pushType === "dm_message_v2" || notificationType === "dm_message_v2") {
+    const conversationId = firstString(data?.conversation_id) ??
+      firstString(data?.conversationId);
+    const senderId = firstString(data?.sender_id) ??
+      firstString(data?.senderId);
+    const messageId = firstString(data?.message_id) ??
+      firstString(data?.messageId);
+    const params = new URLSearchParams({
+      push_kind: "dm_message_v2",
+      type: "dm_message_v2",
+      notification_type: "dm_message_v2",
+    });
+    if (conversationId) {
+      params.set("conversation_id", conversationId);
+    }
+    if (senderId) {
+      params.set("sender_id", senderId);
+    }
+    if (messageId) {
+      params.set("message_id", messageId);
     }
     return `/?${params.toString()}`;
   }
@@ -941,7 +1037,7 @@ async function sendToFCM(
           msg: "fcm_send_failed",
           status: res.status,
           reason,
-          token_suffix: token.slice(-6),
+          tokenPresent: token.trim().length > 0,
         }),
       );
     } else {
@@ -950,7 +1046,7 @@ async function sendToFCM(
         JSON.stringify({
           at: new Date().toISOString(),
           msg: "fcm_send_ok",
-          token_suffix: token.slice(-6),
+          tokenPresent: token.trim().length > 0,
         }),
       );
     }
@@ -1128,6 +1224,8 @@ Deno.serve(async (req) => {
         notificationBody: body.notification?.body ?? null,
         lookups: {
           lookupShare: lookupDmShareForPushAuth,
+          lookupDmConversationMembers: lookupDmConversationMembersForPushAuth,
+          lookupDmMessage: lookupDmMessageForPushAuth,
           lookupEventShare: lookupEventShareForPushAuth,
           lookupSharedCalendar: lookupSharedCalendarForPushAuth,
           lookupSharedCalendarMembers: lookupSharedCalendarMembersForPushAuth,
@@ -1142,8 +1240,8 @@ Deno.serve(async (req) => {
       });
       if (pushAuth.ok === false) {
         log("user_jwt_push_authorization_failed", {
-          requesterUid,
-          ...pushAuth.log,
+          hasRequester: requesterUid != null,
+          ...sanitizeLogFields(pushAuth.log ?? {}),
         });
         return jsonResponse(req, { error: pushAuth.error }, {
           status: pushAuth.status,
@@ -1230,17 +1328,18 @@ Deno.serve(async (req) => {
     console.log(
       JSON.stringify({
         msg: "SEND_PUSH start",
-        userIds: body.userIds ?? [],
+        userCount: body.userIds?.length ?? 0,
         authMode,
       }),
     );
     log("request", {
-      userIds: body.userIds?.length ?? 0,
+      userCount: body.userIds?.length ?? 0,
+      deviceCount: body.deviceIds?.length ?? 0,
       topic: body.topic ?? null,
       hasNotification: !!body.notification,
       hasData: !!body.data,
       authMode,
-      requesterUid,
+      hasRequester: requesterUid != null,
     });
 
     let targets: PushTargetRow[] = [];
@@ -1271,8 +1370,8 @@ Deno.serve(async (req) => {
         JSON.stringify({
           msg: "SEND_PUSH tokens resolved",
           count: targets.length,
-          userIds: body.userIds ?? [],
-          deviceIds: body.deviceIds ?? [],
+          userCount: body.userIds?.length ?? 0,
+          deviceCount: body.deviceIds?.length ?? 0,
           authMode,
         }),
       );

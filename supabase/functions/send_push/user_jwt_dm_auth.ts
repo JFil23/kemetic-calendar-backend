@@ -8,6 +8,20 @@ export type DmShareRow = {
   payload_json?: Record<string, unknown> | null;
 };
 
+export type DmConversationMemberRow = {
+  conversation_id: string;
+  user_id: string;
+  left_at?: string | null;
+  deleted_at?: string | null;
+};
+
+export type DmMessageRow = {
+  id: string;
+  conversation_id: string;
+  sender_id: string | null;
+  deleted_at?: string | null;
+};
+
 export type UserJwtDmPushAuthorizationResult =
   | { ok: true; applies: boolean }
   | {
@@ -18,6 +32,12 @@ export type UserJwtDmPushAuthorizationResult =
   };
 
 export type DmShareLookup = (shareId: string) => Promise<DmShareRow | null>;
+export type DmConversationMembersLookup = (
+  conversationId: string,
+) => Promise<DmConversationMemberRow[]>;
+export type DmMessageLookup = (
+  messageId: string,
+) => Promise<DmMessageRow | null>;
 
 function firstString(value: unknown) {
   return typeof value === "string" && value.trim().length ? value.trim() : null;
@@ -48,10 +68,13 @@ function hasDirectMessageCandidateShape(data: Record<string, unknown>) {
   );
 
   return type === "dm" ||
+    type === "dm_message_v2" ||
     type === "dm_message_like" ||
     kind === "dm" ||
+    notificationType === "dm_message_v2" ||
     notificationType === "direct_message" ||
     notificationType === "direct_message_like" ||
+    notificationKind === "dm_message_v2" ||
     notificationKind === "direct_message_like" ||
     notificationKind === "direct_message";
 }
@@ -74,6 +97,15 @@ function hasExactDirectMessageLikeShape(data: Record<string, unknown>) {
       "direct_message_like";
 }
 
+function hasExactDmMessageV2Shape(data: Record<string, unknown>) {
+  return dataString(data, "type") === "dm_message_v2" &&
+    dataString(data, "kind") === "dm" &&
+    dataString(data, "notification_type", "notificationType") ===
+      "dm_message_v2" &&
+    dataString(data, "notification_kind", "notificationKind") ===
+      "dm_message_v2";
+}
+
 function shareIdFromData(data: Record<string, unknown>) {
   return dataString(data, "share_id", "shareId") ??
     dataString(data, "message_share_id", "messageShareId") ??
@@ -90,6 +122,8 @@ export async function authorizeUserJwtDmPush(params: {
   userIds?: string[];
   data?: Record<string, unknown>;
   lookupShare: DmShareLookup;
+  lookupConversationMembers?: DmConversationMembersLookup;
+  lookupMessage?: DmMessageLookup;
 }): Promise<UserJwtDmPushAuthorizationResult> {
   const data = params.data;
   if (!data || !hasDirectMessageCandidateShape(data)) {
@@ -107,7 +141,8 @@ export async function authorizeUserJwtDmPush(params: {
 
   const isDirectMessage = hasExactDirectMessageShape(data);
   const isDirectMessageLike = hasExactDirectMessageLikeShape(data);
-  if (!isDirectMessage && !isDirectMessageLike) {
+  const isDmMessageV2 = hasExactDmMessageV2Shape(data);
+  if (!isDirectMessage && !isDirectMessageLike && !isDmMessageV2) {
     return {
       ok: false,
       status: 400,
@@ -130,8 +165,96 @@ export async function authorizeUserJwtDmPush(params: {
       ok: false,
       status: 403,
       error: "DM push not authorized",
-      log: { reason: "sender_mismatch", senderId },
+      log: { reason: "sender_mismatch" },
     };
+  }
+
+  if (isDmMessageV2) {
+    const conversationId = dataString(
+      data,
+      "conversation_id",
+      "conversationId",
+    );
+    if (!conversationId) {
+      return {
+        ok: false,
+        status: 400,
+        error: "DM conversation_id required",
+        log: { reason: "missing_conversation_id" },
+      };
+    }
+
+    if (!params.lookupConversationMembers) {
+      return {
+        ok: false,
+        status: 403,
+        error: "DM push not authorized",
+        log: { reason: "missing_dm_v2_member_lookup" },
+      };
+    }
+
+    const userIds = (params.userIds ?? []).map((userId) => userId.trim())
+      .filter((userId) => userId.length > 0);
+    if (
+      userIds.length === 0 ||
+      new Set(userIds).size !== userIds.length ||
+      userIds.includes(params.requesterUid)
+    ) {
+      return {
+        ok: false,
+        status: 403,
+        error: "DM push recipient mismatch",
+        log: {
+          reason: "recipient_mismatch",
+          userIdsLength: userIds.length,
+        },
+      };
+    }
+
+    const members = await params.lookupConversationMembers(conversationId);
+    const activeUserIds = new Set(
+      members
+        .filter((member) => !member.left_at && !member.deleted_at)
+        .map((member) => member.user_id),
+    );
+    if (!activeUserIds.has(params.requesterUid)) {
+      return {
+        ok: false,
+        status: 403,
+        error: "DM push not authorized",
+        log: { reason: "sender_not_conversation_member" },
+      };
+    }
+    for (const userId of userIds) {
+      if (!activeUserIds.has(userId)) {
+        return {
+          ok: false,
+          status: 403,
+          error: "DM push recipient mismatch",
+          log: { reason: "recipient_not_conversation_member" },
+        };
+      }
+    }
+
+    const messageId = dataString(data, "message_id", "messageId");
+    if (messageId && params.lookupMessage) {
+      const message = await params.lookupMessage(messageId);
+      if (
+        !message ||
+        message.deleted_at ||
+        message.conversation_id !== conversationId ||
+        message.sender_id !== params.requesterUid
+      ) {
+        return {
+          ok: false,
+          status: 403,
+          error: "DM push not authorized",
+          log: { reason: "message_mismatch" },
+        };
+      }
+    }
+
+    return { ok: true, applies: true };
   }
 
   const conversationUserId = dataString(

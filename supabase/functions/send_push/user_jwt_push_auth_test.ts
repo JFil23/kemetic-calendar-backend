@@ -37,6 +37,16 @@ const validDmLikeData = {
   share_id: "share-1",
 };
 
+const validDmMessageV2Data = {
+  type: "dm_message_v2",
+  kind: "dm",
+  notification_type: "dm_message_v2",
+  notification_kind: "dm_message_v2",
+  sender_id: "user-a",
+  conversation_id: "conversation-1",
+  message_id: "message-1",
+};
+
 const validPushTestData = {
   type: "push_test",
   kind: "push_test",
@@ -138,6 +148,36 @@ function makeLookups(
   const defaults: UserJwtPushAuthorizationLookups = {
     lookupShare: (shareId) =>
       Promise.resolve(shareId === "share-1" ? shareRow() : null),
+    lookupDmConversationMembers: (conversationId) =>
+      Promise.resolve(
+        conversationId === "conversation-1"
+          ? [
+            {
+              conversation_id: "conversation-1",
+              user_id: "user-a",
+            },
+            {
+              conversation_id: "conversation-1",
+              user_id: "user-b",
+            },
+            {
+              conversation_id: "conversation-1",
+              user_id: "user-c",
+            },
+          ]
+          : [],
+      ),
+    lookupDmMessage: (messageId) =>
+      Promise.resolve(
+        messageId === "message-1"
+          ? {
+            id: "message-1",
+            conversation_id: "conversation-1",
+            sender_id: "user-a",
+            deleted_at: null,
+          }
+          : null,
+      ),
     lookupEventShare: (shareId) =>
       Promise.resolve(
         shareId === "event-share-1" ? eventShareRow() : null,
@@ -207,6 +247,21 @@ function assertDenied(
   assertEquals(denied.log?.reason, reason);
 }
 
+function assertLogOmitsPrivateValues(
+  result: PushAuthResult,
+  privateValues: string[],
+) {
+  assertEquals(result.ok, false);
+  if (result.ok) {
+    throw new Error("expected denied result");
+  }
+  const denied = result as Extract<PushAuthResult, { ok: false }>;
+  const logJson = JSON.stringify(denied.log ?? {});
+  for (const value of privateValues) {
+    assertEquals(logJson.includes(value), false);
+  }
+}
+
 Deno.test("user-JWT unknown push without sender_id is rejected", async () => {
   const result = await authorizeUserJwtPush({
     requesterUid: "user-a",
@@ -271,6 +326,54 @@ Deno.test("valid user-JWT DM-like push still succeeds", async () => {
   });
 
   assertAllowed(result, "direct_message_like");
+});
+
+Deno.test("valid user-JWT group DM push succeeds for active members", async () => {
+  const result = await authorizeUserJwtPush({
+    requesterUid: "user-a",
+    userIds: ["user-b", "user-c"],
+    data: validDmMessageV2Data,
+    lookups: makeLookups(),
+  });
+
+  assertAllowed(result, "dm_message_v2");
+});
+
+Deno.test("user-JWT group DM push rejects non-member recipients", async () => {
+  const result = await authorizeUserJwtPush({
+    requesterUid: "user-a",
+    userIds: ["user-b", "user-x"],
+    data: validDmMessageV2Data,
+    lookups: makeLookups(),
+  });
+
+  assertDenied(result, 403, "recipient_not_conversation_member");
+  assertLogOmitsPrivateValues(result, ["conversation-1", "user-b", "user-x"]);
+});
+
+Deno.test("user-JWT group DM push rejects mismatched messages without private log identifiers", async () => {
+  const result = await authorizeUserJwtPush({
+    requesterUid: "user-a",
+    userIds: ["user-b", "user-c"],
+    data: validDmMessageV2Data,
+    lookups: makeLookups({
+      lookupDmMessage: () =>
+        Promise.resolve({
+          id: "message-1",
+          conversation_id: "conversation-2",
+          sender_id: "user-a",
+          deleted_at: null,
+        }),
+    }),
+  });
+
+  assertDenied(result, 403, "message_mismatch");
+  assertLogOmitsPrivateValues(result, [
+    "conversation-1",
+    "conversation-2",
+    "message-1",
+    "user-a",
+  ]);
 });
 
 Deno.test("invalid user-JWT DM forged sender still fails", async () => {

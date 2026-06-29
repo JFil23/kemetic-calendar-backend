@@ -1,11 +1,14 @@
 import {
   authorizeUserJwtDmPush,
+  type DmConversationMembersLookup,
+  type DmMessageLookup,
   type DmShareLookup,
   type DmShareRow,
 } from "./user_jwt_dm_auth.ts";
 
 type AuthorizedUserJwtPushKind =
   | "direct_message"
+  | "dm_message_v2"
   | "direct_message_like"
   | "push_test"
   | "flow_share"
@@ -65,6 +68,8 @@ export type FlowPostCommentRow = {
 
 export type UserJwtPushAuthorizationLookups = {
   lookupShare: DmShareLookup;
+  lookupDmConversationMembers: DmConversationMembersLookup;
+  lookupDmMessage: DmMessageLookup;
   lookupEventShare: (shareId: string) => Promise<EventShareRow | null>;
   lookupSharedCalendar: (
     calendarId: string,
@@ -150,6 +155,9 @@ function exactKindFromDmData(data: Record<string, unknown>) {
   );
   if (type === "dm" || notificationType === "direct_message") {
     return "direct_message";
+  }
+  if (type === "dm_message_v2" || notificationType === "dm_message_v2") {
+    return "dm_message_v2";
   }
   if (
     type === "dm_message_like" || notificationType === "direct_message_like"
@@ -993,6 +1001,8 @@ export async function authorizeUserJwtPush(params: {
     userIds: params.userIds,
     data: params.data,
     lookupShare: params.lookups.lookupShare,
+    lookupConversationMembers: params.lookups.lookupDmConversationMembers,
+    lookupMessage: params.lookups.lookupDmMessage,
   });
   if (dmPushAuth.ok === false) {
     return {
