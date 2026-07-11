@@ -1,0 +1,86 @@
+name: Mobile
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "codex/**"
+
+jobs:
+  mobile-fast-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify mobile submodule pointer
+        run: |
+          set -euo pipefail
+          recorded="$(git ls-tree HEAD mobile | awk '{print $3}')"
+          actual="$(git -C mobile rev-parse HEAD)"
+          test "$recorded" = "$actual"
+          git status --short
+          git -C mobile status --short
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.3"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Check formatting
+        working-directory: mobile
+        run: |
+          dart format --set-exit-if-changed \
+            lib/features/calendar/calendar_page.dart \
+            lib/features/calendar/day_view.dart \
+            lib/features/calendar/maat_flow_completion_response_persistence.dart \
+            lib/features/calendar/maat_flow_response_journal_blocks.dart \
+            lib/features/calendar/maat_flow_response_models.dart \
+            lib/features/calendar/maat_flow_response_projection.dart \
+            lib/features/calendar/maat_flow_response_resolver.dart \
+            test/features/calendar/flow_completion_day_view_persistence_test.dart \
+            test/features/calendar/flow_completion_persistence_test.dart \
+            test/features/calendar/maat_flow_initial_prompt_infrastructure_test.dart \
+            test/features/calendar/maat_flow_interactive_primitives_test.dart \
+            test/features/calendar/maat_flow_response_formatter_test.dart \
+            test/features/calendar/maat_flow_response_infrastructure_test.dart \
+            test/features/calendar/maat_flow_response_privacy_policy_test.dart \
+            test/features/calendar/maat_journal_behavior_registry_test.dart
+
+      - name: Analyze
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: Guard golden-path skips
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          files='test/features/calendar/flow_completion_persistence_test.dart|test/features/calendar/flow_completion_day_view_persistence_test.dart|test/features/calendar/maat_journal_behavior_registry_test.dart|test/features/calendar/maat_flow_response_formatter_test.dart'
+          if git grep --untracked -nE '@Skip|skip:[[:space:]]*true' -- test/features/calendar | grep -E "$files"; then
+            echo "Golden-path tests must not be skipped without an explicit reviewed exception." >&2
+            exit 1
+          fi
+
+      - name: Run fast behavioral suite
+        working-directory: mobile
+        run: |
+          flutter test \
+            test/features/calendar/flow_completion_persistence_test.dart \
+            test/features/calendar/flow_completion_day_view_persistence_test.dart \
+            test/features/calendar/maat_journal_behavior_registry_test.dart \
+            test/features/calendar/maat_flow_response_formatter_test.dart \
+            test/features/calendar/maat_flow_response_infrastructure_test.dart \
+            test/features/calendar/maat_flow_response_privacy_policy_test.dart \
+            test/features/calendar/maat_flow_initial_prompt_hydration_test.dart \
+            test/features/calendar/calendar_completion_detail_sheet_test.dart \
+            test/features/journal/journal_badge_utils_test.dart \
+            test/features/journal/journal_controller_test.dart
