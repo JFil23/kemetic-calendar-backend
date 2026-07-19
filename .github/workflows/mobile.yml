@@ -349,8 +349,10 @@ jobs:
       - name: Run every test and evaluate only the exact quarantine
         run: |
           set +e
-          flutter test --no-pub --machine --concurrency=1 \
-            > "$RESULTS_DIR/full-suite.jsonl" 2>&1
+          (
+            cd mobile
+            flutter test --no-pub --machine --concurrency=1
+          ) > "$RESULTS_DIR/full-suite.jsonl" 2>&1
           flutter_status=$?
           set -e
           python3 tool/ci/lock_gate.py evaluate-full \
