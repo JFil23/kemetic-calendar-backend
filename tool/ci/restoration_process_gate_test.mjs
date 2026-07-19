@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  Cdp,
   assertPersistentBrowserContext,
   classifyFreshProcess,
   terminationBoundaryReady,
@@ -99,7 +100,7 @@ test('DevTools closure alone cannot authorize a fresh-process relaunch', () => {
       debugEndpointClosed: true,
       exitStatus: null,
       profileProcesses: ['orphaned storage service'],
-      profileLocks: ['SingletonLock'],
+      profileLockRetainers: ['live SingletonLock owner'],
     }),
     false,
   );
@@ -108,8 +109,39 @@ test('DevTools closure alone cannot authorize a fresh-process relaunch', () => {
       debugEndpointClosed: true,
       exitStatus: { code: 0, signal: null },
       profileProcesses: [],
-      profileLocks: [],
+      profileLockRetainers: [],
     }),
     true,
   );
+});
+
+test('stale lock artifacts do not block a fully exited profile', () => {
+  assert.equal(
+    terminationBoundaryReady({
+      debugEndpointClosed: true,
+      exitStatus: { code: 0, signal: null },
+      profileProcesses: [],
+      profileLockRetainers: [],
+      profileLocks: ['stale SingletonLock artifact'],
+    }),
+    true,
+  );
+  assert.equal(
+    terminationBoundaryReady({
+      debugEndpointClosed: true,
+      exitStatus: { code: 0, signal: null },
+      profileProcesses: [],
+      profileLockRetainers: ['live owner'],
+    }),
+    false,
+  );
+});
+
+test('closed DevTools socket rejects calls instead of hanging recovery', async () => {
+  const cdp = Object.create(Cdp.prototype);
+  cdp.socket = { readyState: WebSocket.CLOSED };
+  cdp.nextId = 1;
+  cdp.pending = new Map();
+  cdp.closedError = new Error('CDP socket closed before response');
+  await assert.rejects(cdp.call('Runtime.evaluate'), /CDP socket closed/);
 });

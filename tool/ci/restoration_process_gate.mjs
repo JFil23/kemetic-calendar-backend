@@ -246,7 +246,20 @@ async function profileLifecycleState(profile) {
     }
   }
   const processes = processesUsingProfile(profile);
-  const value = { locks, processes };
+  const lockRetainers = locks.flatMap((lock) => {
+    if (lock.name !== 'SingletonLock' || lock.type !== 'symlink') return [];
+    const pidMatch = lock.target?.match(/-(\d+)$/);
+    if (!pidMatch) return [{ ...lock, ownerPid: null, ownerAlive: null }];
+    const ownerPid = Number(pidMatch[1]);
+    try {
+      process.kill(ownerPid, 0);
+      return [{ ...lock, ownerPid, ownerAlive: true }];
+    } catch (error) {
+      if (error?.code === 'ESRCH') return [];
+      return [{ ...lock, ownerPid, ownerAlive: null, probeError: String(error) }];
+    }
+  });
+  const value = { locks, lockRetainers, processes };
   return { ...value, sha256: sha256Json(value) };
 }
 
@@ -269,11 +282,12 @@ async function waitForJson(url, predicate, timeoutMs = 60_000) {
   throw new Error(`timed out waiting for ${url}: ${lastError ?? 'no match'}`);
 }
 
-class Cdp {
+export class Cdp {
   constructor(url) {
     this.socket = new WebSocket(url);
     this.nextId = 1;
     this.pending = new Map();
+    this.closedError = null;
   }
 
   async open() {
@@ -290,14 +304,33 @@ class Cdp {
       if (message.error) pending.reject(new Error(JSON.stringify(message.error)));
       else pending.resolve(message.result ?? {});
     });
+    const rejectPending = (event) => {
+      this.closedError ??= new Error(
+        `CDP socket closed before response${event?.type ? ` (${event.type})` : ''}`,
+      );
+      for (const pending of this.pending.values()) pending.reject(this.closedError);
+      this.pending.clear();
+    };
+    this.socket.addEventListener('close', rejectPending);
+    this.socket.addEventListener('error', rejectPending);
   }
 
   call(method, params = {}) {
+    if (this.closedError || this.socket.readyState !== WebSocket.OPEN) {
+      return Promise.reject(
+        this.closedError ?? new Error(`CDP socket is not open for ${method}`),
+      );
+    }
     const id = this.nextId++;
     const completion = new Promise((resolveCall, reject) => {
       this.pending.set(id, { resolve: resolveCall, reject });
     });
-    this.socket.send(JSON.stringify({ id, method, params }));
+    try {
+      this.socket.send(JSON.stringify({ id, method, params }));
+    } catch (error) {
+      this.pending.delete(id);
+      return Promise.reject(error);
+    }
     return completion;
   }
 
@@ -506,13 +539,13 @@ export function terminationBoundaryReady({
   debugEndpointClosed,
   exitStatus,
   profileProcesses,
-  profileLocks,
+  profileLockRetainers,
 }) {
   return (
     debugEndpointClosed &&
     exitStatus != null &&
     profileProcesses.length === 0 &&
-    profileLocks.length === 0
+    profileLockRetainers.length === 0
   );
 }
 
@@ -615,7 +648,7 @@ async function forceTerminate(launch, resultsDir) {
         debugEndpointClosed,
         exitStatus: launch.exitStatus,
         profileProcesses: lifecycle.processes.matches,
-        profileLocks: lifecycle.locks,
+        profileLockRetainers: lifecycle.lockRetainers,
       })
     ) {
       evidence.exitStatusAtRelaunchBoundary = launch.exitStatus;
@@ -624,6 +657,7 @@ async function forceTerminate(launch, resultsDir) {
       evidence.completeExitObserved = true;
       evidence.noProcessRetainsProfile = true;
       evidence.noProfileLockRetained = true;
+      evidence.profileLockArtifactsAtBoundary = lifecycle.locks;
       evidence.sha256 = sha256Json(evidence);
       return evidence;
     }
@@ -641,9 +675,11 @@ async function forceTerminate(launch, resultsDir) {
   } catch (error) {
     if (error?.code !== 'ESRCH') throw error;
   }
-  throw new Error(
+  const error = new Error(
     `browser process group ${launch.child.pid} did not fully exit and release profile after SIGTERM`,
   );
+  error.terminationEvidence = evidence;
+  throw error;
 }
 
 function browserLaunchEvidence(launch) {
@@ -822,6 +858,10 @@ async function main() {
     receipt.passed = true;
   } catch (error) {
     receipt.error = error?.stack ?? String(error);
+    if (error?.terminationEvidence) {
+      receipt.forcedTerminations.push(error.terminationEvidence);
+      active = undefined;
+    }
     if (active) {
       try {
         receipt.failureBrowserState = await active.cdp.evaluate(`(async () => ({
