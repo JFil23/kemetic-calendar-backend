@@ -3,7 +3,8 @@
   "neverQuarantineFiles": [
     "test/widgets/global_drawer_navigation_contract_test.dart",
     "test/widgets/global_navigation_shell_test.dart",
-    "test/widgets/flow_studio_primary_stack_contract_test.dart"
+    "test/widgets/flow_studio_primary_stack_contract_test.dart",
+    "test/widgets/utility_fallback_navigation_contract_test.dart"
   ],
   "units": [
     {
@@ -86,6 +87,15 @@
       "contractRefs": ["NAV-FLOW-STACK-001", "NAV-CONTRACT-001"],
       "expectedTestCount": 1,
       "expectedIdsSha256": "64a82a05e567bf8af54449d9ae423c77c27686bc32a2fccdf937b9d4ae98e8ed"
+    },
+    {
+      "file": "test/widgets/utility_fallback_navigation_contract_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["NAV-UTILITY-FALLBACK-001", "NAV-CONTRACT-001"],
+      "expectedTestCount": 3,
+      "expectedIdsSha256": "1b5c727d79d7cf4af2bae36edab1886e2eba016a61731ee2c47da964ee6fa559"
     },
     {
       "file": "test/core/planner_launch_intent_test.dart",
