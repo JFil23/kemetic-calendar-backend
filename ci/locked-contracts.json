@@ -162,6 +162,9 @@
         "Planner selection survives forced browser-process termination and a second launch",
         "Library selection survives a second forced browser-process termination and a third launch",
         "the same browser profile and account namespace are reused across launches",
+        "a neutral same-origin localStorage sentinel survives every forced process termination",
+        "the sentinel distinguishes profile-or-origin loss from app-key loss and reader failure",
+        "no incognito, guest, temporary profile, or per-launch cleanup context is used",
         "the visible route, URL, screenshots, process IDs, and artifact identity are recorded"
       ]
     }

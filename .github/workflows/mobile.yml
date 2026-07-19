@@ -107,6 +107,7 @@ jobs:
           python3 -m json.tool ci/locked-contracts.json >/dev/null
           python3 -m json.tool ci/quarantine-registry.yaml >/dev/null
           node --check tool/ci/restoration_process_gate.mjs
+          node --test tool/ci/restoration_process_gate_test.mjs
 
   locked-contract-vm:
     name: LOCK-GATE zero-tolerance behavioral VM
