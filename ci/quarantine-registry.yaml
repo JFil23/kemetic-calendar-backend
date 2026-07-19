@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "taxonomyVersion": 1,
+  "maxLifetimeDays": 14,
+  "entries": [
+    {
+      "file": "test/features/settings/settings_page_guard_test.dart",
+      "groupHierarchy": ["settings page guard"],
+      "testName": "app bar sign-out action signs out and routes through auth gate",
+      "normalizedCategory": "guard-allowlist-violation",
+      "classification": "BRITTLE_IMPLEMENTATION_GUARD",
+      "contractRef": "SETTINGS-SIGNOUT-001",
+      "ticket": "TEST-SETTINGS-GUARD-001",
+      "owner": "Mobile Settings",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/features/settings/settings_page_guard_test.dart",
+      "groupHierarchy": ["settings page guard"],
+      "testName": "scroll padding does not duplicate the route bottom inset",
+      "normalizedCategory": "guard-allowlist-violation",
+      "classification": "BRITTLE_IMPLEMENTATION_GUARD",
+      "contractRef": "SETTINGS-INSET-001",
+      "ticket": "TEST-SETTINGS-GUARD-001",
+      "owner": "Mobile Settings",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/features/settings/settings_page_guard_test.dart",
+      "groupHierarchy": ["settings page guard"],
+      "testName": "daily cosmic context toggle stays in calendar content settings",
+      "normalizedCategory": "guard-allowlist-violation",
+      "classification": "BRITTLE_IMPLEMENTATION_GUARD",
+      "contractRef": "SETTINGS-CONTENT-001",
+      "ticket": "TEST-SETTINGS-GUARD-001",
+      "owner": "Mobile Settings",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/features/settings/settings_page_guard_test.dart",
+      "groupHierarchy": ["settings page guard"],
+      "testName": "calendar import settings support web read-only import",
+      "normalizedCategory": "guard-allowlist-violation",
+      "classification": "BRITTLE_IMPLEMENTATION_GUARD",
+      "contractRef": "CALENDAR-IMPORT-READONLY-001",
+      "ticket": "TEST-SETTINGS-GUARD-001",
+      "owner": "Mobile Settings",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/features/settings/settings_page_guard_test.dart",
+      "groupHierarchy": ["settings page guard"],
+      "testName": "build marker renders public version metadata only",
+      "normalizedCategory": "guard-allowlist-violation",
+      "classification": "BRITTLE_IMPLEMENTATION_GUARD",
+      "contractRef": "BUILD-MARKER-PUBLIC-001",
+      "ticket": "TEST-SETTINGS-GUARD-001",
+      "owner": "Mobile Settings",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/features/settings/settings_page_guard_test.dart",
+      "groupHierarchy": ["settings page guard"],
+      "testName": "stale local push setting alone cannot enable self-test dispatch",
+      "normalizedCategory": "guard-allowlist-violation",
+      "classification": "BRITTLE_IMPLEMENTATION_GUARD",
+      "contractRef": "PUSH-DEVICE-READY-001",
+      "ticket": "TEST-SETTINGS-GUARD-001",
+      "owner": "Mobile Settings",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/features/calendar/the_reading_house_flow_test.dart",
+      "groupHierarchy": [],
+      "testName": "joined readers keep Reading House flow context in Day View",
+      "normalizedCategory": "guard-allowlist-violation",
+      "classification": "BRITTLE_IMPLEMENTATION_GUARD",
+      "contractRef": "READING-HOUSE-DAYVIEW-FLOW-CONTEXT-001",
+      "ticket": "TEST-READING-HOUSE-GUARD-001",
+      "owner": "Calendar / Reading House",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/services/navigation_trace_guard_test.dart",
+      "groupHierarchy": ["navigation trace guard"],
+      "testName": "source contains the PWA tap-path labels and overlay state",
+      "normalizedCategory": "guard-allowlist-violation",
+      "classification": "INTENTIONALLY_OBSOLETE",
+      "contractRef": "UX-DRAWER-007",
+      "ticket": "TEST-TRACE-GUARD-001",
+      "owner": "Mobile Navigation",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/services/app_bar_action_guard_test.dart",
+      "groupHierarchy": ["app bar action guard"],
+      "testName": "global drawer bubble does not absorb taps while keyboard is visible",
+      "normalizedCategory": "guard-allowlist-violation",
+      "classification": "BRITTLE_IMPLEMENTATION_GUARD",
+      "contractRef": "UX-DRAWER-006",
+      "ticket": "TEST-DRAWER-KEYBOARD-GUARD-001",
+      "owner": "Mobile Navigation",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/services/app_bar_action_guard_test.dart",
+      "groupHierarchy": ["app bar action guard"],
+      "testName": "community feed distinguishes load errors from empty state",
+      "normalizedCategory": "guard-allowlist-violation",
+      "classification": "BRITTLE_IMPLEMENTATION_GUARD",
+      "contractRef": "PROFILE-COMMUNITY-LOAD-STATE-001",
+      "ticket": "TEST-COMMUNITY-FEED-001",
+      "owner": "Mobile Profile",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/services/app_bar_action_guard_test.dart",
+      "groupHierarchy": ["app bar action guard"],
+      "testName": "raw context.push usage stays centralized or explicitly local",
+      "normalizedCategory": "guard-allowlist-violation",
+      "classification": "POLICY_GUARD_DEBT",
+      "contractRef": "NAV-CENTRALIZATION-001",
+      "ticket": "TEST-NAV-CENTRALIZATION-GUARD-001",
+      "owner": "Mobile Navigation",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/features/calendar/my_flows_visual_redesign_test.dart",
+      "groupHierarchy": [],
+      "testName": "Active detail renders dashboard and Manage Flow CTA",
+      "normalizedCategory": "uncaught-runtime-error",
+      "classification": "STALE_WIDGET_EXPECTATION",
+      "contractRef": "MY-FLOWS-VISUAL-001",
+      "ticket": "TEST-MY-FLOWS-FIXTURE-001",
+      "owner": "Calendar / Flows",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/features/calendar/my_flows_visual_redesign_test.dart",
+      "groupHierarchy": [],
+      "testName": "Detail rows expand, collapse, and switch inline content",
+      "normalizedCategory": "uncaught-runtime-error",
+      "classification": "STALE_WIDGET_EXPECTATION",
+      "contractRef": "MY-FLOWS-VISUAL-001",
+      "ticket": "TEST-MY-FLOWS-FIXTURE-001",
+      "owner": "Calendar / Flows",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/features/profile/profile_search_page_test.dart",
+      "groupHierarchy": [],
+      "testName": "uses scaffold resize instead of extra keyboard padding",
+      "normalizedCategory": "uncaught-runtime-error",
+      "classification": "STALE_WIDGET_EXPECTATION",
+      "contractRef": "PROFILE-SEARCH-INSET-001",
+      "ticket": "TEST-PROFILE-SEARCH-FIXTURE-001",
+      "owner": "Mobile Profile",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/widgets/daily_reflection_widget_data_test.dart",
+      "groupHierarchy": [],
+      "testName": "daily reflection widget data matches KemeticDayData",
+      "normalizedCategory": "assertion-mismatch",
+      "classification": "CONTENT_DATA_CONTRACT_DEBT",
+      "contractRef": "KEMETIC-DAY-DATA-001",
+      "ticket": "TEST-KEMETIC-DAY-DATA-001",
+      "owner": "Calendar Content",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/widgets/kemetic_day_info_test.dart",
+      "groupHierarchy": ["KemeticDayData decan resolution"],
+      "testName": "uses normalized visible date labels for all standard day cards",
+      "normalizedCategory": "assertion-mismatch",
+      "classification": "CONTENT_DATA_CONTRACT_DEBT",
+      "contractRef": "KEMETIC-DAY-LABELS-001",
+      "ticket": "TEST-KEMETIC-DAY-LABELS-001",
+      "owner": "Calendar Content",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    },
+    {
+      "file": "test/widgets/kemetic_day_info_test.dart",
+      "groupHierarchy": ["KemeticDayData decan resolution"],
+      "testName": "keeps day card rhythms short and rejects rollback copy",
+      "normalizedCategory": "assertion-mismatch",
+      "classification": "CONTENT_DATA_CONTRACT_DEBT",
+      "contractRef": "KEMETIC-DAY-RHYTHM-001",
+      "ticket": "TEST-KEMETIC-DAY-RHYTHM-001",
+      "owner": "Calendar Content",
+      "created": "2026-07-18",
+      "expires": "2026-07-31"
+    }
+  ],
+  "allowedSkips": [
+    {
+      "file": "test/dst_fix_test.dart",
+      "groupHierarchy": ["DST Bug Fix Verification"],
+      "testName": "Local display at noon is stable across fall back",
+      "reason": "DST expectation depends on test timezone; pin the zone or harden the assertion.",
+      "ticket": "TEST-DST-HERMETIC-001",
+      "owner": "Calendar Platform"
+    },
+    {
+      "file": "test/features/calendar/maat_flow_response_pilot_sheet_test.dart",
+      "groupHierarchy": [],
+      "testName": "(suite)",
+      "reason": "Legacy generated-preview pilot requires migration to the plain user-text journal model.",
+      "ticket": "TEST-MAAT-PILOT-MIGRATION-001",
+      "owner": "Calendar / Ma'at Flows"
+    }
+  ]
+}

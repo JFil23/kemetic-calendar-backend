@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "neverQuarantineFiles": [
+    "test/widgets/global_drawer_navigation_contract_test.dart",
+    "test/widgets/global_navigation_shell_test.dart"
+  ],
+  "units": [
+    {
+      "file": "test/widgets/global_drawer_navigation_contract_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["NAV-CONTRACT-001", "H-01"],
+      "expectedTestCount": 16,
+      "expectedIdsSha256": "a701246a945074d06422387e5392a74fe22d60f1fffe554f217eb39b2786ecaf"
+    },
+    {
+      "file": "test/widgets/global_navigation_shell_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["UX-DRAWER-003", "UX-DRAWER-006", "NAV-CONTRACT-001"],
+      "expectedTestCount": 33,
+      "expectedIdsSha256": "27922eb2062c37e0bb3aa45ed9167cc2336d1215e14bc06abb67285e863393e1"
+    },
+    {
+      "file": "test/services/app_navigation_restoration_controller_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "storage-behavior",
+      "coverageRole": "PARTIAL_IN_PROCESS",
+      "contractRefs": ["RESTORE-CONTROLLER-001", "NAV-CONTRACT-001"],
+      "expectedTestCount": 44,
+      "expectedIdsSha256": "860e59cac490ecedf38865db9920652b432f966c61e5c7e35a6c7a6baacfac2e"
+    },
+    {
+      "file": "test/services/app_restoration_service_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "storage-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["UX-RESTORE-001", "UX-RESTORE-002", "UX-RESTORE-003"],
+      "expectedTestCount": 55,
+      "expectedIdsSha256": "016a80f9ae4411ea68ef68e3d8fa322ae1515d59a0d9c089f9189b68366f7ad4"
+    },
+    {
+      "file": "test/services/restoration_coordinator_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["UX-RESTORE-002", "RESTORE-OWNERSHIP-001"],
+      "expectedTestCount": 10,
+      "expectedIdsSha256": "f3752992dd834e1e7e89cda7d00cf17a357d606a3936ef3a49bf19924f1bf75d"
+    },
+    {
+      "file": "test/services/termination_safe_primary_navigation_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "storage-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["UX-RESTORE-003", "PLANNER-TERMINATION-001"],
+      "expectedTestCount": 6,
+      "expectedIdsSha256": "24de25830f5b6987f60957a9040669b16128acd0be3c1f0d116d651a1a89e8b6"
+    },
+    {
+      "file": "test/services/calendar_snapshot_repository_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "storage-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["CALENDAR-SNAPSHOT-001", "CALENDAR-GENERATION-001"],
+      "expectedTestCount": 14,
+      "expectedIdsSha256": "1a96d83d5f665a1b5f18e1572c58931a62a1d19b2810bb87d003e3dcf75c47b4"
+    },
+    {
+      "file": "test/core/planner_launch_intent_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "model-supporting",
+      "coverageRole": "PARTIAL_SUPPORTING",
+      "contractRefs": ["PLANNER-LAUNCH-INTENT-001"],
+      "expectedTestCount": 6,
+      "expectedIdsSha256": "cc2435e32ecb94d768e6daf61f90e264ed2eaab69e6aef075c1bd9f168d354ad"
+    },
+    {
+      "file": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+      "mode": "exact",
+      "plainName": "CalendarPage startup stale-while-revalidate first paint valid warm snapshot paints cached event before fresh repositories complete",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["CALENDAR-FIRST-PAINT-001"],
+      "expectedIds": [
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: valid warm snapshot paints cached event before fresh repositories complete"
+      ]
+    },
+    {
+      "file": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+      "mode": "exact",
+      "plainName": "CalendarPage startup stale-while-revalidate first paint one Today tap wins over an in-flight persisted restore",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["TODAY-INVARIANT-001"],
+      "expectedIds": [
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: one Today tap wins over an in-flight persisted restore"
+      ]
+    },
+    {
+      "file": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+      "mode": "exact",
+      "plainName": "CalendarPage startup stale-while-revalidate first paint dispose cancels Calendar resume retries before they can publish or navigate",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["LIFECYCLE-IMPL-001"],
+      "expectedIds": [
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: dispose cancels Calendar resume retries before they can publish or navigate"
+      ]
+    },
+    {
+      "file": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+      "mode": "exact",
+      "plainName": "CalendarPage startup stale-while-revalidate first paint Calendar resume retry still restores while mounted",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["LIFECYCLE-IMPL-001"],
+      "expectedIds": [
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: Calendar resume retry still restores while mounted"
+      ]
+    }
+  ],
+  "processUnits": [
+    {
+      "id": "restoration-process-death-planner-library",
+      "harness": "integration_test/restoration_process_death_harness.dart",
+      "evidenceType": "process-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["UX-RESTORE-003", "CI-PROCESS-RESTORE-001"],
+      "assertions": [
+        "Planner selection survives forced browser-process termination and a second launch",
+        "Library selection survives a second forced browser-process termination and a third launch",
+        "the same browser profile and account namespace are reused across launches",
+        "the visible route, URL, screenshots, process IDs, and artifact identity are recorded"
+      ]
+    }
+  ]
+}
