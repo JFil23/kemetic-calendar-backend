@@ -9,8 +9,8 @@ Source of truth:
 
 ## Counts
 
-- Total registered Ma'at Flow templates: 31
-- Core seasonal/ritual flows: 14
+- Total registered Ma'at Flow templates: 32
+- Core seasonal/ritual flows: 15
 - Decan Ma'at practice flows: 17
 - Track-sky timezone guide files: 4
 
@@ -32,23 +32,24 @@ Source of truth:
 | 12 | The Days Outside the Year | `the-days-outside-the-year` | Days Outside the Year | Annual - 7 days | `mobile/lib/features/calendar/the_days_outside_year_flow.dart` |
 | 13 | The Open Hand | `the-open-hand` | The Open Hand | 30 days - 9 sittings | `mobile/lib/features/calendar/the_open_hand_flow.dart` |
 | 14 | The Djed | `the-djed` | The Djed | 30 days - 9 sittings | `mobile/lib/features/calendar/the_djed_flow.dart` |
-| 15 | The Fair Hearing | `the-fair-hearing` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 16 | The First Arrangement | `the-first-arrangement` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 17 | The Living Pattern | `the-living-pattern` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 18 | The House of Life | `the-house-of-life` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 19 | The Boundary Stone | `the-boundary-stone` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 20 | Hotep | `hotep` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 21 | The Open Mouth | `the-open-mouth` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 22 | The Living Record | `the-living-record` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 23 | Het-Heru | `het-heru` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 24 | The Shore | `the-shore` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 25 | The Autobiography | `the-autobiography` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 26 | The True Name | `the-true-name` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 27 | The Living Text | `the-living-text` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 28 | The Clearing | `the-clearing` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 29 | The Wandering | `the-wandering` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 30 | The Khat | `the-khat` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
-| 31 | The Oracle | `the-oracle` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 15 | The Reading House | `the-reading-house` | Reading House | Phase 1A - 3 starter sittings | `mobile/lib/features/calendar/the_reading_house_flow.dart` |
+| 16 | The Fair Hearing | `the-fair-hearing` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 17 | The First Arrangement | `the-first-arrangement` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 18 | The Living Pattern | `the-living-pattern` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 19 | The House of Life | `the-house-of-life` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 20 | The Boundary Stone | `the-boundary-stone` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 21 | Hotep | `hotep` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 22 | The Open Mouth | `the-open-mouth` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 23 | The Living Record | `the-living-record` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 24 | Het-Heru | `het-heru` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 25 | The Shore | `the-shore` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 26 | The Autobiography | `the-autobiography` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 27 | The True Name | `the-true-name` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 28 | The Living Text | `the-living-text` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 29 | The Clearing | `the-clearing` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 30 | The Wandering | `the-wandering` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 31 | The Khat | `the-khat` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
+| 32 | The Oracle | `the-oracle` | Decan Ma'at | 30 days - 9 sittings | `mobile/lib/features/calendar/maat_decan_flow.dart` |
 
 ## Flow Overviews
 
@@ -121,6 +122,11 @@ Source of truth:
 
 - Key: the-djed
 - Overview: Nine sittings across thirty days: name the load-bearing elements of your life, engage what threatens them, then raise the Djed by standing upright with arms raised and declaring the spine intact.
+
+### The Reading House
+
+- Key: the-reading-house
+- Overview: A registered Reading House flow with a Phase 1A private-study skeleton. One book becomes three generated starter sittings: open the text, hold the middle, and seal the reading. The flow is private-first, writing is optional, and company mode is saved as future intent rather than live book-club discussion.
 
 ### The Fair Hearing
 

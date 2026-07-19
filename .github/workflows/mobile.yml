@@ -1,0 +1,416 @@
+name: Mobile
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "codex/**"
+
+jobs:
+  mobile-fast-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify mobile submodule pointer
+        run: |
+          set -euo pipefail
+          recorded="$(git ls-tree HEAD mobile | awk '{print $3}')"
+          actual="$(git -C mobile rev-parse HEAD)"
+          test "$recorded" = "$actual"
+          git status --short
+          git -C mobile status --short
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.3"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Check formatting
+        working-directory: mobile
+        run: |
+          dart format --set-exit-if-changed \
+            lib/features/calendar/calendar_page.dart \
+            lib/features/calendar/day_view.dart \
+            lib/features/calendar/maat_flow_completion_response_persistence.dart \
+            lib/features/calendar/maat_flow_response_journal_blocks.dart \
+            lib/features/calendar/maat_flow_response_models.dart \
+            lib/features/calendar/maat_flow_response_projection.dart \
+            lib/features/calendar/maat_flow_response_resolver.dart \
+            test/features/calendar/flow_completion_day_view_persistence_test.dart \
+            test/features/calendar/flow_completion_persistence_test.dart \
+            test/features/calendar/maat_flow_initial_prompt_infrastructure_test.dart \
+            test/features/calendar/maat_flow_interactive_primitives_test.dart \
+            test/features/calendar/maat_flow_response_formatter_test.dart \
+            test/features/calendar/maat_flow_response_infrastructure_test.dart \
+            test/features/calendar/maat_flow_response_privacy_policy_test.dart \
+            test/features/calendar/maat_journal_behavior_registry_test.dart
+
+      - name: Analyze
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: Guard golden-path skips
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          files='test/features/calendar/flow_completion_persistence_test.dart|test/features/calendar/flow_completion_day_view_persistence_test.dart|test/features/calendar/maat_journal_behavior_registry_test.dart|test/features/calendar/maat_flow_response_formatter_test.dart'
+          if git grep --untracked -nE '@Skip|skip:[[:space:]]*true' -- test/features/calendar | grep -E "$files"; then
+            echo "Golden-path tests must not be skipped without an explicit reviewed exception." >&2
+            exit 1
+          fi
+
+      - name: Run fast behavioral suite
+        working-directory: mobile
+        run: |
+          flutter test \
+            test/features/calendar/flow_completion_persistence_test.dart \
+            test/features/calendar/flow_completion_day_view_persistence_test.dart \
+            test/features/calendar/maat_journal_behavior_registry_test.dart \
+            test/features/calendar/maat_flow_response_formatter_test.dart \
+            test/features/calendar/maat_flow_response_infrastructure_test.dart \
+            test/features/calendar/maat_flow_response_privacy_policy_test.dart \
+            test/features/calendar/maat_flow_initial_prompt_hydration_test.dart \
+            test/features/calendar/calendar_completion_detail_sheet_test.dart \
+            test/features/journal/journal_badge_utils_test.dart \
+            test/features/journal/journal_controller_test.dart
+
+  lock-gate-evaluator:
+    name: LOCK-GATE evaluator contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact parent and mobile gitlink
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Run evaluator simulations
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          python3 -m unittest tool.ci.test_lock_gate
+          python3 -m py_compile tool/ci/lock_gate.py tool/ci/test_lock_gate.py
+          python3 -m json.tool ci/locked-contracts.json >/dev/null
+          python3 -m json.tool ci/quarantine-registry.yaml >/dev/null
+          node --check tool/ci/restoration_process_gate.mjs
+          node --test tool/ci/restoration_process_gate_test.mjs
+
+  locked-contract-vm:
+    name: LOCK-GATE zero-tolerance behavioral VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Establish VM evidence paths
+        id: results
+        run: |
+          set -euo pipefail
+          results_dir="$RUNNER_TEMP/lock-gate-vm"
+          evidence_manifest="$RUNNER_TEMP/lock-gate-vm.sha256"
+          mkdir -p "$results_dir"
+          echo "RESULTS_DIR=$results_dir" >> "$GITHUB_ENV"
+          echo "EVIDENCE_MANIFEST=$evidence_manifest" >> "$GITHUB_ENV"
+          echo "dir=$results_dir" >> "$GITHUB_OUTPUT"
+          echo "manifest=$evidence_manifest" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact parent and mobile gitlink
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up pinned Flutter and Dart
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.3"
+          channel: stable
+          cache: true
+
+      - name: Install locked dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Record and verify pre-test identity
+        run: |
+          python3 tool/ci/lock_gate.py verify-identity \
+            --parent-root . \
+            --mobile-root mobile \
+            --expected-parent "$GITHUB_SHA" \
+            --include-toolchain \
+            --expected-flutter "3.35.3" \
+            --expected-dart "3.9.2" \
+            --output "$RESULTS_DIR/identity-pre.json"
+
+      - name: Static analysis
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: Run zero-tolerance locked behavioral contracts
+        run: |
+          python3 tool/ci/lock_gate.py run-locked \
+            --manifest ci/locked-contracts.json \
+            --mobile-root mobile \
+            --results-dir "$RESULTS_DIR/tests"
+
+      - name: Record and verify post-test identity
+        if: always()
+        run: |
+          python3 tool/ci/lock_gate.py verify-identity \
+            --parent-root . \
+            --mobile-root mobile \
+            --expected-parent "$GITHUB_SHA" \
+            --include-toolchain \
+            --expected-flutter "3.35.3" \
+            --expected-dart "3.9.2" \
+            --output "$RESULTS_DIR/identity-post.json"
+          git diff --check
+          git -C mobile diff --check
+
+      - name: Hash VM evidence
+        if: always()
+        run: |
+          python3 tool/ci/lock_gate.py hash-results \
+            --root "$RESULTS_DIR" \
+            --output "$EVIDENCE_MANIFEST"
+
+      - name: Archive VM evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lock-gate-vm-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          path: |
+            ${{ steps.results.outputs.dir }}
+            ${{ steps.results.outputs.manifest }}
+
+  locked-contract-process:
+    name: LOCK-GATE fresh-process restoration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Establish process evidence paths
+        id: results
+        run: |
+          set -euo pipefail
+          results_dir="$RUNNER_TEMP/lock-gate-process"
+          evidence_manifest="$RUNNER_TEMP/lock-gate-process.sha256"
+          mkdir -p "$results_dir"
+          echo "RESULTS_DIR=$results_dir" >> "$GITHUB_ENV"
+          echo "EVIDENCE_MANIFEST=$evidence_manifest" >> "$GITHUB_ENV"
+          echo "dir=$results_dir" >> "$GITHUB_OUTPUT"
+          echo "manifest=$evidence_manifest" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact parent and mobile gitlink
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up pinned Flutter and Dart
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.3"
+          channel: stable
+          cache: true
+
+      - name: Set up process driver runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install locked dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Record and verify pre-test identity
+        run: |
+          python3 tool/ci/lock_gate.py verify-identity \
+            --parent-root . \
+            --mobile-root mobile \
+            --expected-parent "$GITHUB_SHA" \
+            --include-toolchain \
+            --expected-flutter "3.35.3" \
+            --expected-dart "3.9.2" \
+            --output "$RESULTS_DIR/identity-pre.json"
+
+      - name: Build the restoration process harness
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          mkdir -p "$RESULTS_DIR"
+          flutter build web \
+            --release \
+            --target integration_test/restoration_process_death_harness.dart \
+            --dart-define="BUILD_VERSION=lock-gate-${GITHUB_SHA:0:12}" \
+            2>&1 | tee "$RESULTS_DIR/build.log"
+
+      - name: Force termination and verify fresh-process restoration
+        run: |
+          set -euo pipefail
+          node tool/ci/restoration_process_gate.mjs \
+            --web-root mobile/build/web \
+            --results-dir "$RESULTS_DIR/process" \
+            --build-id "lock-gate-${GITHUB_SHA:0:12}" \
+            --manifest ci/locked-contracts.json \
+            --process-unit restoration-process-death-planner-library \
+            2>&1 | tee "$RESULTS_DIR/process-driver.log"
+
+      - name: Record and verify post-test identity
+        if: always()
+        run: |
+          python3 tool/ci/lock_gate.py verify-identity \
+            --parent-root . \
+            --mobile-root mobile \
+            --expected-parent "$GITHUB_SHA" \
+            --include-toolchain \
+            --expected-flutter "3.35.3" \
+            --expected-dart "3.9.2" \
+            --output "$RESULTS_DIR/identity-post.json"
+          git diff --check
+          git -C mobile diff --check
+
+      - name: Hash process evidence
+        if: always()
+        run: |
+          python3 tool/ci/lock_gate.py hash-results \
+            --root "$RESULTS_DIR" \
+            --output "$EVIDENCE_MANIFEST"
+
+      - name: Archive process evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lock-gate-process-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          path: |
+            ${{ steps.results.outputs.dir }}
+            ${{ steps.results.outputs.manifest }}
+
+  full-suite-quarantine-monitor:
+    name: LOCK-GATE full serial exact quarantine
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Establish full-suite evidence paths
+        id: results
+        run: |
+          set -euo pipefail
+          results_dir="$RUNNER_TEMP/lock-gate-full"
+          evidence_manifest="$RUNNER_TEMP/lock-gate-full.sha256"
+          mkdir -p "$results_dir"
+          echo "RESULTS_DIR=$results_dir" >> "$GITHUB_ENV"
+          echo "EVIDENCE_MANIFEST=$evidence_manifest" >> "$GITHUB_ENV"
+          echo "dir=$results_dir" >> "$GITHUB_OUTPUT"
+          echo "manifest=$evidence_manifest" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact parent and mobile gitlink
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up pinned Flutter and Dart
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.3"
+          channel: stable
+          cache: true
+
+      - name: Install locked dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Record and verify pre-test identity
+        run: |
+          python3 tool/ci/lock_gate.py verify-identity \
+            --parent-root . \
+            --mobile-root mobile \
+            --expected-parent "$GITHUB_SHA" \
+            --include-toolchain \
+            --expected-flutter "3.35.3" \
+            --expected-dart "3.9.2" \
+            --output "$RESULTS_DIR/identity-pre.json"
+
+      - name: Run every test and evaluate only the exact quarantine
+        run: |
+          set +e
+          (
+            cd mobile
+            flutter test --no-pub --machine --concurrency=1
+          ) > "$RESULTS_DIR/full-suite.jsonl" 2>&1
+          flutter_status=$?
+          set -e
+          python3 tool/ci/lock_gate.py evaluate-full \
+            --machine-log "$RESULTS_DIR/full-suite.jsonl" \
+            --flutter-status "$flutter_status" \
+            --registry ci/quarantine-registry.yaml \
+            --locked-manifest ci/locked-contracts.json \
+            --mobile-root mobile \
+            --evaluated-on "$(date -u +%F)" \
+            --output-dir "$RESULTS_DIR/evaluation"
+
+      - name: Record and verify post-test identity
+        if: always()
+        run: |
+          python3 tool/ci/lock_gate.py verify-identity \
+            --parent-root . \
+            --mobile-root mobile \
+            --expected-parent "$GITHUB_SHA" \
+            --include-toolchain \
+            --expected-flutter "3.35.3" \
+            --expected-dart "3.9.2" \
+            --output "$RESULTS_DIR/identity-post.json"
+          git diff --check
+          git -C mobile diff --check
+
+      - name: Hash full-suite evidence
+        if: always()
+        run: |
+          python3 tool/ci/lock_gate.py hash-results \
+            --root "$RESULTS_DIR" \
+            --output "$EVIDENCE_MANIFEST"
+
+      - name: Archive full-suite evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lock-gate-full-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          path: |
+            ${{ steps.results.outputs.dir }}
+            ${{ steps.results.outputs.manifest }}
+
+  lock-gate-required:
+    name: LOCK-GATE required
+    if: always()
+    needs:
+      - mobile-fast-suite
+      - lock-gate-evaluator
+      - locked-contract-vm
+      - locked-contract-process
+      - full-suite-quarantine-monitor
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every behavioral and classification gate
+        run: |
+          test "${{ needs.mobile-fast-suite.result }}" = "success"
+          test "${{ needs.lock-gate-evaluator.result }}" = "success"
+          test "${{ needs.locked-contract-vm.result }}" = "success"
+          test "${{ needs.locked-contract-process.result }}" = "success"
+          test "${{ needs.full-suite-quarantine-monitor.result }}" = "success"

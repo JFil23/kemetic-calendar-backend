@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "neverQuarantineFiles": [
+    "test/widgets/global_drawer_navigation_contract_test.dart",
+    "test/widgets/global_navigation_shell_test.dart",
+    "test/widgets/flow_studio_primary_stack_contract_test.dart",
+    "test/widgets/utility_fallback_navigation_contract_test.dart"
+  ],
+  "units": [
+    {
+      "file": "test/widgets/global_drawer_navigation_contract_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["NAV-CONTRACT-001", "H-01"],
+      "expectedTestCount": 19,
+      "expectedIdsSha256": "82e7c84b7edea2864548c237831c9a63b428941b2c60c79276cb1eb977231867"
+    },
+    {
+      "file": "test/widgets/global_navigation_shell_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["UX-DRAWER-003", "UX-DRAWER-006", "NAV-CONTRACT-001"],
+      "expectedTestCount": 33,
+      "expectedIdsSha256": "27922eb2062c37e0bb3aa45ed9167cc2336d1215e14bc06abb67285e863393e1"
+    },
+    {
+      "file": "test/services/app_navigation_restoration_controller_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "storage-behavior",
+      "coverageRole": "PARTIAL_IN_PROCESS",
+      "contractRefs": ["RESTORE-CONTROLLER-001", "NAV-CONTRACT-001"],
+      "expectedTestCount": 44,
+      "expectedIdsSha256": "860e59cac490ecedf38865db9920652b432f966c61e5c7e35a6c7a6baacfac2e"
+    },
+    {
+      "file": "test/services/app_restoration_service_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "storage-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["UX-RESTORE-001", "UX-RESTORE-002", "UX-RESTORE-003"],
+      "expectedTestCount": 55,
+      "expectedIdsSha256": "016a80f9ae4411ea68ef68e3d8fa322ae1515d59a0d9c089f9189b68366f7ad4"
+    },
+    {
+      "file": "test/services/restoration_coordinator_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["UX-RESTORE-002", "RESTORE-OWNERSHIP-001"],
+      "expectedTestCount": 10,
+      "expectedIdsSha256": "f3752992dd834e1e7e89cda7d00cf17a357d606a3936ef3a49bf19924f1bf75d"
+    },
+    {
+      "file": "test/services/termination_safe_primary_navigation_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "storage-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["UX-RESTORE-003", "PLANNER-TERMINATION-001"],
+      "expectedTestCount": 6,
+      "expectedIdsSha256": "24de25830f5b6987f60957a9040669b16128acd0be3c1f0d116d651a1a89e8b6"
+    },
+    {
+      "file": "test/services/calendar_snapshot_repository_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "storage-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["CALENDAR-SNAPSHOT-001", "CALENDAR-GENERATION-001"],
+      "expectedTestCount": 14,
+      "expectedIdsSha256": "1a96d83d5f665a1b5f18e1572c58931a62a1d19b2810bb87d003e3dcf75c47b4"
+    },
+    {
+      "file": "test/features/calendar/calendar_principal_generation_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["AUTH-PRINCIPAL-GEN-001", "H-03"],
+      "expectedTestCount": 3,
+      "expectedIdsSha256": "eb36e8c159ce98806ae4ef8d0647879ee02f970cb22f3daa65018f006a4e7324"
+    },
+    {
+      "file": "test/widgets/flow_studio_primary_stack_contract_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["NAV-FLOW-STACK-001", "NAV-CONTRACT-001"],
+      "expectedTestCount": 1,
+      "expectedIdsSha256": "64a82a05e567bf8af54449d9ae423c77c27686bc32a2fccdf937b9d4ae98e8ed"
+    },
+    {
+      "file": "test/widgets/utility_fallback_navigation_contract_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["NAV-UTILITY-FALLBACK-001", "NAV-CONTRACT-001"],
+      "expectedTestCount": 3,
+      "expectedIdsSha256": "1b5c727d79d7cf4af2bae36edab1886e2eba016a61731ee2c47da964ee6fa559"
+    },
+    {
+      "file": "test/core/planner_launch_intent_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "model-supporting",
+      "coverageRole": "PARTIAL_SUPPORTING",
+      "contractRefs": ["PLANNER-LAUNCH-INTENT-001"],
+      "expectedTestCount": 6,
+      "expectedIdsSha256": "cc2435e32ecb94d768e6daf61f90e264ed2eaab69e6aef075c1bd9f168d354ad"
+    },
+    {
+      "file": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+      "mode": "exact",
+      "plainName": "CalendarPage startup stale-while-revalidate first paint valid warm snapshot paints cached event before fresh repositories complete",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["CALENDAR-FIRST-PAINT-001"],
+      "expectedIds": [
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: valid warm snapshot paints cached event before fresh repositories complete"
+      ]
+    },
+    {
+      "file": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+      "mode": "exact",
+      "plainName": "CalendarPage startup stale-while-revalidate first paint one Today tap wins over an in-flight persisted restore",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["TODAY-INVARIANT-001"],
+      "expectedIds": [
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: one Today tap wins over an in-flight persisted restore"
+      ]
+    },
+    {
+      "file": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+      "mode": "exact",
+      "plainName": "CalendarPage startup stale-while-revalidate first paint dispose cancels Calendar resume retries before they can publish or navigate",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["LIFECYCLE-IMPL-001"],
+      "expectedIds": [
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: dispose cancels Calendar resume retries before they can publish or navigate"
+      ]
+    },
+    {
+      "file": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+      "mode": "exact",
+      "plainName": "CalendarPage startup stale-while-revalidate first paint Calendar resume retry still restores while mounted",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["LIFECYCLE-IMPL-001"],
+      "expectedIds": [
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: Calendar resume retry still restores while mounted"
+      ]
+    }
+  ],
+  "processUnits": [
+    {
+      "id": "restoration-process-death-planner-library",
+      "harness": "integration_test/restoration_process_death_harness.dart",
+      "evidenceType": "process-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["UX-RESTORE-003", "CI-PROCESS-RESTORE-001"],
+      "assertions": [
+        "Planner selection survives forced browser-process termination and a second launch",
+        "Library selection survives a second forced browser-process termination and a third launch",
+        "the same browser profile and account namespace are reused across launches",
+        "a neutral same-origin localStorage sentinel survives every forced process termination",
+        "SIGTERM is sent only after the sentinel, representative restoration keys, and expected route are observed in the profile LevelDB",
+        "the sentinel distinguishes profile-or-origin loss from app-key loss and reader failure",
+        "no incognito, guest, temporary profile, or per-launch cleanup context is used",
+        "DevTools closure cannot authorize relaunch before Chrome exits and no live process or SingletonLock owner retains the profile; stale lock artifacts remain recorded as evidence",
+        "the visible route, URL, screenshots, process IDs, and artifact identity are recorded"
+      ]
+    }
+  ]
+}

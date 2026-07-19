@@ -16,6 +16,7 @@ __pycache__/
 docs/
 scripts/*
 !scripts/test-maat-output-pipeline.sh
+!scripts/generate_all_maat_flows_full_text.py
 
 # This repo should not contain a duplicate app source tree.
 /lib/
