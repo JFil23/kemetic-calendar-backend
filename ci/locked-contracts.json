@@ -149,6 +149,28 @@
       "expectedIds": [
         "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: Calendar resume retry still restores while mounted"
       ]
+    },
+    {
+      "file": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+      "mode": "exact",
+      "plainName": "CalendarPage startup stale-while-revalidate first paint pointer down before scroll start prevents same-gesture hydration viewport replay",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["CAL-GESTURE-HYDRATE-001"],
+      "expectedIds": [
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: pointer down before scroll start prevents same-gesture hydration viewport replay"
+      ]
+    },
+    {
+      "file": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+      "mode": "exact",
+      "plainName": "CalendarPage startup stale-while-revalidate first paint hydration begun after scroll start cannot replay during the continuing gesture",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["CAL-GESTURE-HYDRATE-001"],
+      "expectedIds": [
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: hydration begun after scroll start cannot replay during the continuing gesture"
+      ]
     }
   ],
   "processUnits": [
