@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   Cdp,
   assertPersistentBrowserContext,
+  bufferContainsStorageToken,
   classifyFreshProcess,
   terminationBoundaryReady,
 } from './restoration_process_gate.mjs';
@@ -144,4 +145,14 @@ test('closed DevTools socket rejects calls instead of hanging recovery', async (
   cdp.pending = new Map();
   cdp.closedError = new Error('CDP socket closed before response');
   await assert.rejects(cdp.call('Runtime.evaluate'), /CDP socket closed/);
+});
+
+test('profile durability token detection supports LevelDB string encodings', () => {
+  const token = 'lock-gate.profile-sentinel.v1';
+  assert.equal(bufferContainsStorageToken(Buffer.from(`prefix${token}suffix`), token), true);
+  assert.equal(
+    bufferContainsStorageToken(Buffer.concat([Buffer.from('prefix'), Buffer.from(token, 'utf16le')]), token),
+    true,
+  );
+  assert.equal(bufferContainsStorageToken(Buffer.from('unrelated bytes'), token), false);
 });

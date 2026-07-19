@@ -163,6 +163,7 @@
         "Library selection survives a second forced browser-process termination and a third launch",
         "the same browser profile and account namespace are reused across launches",
         "a neutral same-origin localStorage sentinel survives every forced process termination",
+        "SIGTERM is sent only after the sentinel, representative restoration keys, and expected route are observed in the profile LevelDB",
         "the sentinel distinguishes profile-or-origin loss from app-key loss and reader failure",
         "no incognito, guest, temporary profile, or per-launch cleanup context is used",
         "DevTools closure cannot authorize relaunch before Chrome exits and no live process or SingletonLock owner retains the profile; stale lock artifacts remain recorded as evidence",

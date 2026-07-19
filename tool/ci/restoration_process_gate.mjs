@@ -62,6 +62,15 @@ function sha256Json(value) {
 
 const sentinelKey = 'lock-gate.profile-sentinel.v1';
 
+function requiredAppStorageKeys(account) {
+  return [
+    'flutter.app_restoration_last_user_v2',
+    `flutter.app_restoration_latest_v2:${account}`,
+    'kemetic.restoration.last_user.v2',
+    `kemetic.restoration.critical.latest.v2:${account}`,
+  ];
+}
+
 function browserArguments({ debugPort, profile, url }) {
   return [
     '--headless=new',
@@ -228,6 +237,63 @@ async function captureProfileEvidence(profile) {
   const processes = processesUsingProfile(profile);
   const value = { profile, storage, processes };
   return { ...value, sha256: sha256Json(value) };
+}
+
+export function bufferContainsStorageToken(bytes, token) {
+  return [Buffer.from(token, 'utf8'), Buffer.from(token, 'utf16le')].some(
+    (encoded) => bytes.includes(encoded),
+  );
+}
+
+async function localStorageDiskEvidence(profile, requiredTokens) {
+  const leveldb = join(profile, 'Default', 'Local Storage', 'leveldb');
+  const files = [];
+  try {
+    for (const name of (await readdir(leveldb)).sort()) {
+      const path = join(leveldb, name);
+      const entryStat = await lstat(path);
+      if (!entryStat.isFile()) continue;
+      const bytes = await readFile(path);
+      files.push({
+        name,
+        bytes: bytes.length,
+        sha256: sha256(bytes),
+        tokens: requiredTokens.filter((token) => bufferContainsStorageToken(bytes, token)),
+      });
+    }
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+  const observedTokens = [...new Set(files.flatMap((file) => file.tokens))].sort();
+  const missingTokens = requiredTokens.filter((token) => !observedTokens.includes(token));
+  const value = { leveldb, requiredTokens, observedTokens, missingTokens, files };
+  return { ...value, sha256: sha256Json(value) };
+}
+
+async function waitForLocalStorageDurability(profile, requiredTokens, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs;
+  const transitions = [];
+  let lastEvidence;
+  let lastSha;
+  while (Date.now() < deadline) {
+    lastEvidence = await localStorageDiskEvidence(profile, requiredTokens);
+    if (lastEvidence.sha256 !== lastSha) {
+      transitions.push({ observedAt: new Date().toISOString(), ...lastEvidence });
+      lastSha = lastEvidence.sha256;
+    }
+    if (lastEvidence.missingTokens.length === 0) {
+      return {
+        durableAt: new Date().toISOString(),
+        condition: 'all required localStorage tokens observed in profile LevelDB',
+        transitions,
+        finalEvidence: lastEvidence,
+      };
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
+  }
+  throw new Error(
+    `timed out waiting for localStorage profile durability; missing=${JSON.stringify(lastEvidence?.missingTokens ?? requiredTokens)}`,
+  );
 }
 
 async function profileLifecycleState(profile) {
@@ -504,12 +570,7 @@ export function classifyFreshProcess({
   sentinelValue,
   account,
 }) {
-  const requiredAppKeys = [
-    'flutter.app_restoration_last_user_v2',
-    `flutter.app_restoration_latest_v2:${account}`,
-    'kemetic.restoration.last_user.v2',
-    `kemetic.restoration.critical.latest.v2:${account}`,
-  ];
+  const requiredAppKeys = requiredAppStorageKeys(account);
   const missingAppKeys = requiredAppKeys.filter((key) => !(key in state.localStorage));
   const sentinelSurvived = state.localStorage[sentinelKey] === sentinelValue;
   const originMatched = state.origin === expectedOrigin;
@@ -782,7 +843,11 @@ async function main() {
     }
     await sendHarnessKey(active.cdp, 'p');
     const planner = await waitForSurface(active.cdp, 'Planner', buildId);
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 3_000));
+    const plannerDurability = await waitForLocalStorageDurability(profile, [
+      sentinelKey,
+      ...requiredAppStorageKeys(account),
+      '/rhythm/today',
+    ]);
     const storageBeforePlannerTermination = await active.cdp.evaluate(
       `Object.fromEntries(Object.entries(localStorage).sort())`,
     );
@@ -794,6 +859,7 @@ async function main() {
       storageBeforeTermination: storageBeforePlannerTermination,
       sentinelPresentBeforeTermination:
         storageBeforePlannerTermination[sentinelKey] === sentinelValue,
+      durabilityBeforeTermination: plannerDurability,
       profileBeforeTermination: await captureProfileEvidence(profile),
       screenshot: await screenshot(active.cdp, join(resultsDir, '01-planner-before-termination.png')),
       observedAt: new Date().toISOString(),
@@ -822,13 +888,18 @@ async function main() {
     requireFreshProcessClassification(plannerClassification);
     await sendHarnessKey(active.cdp, 'l');
     const library = await waitForSurface(active.cdp, 'Library', buildId);
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 3_000));
+    const libraryDurability = await waitForLocalStorageDurability(profile, [
+      sentinelKey,
+      ...requiredAppStorageKeys(account),
+      '/nodes',
+    ]);
     Object.assign(receipt.launches.at(-1), {
       expectedSurface: 'Library',
       observedUrl: library.url,
       storageBeforeTermination: await active.cdp.evaluate(
         `Object.fromEntries(Object.entries(localStorage).sort())`,
       ),
+      durabilityBeforeTermination: libraryDurability,
       profileBeforeTermination: await captureProfileEvidence(profile),
       screenshot: await screenshot(active.cdp, join(resultsDir, '02-library-before-termination.png')),
     });
