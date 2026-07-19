@@ -69,6 +69,15 @@
       "expectedIdsSha256": "1a96d83d5f665a1b5f18e1572c58931a62a1d19b2810bb87d003e3dcf75c47b4"
     },
     {
+      "file": "test/features/calendar/calendar_principal_generation_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["AUTH-PRINCIPAL-GEN-001", "H-03"],
+      "expectedTestCount": 3,
+      "expectedIdsSha256": "eb36e8c159ce98806ae4ef8d0647879ee02f970cb22f3daa65018f006a4e7324"
+    },
+    {
       "file": "test/core/planner_launch_intent_test.dart",
       "mode": "whole-file",
       "evidenceType": "model-supporting",
