@@ -230,6 +230,26 @@ async function captureProfileEvidence(profile) {
   return { ...value, sha256: sha256Json(value) };
 }
 
+async function profileLifecycleState(profile) {
+  const locks = [];
+  for (const name of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
+    const path = join(profile, name);
+    try {
+      const entryStat = await lstat(path);
+      locks.push({
+        name,
+        type: entryStat.isSymbolicLink() ? 'symlink' : 'other',
+        target: entryStat.isSymbolicLink() ? await readlink(path) : null,
+      });
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+  }
+  const processes = processesUsingProfile(profile);
+  const value = { locks, processes };
+  return { ...value, sha256: sha256Json(value) };
+}
+
 async function waitForJson(url, predicate, timeoutMs = 60_000) {
   const deadline = Date.now() + timeoutMs;
   let lastError;
@@ -482,6 +502,20 @@ export function classifyFreshProcess({
   };
 }
 
+export function terminationBoundaryReady({
+  debugEndpointClosed,
+  exitStatus,
+  profileProcesses,
+  profileLocks,
+}) {
+  return (
+    debugEndpointClosed &&
+    exitStatus != null &&
+    profileProcesses.length === 0 &&
+    profileLocks.length === 0
+  );
+}
+
 function requireFreshProcessClassification(classification) {
   if (classification.classification === 'passed') return;
   throw new Error(
@@ -554,25 +588,61 @@ async function forceTerminate(launch, resultsDir) {
   launch.cdp.close();
   process.kill(launch.child.pid, 'SIGTERM');
   const deadline = Date.now() + 15_000;
+  let debugEndpointClosed = false;
+  let lastLifecycleSha;
+  evidence.lifecycleTransitions = [];
   while (Date.now() < deadline) {
-    try {
-      await fetch(`http://127.0.0.1:${launch.debugPort}/json/version`);
-    } catch {
-      evidence.debugEndpointClosedAt = new Date().toISOString();
-      evidence.exitStatusAtRelaunchBoundary = launch.exitStatus ?? null;
+    if (!debugEndpointClosed) {
+      try {
+        await fetch(`http://127.0.0.1:${launch.debugPort}/json/version`);
+      } catch {
+        debugEndpointClosed = true;
+        evidence.debugEndpointClosedAt = new Date().toISOString();
+        evidence.exitStatusAtDebugEndpointClose = launch.exitStatus ?? null;
+      }
+    }
+    const lifecycle = await profileLifecycleState(launch.profile);
+    if (lifecycle.sha256 !== lastLifecycleSha) {
+      evidence.lifecycleTransitions.push({
+        observedAt: new Date().toISOString(),
+        childExitStatus: launch.exitStatus ?? null,
+        ...lifecycle,
+      });
+      lastLifecycleSha = lifecycle.sha256;
+    }
+    if (
+      terminationBoundaryReady({
+        debugEndpointClosed,
+        exitStatus: launch.exitStatus,
+        profileProcesses: lifecycle.processes.matches,
+        profileLocks: lifecycle.locks,
+      })
+    ) {
+      evidence.exitStatusAtRelaunchBoundary = launch.exitStatus;
       evidence.profileAtRelaunchBoundary = await captureProfileEvidence(launch.profile);
       evidence.browserLogs = await writeBrowserLogs(launch, resultsDir);
-      evidence.completeExitObserved = launch.exitStatus != null;
-      evidence.noProcessRetainsProfile =
-        evidence.profileAtRelaunchBoundary.processes.matches.length === 0;
+      evidence.completeExitObserved = true;
+      evidence.noProcessRetainsProfile = true;
+      evidence.noProfileLockRetained = true;
       evidence.sha256 = sha256Json(evidence);
       return evidence;
     }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
   }
-  process.kill(-launch.child.pid, 'SIGKILL');
+  const timeoutState = await profileLifecycleState(launch.profile);
+  evidence.timeout = {
+    observedAt: new Date().toISOString(),
+    childExitStatus: launch.exitStatus ?? null,
+    debugEndpointClosed,
+    ...timeoutState,
+  };
+  try {
+    process.kill(-launch.child.pid, 'SIGKILL');
+  } catch (error) {
+    if (error?.code !== 'ESRCH') throw error;
+  }
   throw new Error(
-    `browser process ${launch.child.pid} ignored SIGTERM and required cleanup SIGKILL`,
+    `browser process group ${launch.child.pid} did not fully exit and release profile after SIGTERM`,
   );
 }
 

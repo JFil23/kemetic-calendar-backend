@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   assertPersistentBrowserContext,
   classifyFreshProcess,
+  terminationBoundaryReady,
 } from './restoration_process_gate.mjs';
 
 const account = 'restoration-e2e-lock-gate';
@@ -89,5 +90,26 @@ test('persistent browser context rejects temporary flags and profile drift', () 
   assert.throws(
     () => assertPersistentBrowserContext(['--user-data-dir=/tmp/other'], profile),
     /profile mismatch/,
+  );
+});
+
+test('DevTools closure alone cannot authorize a fresh-process relaunch', () => {
+  assert.equal(
+    terminationBoundaryReady({
+      debugEndpointClosed: true,
+      exitStatus: null,
+      profileProcesses: ['orphaned storage service'],
+      profileLocks: ['SingletonLock'],
+    }),
+    false,
+  );
+  assert.equal(
+    terminationBoundaryReady({
+      debugEndpointClosed: true,
+      exitStatus: { code: 0, signal: null },
+      profileProcesses: [],
+      profileLocks: [],
+    }),
+    true,
   );
 });

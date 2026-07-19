@@ -165,6 +165,7 @@
         "a neutral same-origin localStorage sentinel survives every forced process termination",
         "the sentinel distinguishes profile-or-origin loss from app-key loss and reader failure",
         "no incognito, guest, temporary profile, or per-launch cleanup context is used",
+        "DevTools closure cannot authorize relaunch before Chrome exits and releases profile processes and locks",
         "the visible route, URL, screenshots, process IDs, and artifact identity are recorded"
       ]
     }
