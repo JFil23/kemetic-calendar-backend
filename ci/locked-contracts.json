@@ -13,8 +13,8 @@
       "evidenceType": "router-widget",
       "coverageRole": "LOCKED",
       "contractRefs": ["NAV-CONTRACT-001", "H-01"],
-      "expectedTestCount": 16,
-      "expectedIdsSha256": "a701246a945074d06422387e5392a74fe22d60f1fffe554f217eb39b2786ecaf"
+      "expectedTestCount": 19,
+      "expectedIdsSha256": "82e7c84b7edea2864548c237831c9a63b428941b2c60c79276cb1eb977231867"
     },
     {
       "file": "test/widgets/global_navigation_shell_test.dart",
