@@ -61,6 +61,8 @@ function sha256Json(value) {
 }
 
 const sentinelKey = 'lock-gate.profile-sentinel.v1';
+const neutralStorageProbePath = '/__lock_gate_storage_probe.html';
+const neutralStorageProbeTitle = 'LOCK_GATE_NEUTRAL_STORAGE_PROBE';
 
 function requiredAppStorageKeys(account) {
   return [
@@ -111,6 +113,22 @@ async function serve(webRoot) {
   const server = createServer(async (request, response) => {
     try {
       const requested = decodeURIComponent(new URL(request.url, 'http://local').pathname);
+      if (requested === neutralStorageProbePath) {
+        const body = Buffer.from(
+          '<!doctype html><html><head><meta charset="utf-8">' +
+            '<meta name="lock-gate-neutral-probe" content="no-app-boot">' +
+            `<title>${neutralStorageProbeTitle}</title></head>` +
+            '<body data-lock-gate-neutral-probe="true">storage probe</body></html>',
+        );
+        response.writeHead(200, {
+          'cache-control': 'no-store',
+          'content-security-policy': "default-src 'none'; script-src 'none'",
+          'content-type': 'text/html; charset=utf-8',
+          'x-lock-gate-neutral-probe': 'true',
+        });
+        response.end(body);
+        return;
+      }
       const relative = requested === '/' ? 'index.html' : requested.replace(/^\/+/, '');
       let candidate = resolve(root, normalize(relative));
       if (!candidate.startsWith(`${root}${sep}`) && candidate !== root) {
@@ -731,6 +749,122 @@ async function writeProfileSentinel(cdp, value) {
   })()`);
 }
 
+function captureExactExpectedStorage(storage, { account, sentinelValue }) {
+  const keys = [sentinelKey, ...requiredAppStorageKeys(account)];
+  const missingKeys = keys.filter((key) => !(key in storage));
+  if (missingKeys.length > 0) {
+    throw new Error(
+      `live process is missing required storage values: ${JSON.stringify(missingKeys)}`,
+    );
+  }
+  if (storage[sentinelKey] !== sentinelValue) {
+    throw new Error('live process sentinel value changed before termination');
+  }
+  return Object.fromEntries(keys.map((key) => [key, storage[key]]));
+}
+
+function requireExactStorageValues(storage, expected, description) {
+  const missingKeys = Object.keys(expected).filter((key) => !(key in storage));
+  const changedKeys = Object.keys(expected).filter(
+    (key) => key in storage && storage[key] !== expected[key],
+  );
+  const comparison = {
+    description,
+    expectedKeys: Object.keys(expected),
+    expectedValuesSha256: sha256Json(expected),
+    observedValuesSha256: sha256Json(
+      Object.fromEntries(Object.keys(expected).map((key) => [key, storage[key]])),
+    ),
+    missingKeys,
+    changedKeys,
+    exact: missingKeys.length === 0 && changedKeys.length === 0,
+  };
+  if (!comparison.exact) {
+    const error = new Error(
+      `${description} did not preserve exact storage values: ` +
+        JSON.stringify({ missingKeys, changedKeys }),
+    );
+    error.storageComparison = comparison;
+    throw error;
+  }
+  return comparison;
+}
+
+function calendarPersistenceSnapshot(storage, account) {
+  const key = `kemetic.restoration.critical.latest.v2:${account}`;
+  const value = JSON.parse(storage[key]);
+  const calendar = value?.calendar;
+  if (
+    !calendar ||
+    !Number.isInteger(calendar.kYear) ||
+    !Number.isInteger(calendar.kMonth) ||
+    !Number.isInteger(calendar.kDay) ||
+    typeof calendar.anchorTarget !== 'string' ||
+    !Number.isFinite(calendar.anchorAlignment)
+  ) {
+    throw new Error(`invalid Calendar persistence snapshot in ${key}`);
+  }
+  return {
+    key,
+    routeLocation: value.routeLocation,
+    updatedAtMs: value.updatedAtMs,
+    calendar,
+    sha256: sha256Json(calendar),
+  };
+}
+
+function requireRestoredCalendarPlacement({ state, expectedView, expectedSnapshot, account }) {
+  const actualSnapshot = calendarPersistenceSnapshot(state.localStorage, account);
+  const logicalAnchor = `${actualSnapshot.calendar.kYear}-${actualSnapshot.calendar.kMonth}-${actualSnapshot.calendar.kDay}`;
+  const placementMatched =
+    actualSnapshot.calendar.anchorTarget === expectedSnapshot.calendar.anchorTarget &&
+    actualSnapshot.calendar.anchorAlignment === expectedSnapshot.calendar.anchorAlignment &&
+    actualSnapshot.calendar.viewportHeight === expectedSnapshot.calendar.viewportHeight &&
+    actualSnapshot.calendar.layoutRevision === expectedSnapshot.calendar.layoutRevision;
+  const comparison = {
+    expectedView,
+    observedView: state.view,
+    expectedLogicalAnchor:
+      `${expectedSnapshot.calendar.kYear}-${expectedSnapshot.calendar.kMonth}-${expectedSnapshot.calendar.kDay}`,
+    observedLogicalAnchor: logicalAnchor,
+    expectedPlacement: expectedSnapshot.calendar,
+    observedPlacement: actualSnapshot.calendar,
+    logicalAnchorMatched:
+      state.view === expectedView &&
+      logicalAnchor ===
+        `${expectedSnapshot.calendar.kYear}-${expectedSnapshot.calendar.kMonth}-${expectedSnapshot.calendar.kDay}`,
+    placementMatched,
+  };
+  if (!comparison.logicalAnchorMatched || !comparison.placementMatched) {
+    throw new Error(`restored Calendar placement mismatch: ${JSON.stringify(comparison)}`);
+  }
+  return comparison;
+}
+
+async function readNeutralStorageProbe(cdp) {
+  return evaluateUntil(
+    cdp,
+    `(() => {
+      if (document.title !== ${JSON.stringify(neutralStorageProbeTitle)}) return null;
+      const marker = document.querySelector(
+        'meta[name="lock-gate-neutral-probe"][content="no-app-boot"]',
+      );
+      return {
+        title: document.title,
+        url: location.href,
+        origin: location.origin,
+        path: location.pathname,
+        scriptCount: document.scripts.length,
+        markerPresent: marker != null,
+        flutterWindowPresent: '_flutter' in window,
+        flutterViewPresent: document.querySelector('flt-glass-pane, flutter-view') != null,
+        localStorage: Object.fromEntries(Object.entries(localStorage).sort()),
+      };
+    })()`,
+    'script-free neutral same-origin storage probe',
+  );
+}
+
 export function classifyFreshProcess({
   state,
   expectedSurface,
@@ -976,6 +1110,7 @@ async function main() {
         : ''
   }`;
   const origin = new URL(appUrl).origin;
+  const neutralUrl = `${origin}${neutralStorageProbePath}`;
   const account = 'restoration-e2e-lock-gate';
   const sentinelValue = `profile-${sha256Json({ buildId, origin, profile })}`;
   const receipt = {
@@ -999,6 +1134,8 @@ async function main() {
     launches: [],
     forcedTerminations: [],
     classifications: [],
+    neutralStorageVerifications: [],
+    todayCycles: [],
     buildArtifacts: {},
   };
   let active;
@@ -1009,8 +1146,237 @@ async function main() {
     }
 
     if (isTodayPostProcessUnit) {
-      active = await launchChrome({ binary, profile, url: appUrl, ordinal: 1 });
-      assertLaunchContinuity(active, { profile, origin });
+      let nextOrdinal = 1;
+      const observedBrowserPids = new Set();
+      const registerBrowserPid = (launch, role) => {
+        if (observedBrowserPids.has(launch.realBrowserPid)) {
+          throw new Error(
+            `${role} reused Chrome PID ${launch.realBrowserPid}; fresh process proof is invalid`,
+          );
+        }
+        observedBrowserPids.add(launch.realBrowserPid);
+      };
+      const launchApplication = async () => {
+        const launch = await launchChrome({
+          binary,
+          profile,
+          url: appUrl,
+          ordinal: nextOrdinal++,
+        });
+        assertLaunchContinuity(launch, { profile, origin });
+        registerBrowserPid(launch, 'application');
+        return launch;
+      };
+      const crossTerminationBoundary = async ({
+        cycleNumber,
+        boundaryName,
+        expectedView,
+        requiredTokens,
+      }) => {
+        const liveState = await readTodayProcessHarnessState(active.cdp, buildId);
+        if (liveState.route !== '/rhythm/today') {
+          throw new Error(
+            `cycle ${cycleNumber} ${boundaryName} was not on Planner before termination`,
+          );
+        }
+        const expectedStorage = captureExactExpectedStorage(liveState.localStorage, {
+          account,
+          sentinelValue,
+        });
+        const expectedCalendarSnapshot = calendarPersistenceSnapshot(
+          expectedStorage,
+          account,
+        );
+        const liveStorageText = Object.entries(liveState.localStorage).flat().join('\n');
+        const missingLiveTokens = requiredTokens.filter(
+          (token) => !liveStorageText.includes(token),
+        );
+        if (missingLiveTokens.length > 0) {
+          throw new Error(
+            `cycle ${cycleNumber} ${boundaryName} live storage was incomplete: ` +
+              JSON.stringify(missingLiveTokens),
+          );
+        }
+        const terminatedApplicationPid = active.realBrowserPid;
+        const applicationEvidence = {
+          ...browserLaunchEvidence(active),
+          role: 'application-before-sigterm',
+          cycleNumber,
+          boundaryName,
+          expectedSurface: 'Planner',
+          expectedCalendarView: expectedView,
+          liveState,
+          exactExpectedStorage: expectedStorage,
+          exactExpectedStorageSha256: sha256Json(expectedStorage),
+          expectedCalendarSnapshot,
+          durabilityBeforeTermination: {
+            authority: 'live window.localStorage exact-value read',
+            requiredExactKeys: Object.keys(expectedStorage),
+            requiredTokens,
+            missingTokens: missingLiveTokens,
+          },
+          profileBeforeTermination: await captureProfileEvidence(profile),
+          screenshot: await screenshot(
+            active.cdp,
+            join(
+              resultsDir,
+              `cycle-${cycleNumber}-${boundaryName}-planner-before-sigterm.png`,
+            ),
+          ),
+          observedAt: new Date().toISOString(),
+        };
+        receipt.launches.push(applicationEvidence);
+        const applicationTermination = await forceTerminate(active, resultsDir);
+        receipt.forcedTerminations.push({
+          role: 'application',
+          cycleNumber,
+          boundaryName,
+          ...applicationTermination,
+        });
+        active = undefined;
+
+        let rawLevelDbEvidence;
+        try {
+          rawLevelDbEvidence = await localStorageDiskEvidence(profile, requiredTokens);
+        } catch (error) {
+          rawLevelDbEvidence = {
+            inspectionError: error?.stack ?? String(error),
+            requiredTokens,
+            observedTokens: [],
+            missingTokens: requiredTokens,
+            sha256: sha256Json({
+              inspectionError: error?.stack ?? String(error),
+              requiredTokens,
+            }),
+          };
+        }
+        applicationEvidence.rawLevelDbDiagnosticAfterTermination = {
+          authority: 'diagnostic-only',
+          mayFailWithoutFailingGate: true,
+          ...rawLevelDbEvidence,
+        };
+
+        active = await launchChrome({
+          binary,
+          profile,
+          url: neutralUrl,
+          ordinal: nextOrdinal++,
+        });
+        assertLaunchContinuity(active, { profile, origin });
+        registerBrowserPid(active, 'neutral storage probe');
+        if (active.realBrowserPid === terminatedApplicationPid) {
+          throw new Error('neutral storage probe reused the terminated application PID');
+        }
+        const neutralState = await readNeutralStorageProbe(active.cdp);
+        if (
+          neutralState.origin !== origin ||
+          neutralState.path !== neutralStorageProbePath ||
+          !neutralState.markerPresent ||
+          neutralState.scriptCount !== 0 ||
+          neutralState.flutterWindowPresent ||
+          neutralState.flutterViewPresent
+        ) {
+          throw new Error(
+            `cycle ${cycleNumber} ${boundaryName} neutral process booted an invalid context: ` +
+              JSON.stringify(neutralState),
+          );
+        }
+        const neutralComparison = requireExactStorageValues(
+          neutralState.localStorage,
+          expectedStorage,
+          `cycle ${cycleNumber} ${boundaryName} neutral fresh process`,
+        );
+        const secondNeutralRead = await readNeutralStorageProbe(active.cdp);
+        const neutralReadOnlyComparison = requireExactStorageValues(
+          secondNeutralRead.localStorage,
+          expectedStorage,
+          `cycle ${cycleNumber} ${boundaryName} neutral read-only verification`,
+        );
+        const neutralEvidence = {
+          ...browserLaunchEvidence(active),
+          role: 'neutral-storage-reader',
+          cycleNumber,
+          boundaryName,
+          distinctFromTerminatedApplicationPid:
+            active.realBrowserPid !== terminatedApplicationPid,
+          flutterApplicationBooted: false,
+          firstRead: neutralState,
+          secondRead: secondNeutralRead,
+          exactValueComparison: neutralComparison,
+          readOnlyComparison: neutralReadOnlyComparison,
+          screenshot: await screenshot(
+            active.cdp,
+            join(resultsDir, `cycle-${cycleNumber}-${boundaryName}-neutral-reader.png`),
+          ),
+          observedAt: new Date().toISOString(),
+        };
+        receipt.launches.push(neutralEvidence);
+        const neutralPid = active.realBrowserPid;
+        const neutralTermination = await forceTerminate(active, resultsDir);
+        receipt.forcedTerminations.push({
+          role: 'neutral-storage-reader',
+          cycleNumber,
+          boundaryName,
+          ...neutralTermination,
+        });
+        active = undefined;
+
+        active = await launchApplication();
+        if (
+          active.realBrowserPid === terminatedApplicationPid ||
+          active.realBrowserPid === neutralPid
+        ) {
+          throw new Error('fresh application did not use a distinct Chrome PID');
+        }
+        const restoredPlanner = await readTodayProcessHarnessState(active.cdp, buildId);
+        const classification = classifyFreshProcess({
+          state: restoredPlanner,
+          expectedSurface: 'Planner',
+          expectedOrigin: origin,
+          sentinelValue,
+          account,
+        });
+        receipt.classifications.push({
+          ordinal: active.ordinal,
+          cycleNumber,
+          boundaryName,
+          ...classification,
+        });
+        requireFreshProcessClassification(classification);
+        const applicationLaunchEvidence = {
+          ...browserLaunchEvidence(active),
+          role: 'application-restoration-reader',
+          cycleNumber,
+          boundaryName,
+          distinctFromTerminatedApplicationPid:
+            active.realBrowserPid !== terminatedApplicationPid,
+          distinctFromNeutralPid: active.realBrowserPid !== neutralPid,
+          initialState: restoredPlanner,
+          profileImmediatelyAfterStart: await captureProfileEvidence(profile),
+          observedAt: new Date().toISOString(),
+        };
+        receipt.launches.push(applicationLaunchEvidence);
+        const verification = {
+          cycleNumber,
+          boundaryName,
+          expectedStorageSha256: sha256Json(expectedStorage),
+          rawLevelDbDiagnostic: rawLevelDbEvidence,
+          rawLevelDbPredicateAuthoritative: false,
+          neutralProcess: neutralEvidence,
+          expectedCalendarSnapshot,
+          restoredApplicationPid: active.realBrowserPid,
+          restoredPlanner,
+        };
+        receipt.neutralStorageVerifications.push(verification);
+        return {
+          expectedCalendarSnapshot,
+          restoredPlanner,
+          applicationLaunchEvidence,
+          verification,
+        };
+      };
+
+      active = await launchApplication();
       const initialCalendar = await readTodayProcessHarnessState(active.cdp, buildId);
       requireInitialSurface(initialCalendar, 'Calendar');
       await waitForTodayProcessState(
@@ -1020,253 +1386,209 @@ async function main() {
         'initial settled production Calendar',
       );
       receipt.sentinel.written = await writeProfileSentinel(active.cdp, sentinelValue);
-      const todayAnchor = parseKemeticAnchor(initialCalendar.today);
-      if (!todayAnchor) throw new Error(`invalid Today anchor ${initialCalendar.today}`);
-      const firstFarScroll = await scrollTodayProcessToYear(
-        active.cdp,
-        buildId,
-        todayAnchor.kYear + 3,
-      );
-      const selectedState = firstFarScroll.state;
-      const selectedAnchor = parseKemeticAnchor(selectedState.view);
-      if (!selectedAnchor) throw new Error(`invalid far Calendar view ${selectedState.view}`);
-      await evaluateUntil(
-        active.cdp,
-        `(() => Object.values(localStorage).some((value) =>
-          String(value).includes(${JSON.stringify(`\"kYear\":${selectedAnchor.kYear}`)})
-        ) ? true : null)()`,
-        'durable far Calendar year before Planner',
-      );
-      await sendHarnessKey(active.cdp, 'p');
-      await waitForTodayProcessState(
-        active.cdp,
-        buildId,
-        (state) => state.route === '/rhythm/today',
-        'Planner before first forced termination',
-      );
-      const plannerState = await readTodayProcessHarnessState(active.cdp, buildId);
-      const plannerDurabilityTokens = [
-        sentinelKey,
-        ...requiredAppStorageKeys(account),
-        '/rhythm/today',
-        `\"kYear\":${selectedAnchor.kYear}`,
-      ];
-      const plannerStorageBeforeTermination = await active.cdp.evaluate(
-        `Object.fromEntries(Object.entries(localStorage).sort())`,
-      );
-      const plannerStorageText = Object.entries(plannerStorageBeforeTermination)
-        .flat()
-        .join('\n');
-      const missingPlannerTokens = plannerDurabilityTokens.filter(
-        (token) => !plannerStorageText.includes(token),
-      );
-      if (missingPlannerTokens.length > 0) {
-        throw new Error(
-          `Today process state was incomplete before termination: ` +
-            JSON.stringify(missingPlannerTokens),
-        );
-      }
-      const firstLaunchEvidence = {
-        ...browserLaunchEvidence(active),
-        expectedSurface: 'Planner',
-        initialState: initialCalendar,
-        touchScrollObservations: firstFarScroll.observations,
-        selectedCalendarState: selectedState,
-        stateBeforeTermination: plannerState,
-        storageBeforeTermination: plannerStorageBeforeTermination,
-        durabilityBeforeTermination: {
-          condition: 'all required tokens readable from live localStorage',
-          requiredTokens: plannerDurabilityTokens,
-          missingTokens: missingPlannerTokens,
-        },
-        profileBeforeTermination: await captureProfileEvidence(profile),
-        screenshot: await screenshot(
-          active.cdp,
-          join(resultsDir, '01-today-process-planner-before-termination.png'),
-        ),
-        observedAt: new Date().toISOString(),
-      };
-      receipt.launches.push(firstLaunchEvidence);
-      receipt.forcedTerminations.push(await forceTerminate(active, resultsDir));
-      active = undefined;
-      firstLaunchEvidence.durabilityAfterTermination =
-        await localStorageDiskEvidence(profile, plannerDurabilityTokens);
-      if (firstLaunchEvidence.durabilityAfterTermination.missingTokens.length > 0) {
-        throw new Error(
-          `Today process state was not durable after forced termination: ` +
-            JSON.stringify(firstLaunchEvidence.durabilityAfterTermination.missingTokens),
-        );
+      if (receipt.sentinel.written.value !== sentinelValue) {
+        throw new Error('neutral profile sentinel was not readable immediately after write');
       }
 
-      active = await launchChrome({ binary, profile, url: appUrl, ordinal: 2 });
-      assertLaunchContinuity(active, { profile, origin });
-      const restoredPlanner = await readTodayProcessHarnessState(active.cdp, buildId);
-      const plannerClassification = classifyFreshProcess({
-        state: restoredPlanner,
-        expectedSurface: 'Planner',
-        expectedOrigin: origin,
-        sentinelValue,
-        account,
-      });
-      receipt.classifications.push({ ordinal: 2, ...plannerClassification });
-      requireFreshProcessClassification(plannerClassification);
-      await sendHarnessKey(active.cdp, 'c');
-      await waitForTodayProcessState(
-        active.cdp,
-        buildId,
-        (state) => state.route === '/' && state.settled && state.view !== 'none',
-        'far Calendar after fresh Planner process',
-      );
-      const restoredFarState = await readTodayProcessHarnessState(active.cdp, buildId);
-      if (restoredFarState.view !== selectedState.view) {
-        throw new Error(
-          `fresh process restored ${restoredFarState.view}; expected ${selectedState.view}`,
+      for (let cycleNumber = 1; cycleNumber <= 3; cycleNumber += 1) {
+        const cycle = { cycleNumber };
+        const cycleStartState = await readTodayProcessHarnessState(active.cdp, buildId);
+        requireInitialSurface(cycleStartState, 'Calendar');
+        await waitForTodayProcessState(
+          active.cdp,
+          buildId,
+          (state) => state.route === '/' && state.settled && state.view !== 'none',
+          `cycle ${cycleNumber} settled production Calendar`,
         );
-      }
-      const manualScroll = await scrollTodayProcessToYear(
-        active.cdp,
-        buildId,
-        selectedAnchor.kYear + 1,
-      );
-      const manualState = manualScroll.state;
-      const manualAnchor = parseKemeticAnchor(manualState.view);
-      if (!manualAnchor) throw new Error(`invalid manual Calendar view ${manualState.view}`);
-      const stateIdentityAtTodayTap = manualState.stateIdentity;
-      const intentAtTodayTap = manualState.intentGeneration;
-      await sendHarnessKey(active.cdp, 't');
-      await waitForTodayProcessState(
-        active.cdp,
-        buildId,
-        (state) =>
-          state.route === '/' &&
-          state.disposition === 'accepted' &&
-          state.commandGeneration === 1 &&
-          state.todayVisible &&
-          state.view === state.today,
-        'one Today command after process restoration and manual touch scroll',
-      );
-      const todaySamples = [];
-      for (let sample = 0; sample < 30; sample += 1) {
-        await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
-        todaySamples.push(await readTodayProcessHarnessState(active.cdp, buildId));
-      }
-      if (
-        todaySamples.some(
+        const todayAnchor = parseKemeticAnchor(cycleStartState.today);
+        if (!todayAnchor) throw new Error(`invalid Today anchor ${cycleStartState.today}`);
+
+        const firstFarScroll = await scrollTodayProcessToYear(
+          active.cdp,
+          buildId,
+          todayAnchor.kYear + 3,
+        );
+        const selectedState = firstFarScroll.state;
+        const selectedAnchor = parseKemeticAnchor(selectedState.view);
+        if (!selectedAnchor) throw new Error(`invalid far Calendar view ${selectedState.view}`);
+        await evaluateUntil(
+          active.cdp,
+          `(() => Object.values(localStorage).some((value) =>
+            String(value).includes(${JSON.stringify(`\"kYear\":${selectedAnchor.kYear}`)})
+          ) ? true : null)()`,
+          `cycle ${cycleNumber} durable far Calendar year before Planner`,
+        );
+        await sendHarnessKey(active.cdp, 'p');
+        await waitForTodayProcessState(
+          active.cdp,
+          buildId,
+          (state) => state.route === '/rhythm/today',
+          `cycle ${cycleNumber} Planner before far-position termination`,
+        );
+        const firstBoundary = await crossTerminationBoundary({
+          cycleNumber,
+          boundaryName: 'far-position',
+          expectedView: selectedState.view,
+          requiredTokens: [
+            sentinelKey,
+            ...requiredAppStorageKeys(account),
+            '/rhythm/today',
+            `\"kYear\":${selectedAnchor.kYear}`,
+          ],
+        });
+        await sendHarnessKey(active.cdp, 'c');
+        await waitForTodayProcessState(
+          active.cdp,
+          buildId,
+          (state) => state.route === '/' && state.settled && state.view !== 'none',
+          `cycle ${cycleNumber} far Calendar after neutral and application processes`,
+        );
+        const restoredFarState = await readTodayProcessHarnessState(active.cdp, buildId);
+        const restoredFarPlacement = requireRestoredCalendarPlacement({
+          state: restoredFarState,
+          expectedView: selectedState.view,
+          expectedSnapshot: firstBoundary.expectedCalendarSnapshot,
+          account,
+        });
+        Object.assign(firstBoundary.applicationLaunchEvidence, {
+          restoredCalendarState: restoredFarState,
+          restoredCalendarPlacement: restoredFarPlacement,
+          screenshot: await screenshot(
+            active.cdp,
+            join(resultsDir, `cycle-${cycleNumber}-far-position-restored-calendar.png`),
+          ),
+        });
+
+        const manualScroll = await scrollTodayProcessToYear(
+          active.cdp,
+          buildId,
+          selectedAnchor.kYear + 1,
+        );
+        const manualState = manualScroll.state;
+        const manualAnchor = parseKemeticAnchor(manualState.view);
+        if (!manualAnchor) throw new Error(`invalid manual Calendar view ${manualState.view}`);
+        const stateIdentityAtTodayTap = manualState.stateIdentity;
+        const intentAtTodayTap = manualState.intentGeneration;
+        await sendHarnessKey(active.cdp, 't');
+        await waitForTodayProcessState(
+          active.cdp,
+          buildId,
           (state) =>
-            state.route !== '/' ||
-            state.view !== state.today ||
-            !state.todayVisible ||
-            state.disposition !== 'accepted' ||
-            state.commandGeneration !== 1 ||
-            state.stateIdentity !== stateIdentityAtTodayTap ||
-            state.intentGeneration <= intentAtTodayTap,
-        )
-      ) {
-        throw new Error(`Today did not remain stable: ${JSON.stringify(todaySamples)}`);
-      }
-      const laterScroll = await scrollTodayProcessToYear(
-        active.cdp,
-        buildId,
-        todayAnchor.kYear + 1,
-      );
-      const laterState = laterScroll.state;
-      const laterAnchor = parseKemeticAnchor(laterState.view);
-      if (!laterAnchor || laterState.view === laterState.today) {
-        throw new Error(`later manual Calendar position was not selected: ${laterState.view}`);
-      }
-      await evaluateUntil(
-        active.cdp,
-        `(() => Object.values(localStorage).some((value) =>
-          String(value).includes(${JSON.stringify(`\"kYear\":${laterAnchor.kYear}`)})
-        ) ? true : null)()`,
-        'durable later manual Calendar year after Today',
-      );
-      await sendHarnessKey(active.cdp, 'p');
-      await waitForTodayProcessState(
-        active.cdp,
-        buildId,
-        (state) => state.route === '/rhythm/today',
-        'Planner before second forced termination',
-      );
-      receipt.launches.push({
-        ...browserLaunchEvidence(active),
-        expectedInitialSurface: 'Planner',
-        initialState: restoredPlanner,
-        restoredFarCalendarState: restoredFarState,
-        manualTouchScrollObservations: manualScroll.observations,
-        manualStateBeforeToday: manualState,
-        todayStabilitySamples: todaySamples,
-        laterTouchScrollObservations: laterScroll.observations,
-        laterStateBeforeTermination: laterState,
-        profileImmediatelyAfterStart: await captureProfileEvidence(profile),
-        screenshot: await screenshot(
-          active.cdp,
-          join(resultsDir, '02-today-after-process-and-later-scroll.png'),
-        ),
-        observedAt: new Date().toISOString(),
-      });
-      receipt.forcedTerminations.push(await forceTerminate(active, resultsDir));
-      active = undefined;
-      const laterDurabilityTokens = [
-        sentinelKey,
-        ...requiredAppStorageKeys(account),
-        '/rhythm/today',
-        `\"kYear\":${laterAnchor.kYear}`,
-      ];
-      receipt.launches.at(-1).durabilityAfterTermination =
-        await localStorageDiskEvidence(profile, laterDurabilityTokens);
-      if (
-        receipt.launches.at(-1).durabilityAfterTermination.missingTokens.length > 0
-      ) {
-        throw new Error(
-          `later manual Calendar state was not durable after forced termination: ` +
-            JSON.stringify(
-              receipt.launches.at(-1).durabilityAfterTermination.missingTokens,
-            ),
+            state.route === '/' &&
+            state.disposition === 'accepted' &&
+            state.commandGeneration === 1 &&
+            state.todayVisible &&
+            state.view === state.today,
+          `cycle ${cycleNumber} one Today command after process restoration`,
         );
-      }
+        const todaySamples = [];
+        for (let sample = 0; sample < 30; sample += 1) {
+          await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
+          todaySamples.push(await readTodayProcessHarnessState(active.cdp, buildId));
+        }
+        if (
+          todaySamples.some(
+            (state) =>
+              state.route !== '/' ||
+              state.view !== state.today ||
+              !state.todayVisible ||
+              state.disposition !== 'accepted' ||
+              state.commandGeneration !== 1 ||
+              state.stateIdentity !== stateIdentityAtTodayTap ||
+              state.intentGeneration <= intentAtTodayTap,
+          )
+        ) {
+          throw new Error(
+            `cycle ${cycleNumber} Today did not remain stable: ` +
+              JSON.stringify(todaySamples),
+          );
+        }
 
-      active = await launchChrome({ binary, profile, url: appUrl, ordinal: 3 });
-      assertLaunchContinuity(active, { profile, origin });
-      const secondRestoredPlanner = await readTodayProcessHarnessState(active.cdp, buildId);
-      const secondPlannerClassification = classifyFreshProcess({
-        state: secondRestoredPlanner,
-        expectedSurface: 'Planner',
-        expectedOrigin: origin,
-        sentinelValue,
-        account,
-      });
-      receipt.classifications.push({ ordinal: 3, ...secondPlannerClassification });
-      requireFreshProcessClassification(secondPlannerClassification);
-      await sendHarnessKey(active.cdp, 'c');
-      await waitForTodayProcessState(
-        active.cdp,
-        buildId,
-        (state) => state.route === '/' && state.settled && state.view !== 'none',
-        'later manual Calendar after second fresh Planner process',
-      );
-      const restoredLaterState = await readTodayProcessHarnessState(active.cdp, buildId);
-      if (
-        restoredLaterState.view !== laterState.view ||
-        restoredLaterState.view === restoredLaterState.today
-      ) {
-        throw new Error(
-          `later manual position lost after second process: ` +
-            JSON.stringify({ expected: laterState, actual: restoredLaterState }),
-        );
-      }
-      receipt.launches.push({
-        ...browserLaunchEvidence(active),
-        expectedInitialSurface: 'Planner',
-        initialState: secondRestoredPlanner,
-        restoredLaterCalendarState: restoredLaterState,
-        profileImmediatelyAfterStart: await captureProfileEvidence(profile),
-        screenshot: await screenshot(
+        const laterScroll = await scrollTodayProcessToYear(
           active.cdp,
-          join(resultsDir, '03-later-manual-calendar-after-second-process.png'),
-        ),
-        observedAt: new Date().toISOString(),
-      });
+          buildId,
+          todayAnchor.kYear + cycleNumber,
+        );
+        const laterState = laterScroll.state;
+        const laterAnchor = parseKemeticAnchor(laterState.view);
+        if (!laterAnchor || laterState.view === laterState.today) {
+          throw new Error(`later manual Calendar position was not selected: ${laterState.view}`);
+        }
+        await evaluateUntil(
+          active.cdp,
+          `(() => Object.values(localStorage).some((value) =>
+            String(value).includes(${JSON.stringify(`\"kYear\":${laterAnchor.kYear}`)})
+          ) ? true : null)()`,
+          `cycle ${cycleNumber} durable later manual Calendar year after Today`,
+        );
+        await sendHarnessKey(active.cdp, 'p');
+        await waitForTodayProcessState(
+          active.cdp,
+          buildId,
+          (state) => state.route === '/rhythm/today',
+          `cycle ${cycleNumber} Planner before later-position termination`,
+        );
+        const secondBoundary = await crossTerminationBoundary({
+          cycleNumber,
+          boundaryName: 'later-manual-position',
+          expectedView: laterState.view,
+          requiredTokens: [
+            sentinelKey,
+            ...requiredAppStorageKeys(account),
+            '/rhythm/today',
+            `\"kYear\":${laterAnchor.kYear}`,
+          ],
+        });
+        await sendHarnessKey(active.cdp, 'c');
+        await waitForTodayProcessState(
+          active.cdp,
+          buildId,
+          (state) => state.route === '/' && state.settled && state.view !== 'none',
+          `cycle ${cycleNumber} later Calendar after neutral and application processes`,
+        );
+        const restoredLaterState = await readTodayProcessHarnessState(active.cdp, buildId);
+        if (restoredLaterState.view === restoredLaterState.today) {
+          throw new Error('later manual Calendar position restored as Today');
+        }
+        const restoredLaterPlacement = requireRestoredCalendarPlacement({
+          state: restoredLaterState,
+          expectedView: laterState.view,
+          expectedSnapshot: secondBoundary.expectedCalendarSnapshot,
+          account,
+        });
+        Object.assign(secondBoundary.applicationLaunchEvidence, {
+          restoredCalendarState: restoredLaterState,
+          restoredCalendarPlacement: restoredLaterPlacement,
+          screenshot: await screenshot(
+            active.cdp,
+            join(
+              resultsDir,
+              `cycle-${cycleNumber}-later-manual-position-restored-calendar.png`,
+            ),
+          ),
+        });
+        Object.assign(cycle, {
+          startState: cycleStartState,
+          firstFarScroll: {
+            observations: firstFarScroll.observations,
+            selectedState,
+            restoredState: restoredFarState,
+            restoredPlacement: restoredFarPlacement,
+          },
+          manualStateBeforeToday: manualState,
+          manualTouchScrollObservations: manualScroll.observations,
+          todayStabilitySamples: todaySamples,
+          laterManualScroll: {
+            observations: laterScroll.observations,
+            selectedState: laterState,
+            restoredState: restoredLaterState,
+            restoredPlacement: restoredLaterPlacement,
+          },
+          firstBoundary: firstBoundary.verification,
+          secondBoundary: secondBoundary.verification,
+        });
+        receipt.todayCycles.push(cycle);
+      }
       receipt.passed = true;
     } else if (isCalendarViewportUnit) {
       active = await launchChrome({ binary, profile, url: appUrl, ordinal: 1 });
