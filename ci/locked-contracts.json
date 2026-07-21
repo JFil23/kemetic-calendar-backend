@@ -131,6 +131,20 @@
     {
       "file": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
       "mode": "exact",
+      "plainName": "CalendarPage startup stale-while-revalidate first paint physical iPhone Today sequence matrix H",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["TODAY-POST-PROCESS-RESTORE-001"],
+      "expectedIds": [
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint physical iPhone Today sequence matrix :: CalendarPage startup stale-while-revalidate first paint physical iPhone Today sequence matrix H1 far process-restored Planner Calendar immediate Today completes in place",
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint physical iPhone Today sequence matrix :: CalendarPage startup stale-while-revalidate first paint physical iPhone Today sequence matrix H2 far process-restored Planner Calendar painted hydration-active Today completes in place",
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint physical iPhone Today sequence matrix :: CalendarPage startup stale-while-revalidate first paint physical iPhone Today sequence matrix H3 far process-restored Planner Calendar quiescent Today completes in place",
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint physical iPhone Today sequence matrix :: CalendarPage startup stale-while-revalidate first paint physical iPhone Today sequence matrix H4 far process-restored Planner Calendar completed manual scroll then Today completes in place"
+      ]
+    },
+    {
+      "file": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+      "mode": "exact",
       "plainName": "CalendarPage startup stale-while-revalidate first paint dispose cancels Calendar resume retries before they can publish or navigate",
       "evidenceType": "lifecycle-behavior",
       "coverageRole": "LOCKED",
@@ -171,6 +185,29 @@
       "expectedIds": [
         "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: hydration begun after scroll start cannot replay during the continuing gesture"
       ]
+    },
+    {
+      "file": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+      "mode": "exact",
+      "plainName": "CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": [
+        "CAL-VIEWPORT-PROCESS-RESTORE-001",
+        "TODAY-POST-PROCESS-RESTORE-001"
+      ],
+      "expectedIds": [
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix A ten-second settled future anchor survives Planner process termination",
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix B thirty-second settled future anchor survives Planner process termination",
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix C terminating directly on Calendar restores the latest logical anchor",
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix D Calendar Planner Calendar without termination preserves the logical anchor",
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix E background resume without termination preserves the logical anchor",
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix F three newer distinct years replace the older durable Calendar anchor",
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix G a later explicit scroll remains authoritative after Today and termination",
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix H hydration cannot replace the restored logical Calendar anchor",
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix I three process restore manual scroll Today cycles complete in place",
+        "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix J post-restore Today yields to a later scroll across termination"
+      ]
     }
   ],
   "processUnits": [
@@ -190,6 +227,38 @@
         "no incognito, guest, temporary profile, or per-launch cleanup context is used",
         "DevTools closure cannot authorize relaunch before Chrome exits and no live process or SingletonLock owner retains the profile; stale lock artifacts remain recorded as evidence",
         "the visible route, URL, screenshots, process IDs, and artifact identity are recorded"
+      ]
+    },
+    {
+      "id": "calendar-viewport-process-restoration",
+      "harness": "integration_test/restoration_process_death_harness.dart",
+      "evidenceType": "process-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["CAL-VIEWPORT-PROCESS-RESTORE-001"],
+      "assertions": [
+        "a distinctive future logical Calendar anchor and alignment are persisted before route leave",
+        "Planner remains the launch surface after forced browser-process termination",
+        "the same browser profile, origin, account namespace, and neutral sentinel survive relaunch",
+        "the saved Calendar anchor is loaded from the durable principal-bound snapshot",
+        "returning to Calendar publishes the saved logical anchor instead of Today or an older anchor",
+        "the browser process exits completely and releases the profile before relaunch",
+        "commands, PIDs, termination status, storage evidence, screenshots, and artifact identity are recorded"
+      ]
+    },
+    {
+      "id": "today-post-process-restoration",
+      "harness": "integration_test/restoration_process_death_harness.dart",
+      "evidenceType": "process-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["TODAY-POST-PROCESS-RESTORE-001"],
+      "assertions": [
+        "a real touch gesture selects a distinctive far Calendar position in the production shell",
+        "Planner remains the launch surface after forced browser-process termination",
+        "returning to Calendar restores the far position before Today is invoked",
+        "a second real touch gesture changes the restored Calendar position",
+        "one production Today command keeps the same mounted Calendar state, reaches Today, and remains stable",
+        "a later manual Calendar position supersedes Today and survives a second forced process termination",
+        "the same browser profile, origin, account namespace, neutral sentinel, process exit boundary, and exact artifact identity are verified"
       ]
     }
   ]

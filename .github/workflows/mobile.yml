@@ -43,6 +43,7 @@ jobs:
         working-directory: mobile
         run: |
           dart format --set-exit-if-changed \
+            integration_test/restoration_process_death_harness.dart \
             lib/features/calendar/calendar_page.dart \
             lib/features/calendar/day_view.dart \
             lib/features/calendar/maat_flow_completion_response_persistence.dart \
@@ -50,6 +51,8 @@ jobs:
             lib/features/calendar/maat_flow_response_models.dart \
             lib/features/calendar/maat_flow_response_projection.dart \
             lib/features/calendar/maat_flow_response_resolver.dart \
+            lib/services/app_restoration_service.dart \
+            test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart \
             test/features/calendar/flow_completion_day_view_persistence_test.dart \
             test/features/calendar/flow_completion_persistence_test.dart \
             test/features/calendar/maat_flow_initial_prompt_infrastructure_test.dart \
@@ -269,6 +272,28 @@ jobs:
             --manifest ci/locked-contracts.json \
             --process-unit restoration-process-death-planner-library \
             2>&1 | tee "$RESULTS_DIR/process-driver.log"
+
+      - name: Force termination and verify Calendar viewport restoration
+        run: |
+          set -euo pipefail
+          node tool/ci/restoration_process_gate.mjs \
+            --web-root mobile/build/web \
+            --results-dir "$RESULTS_DIR/calendar-viewport-process" \
+            --build-id "lock-gate-${GITHUB_SHA:0:12}" \
+            --manifest ci/locked-contracts.json \
+            --process-unit calendar-viewport-process-restoration \
+            2>&1 | tee "$RESULTS_DIR/calendar-viewport-process-driver.log"
+
+      - name: Force termination and verify Today after Calendar process restoration
+        run: |
+          set -euo pipefail
+          node tool/ci/restoration_process_gate.mjs \
+            --web-root mobile/build/web \
+            --results-dir "$RESULTS_DIR/today-post-process" \
+            --build-id "lock-gate-${GITHUB_SHA:0:12}" \
+            --manifest ci/locked-contracts.json \
+            --process-unit today-post-process-restoration \
+            2>&1 | tee "$RESULTS_DIR/today-post-process-driver.log"
 
       - name: Record and verify post-test identity
         if: always()
