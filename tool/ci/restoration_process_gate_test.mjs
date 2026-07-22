@@ -11,6 +11,7 @@ import {
   restorationEnvelopeIntegrity,
   terminationBoundaryReady,
   validateRestorationAuthorityRead,
+  waitForTodayViewportQuiescence,
 } from './restoration_process_gate.mjs';
 
 const account = 'restoration-e2e-lock-gate';
@@ -104,6 +105,156 @@ function authorityFixture({
     latestEnvelope: JSON.stringify(envelope),
   };
 }
+
+function quiescenceObservation(
+  view,
+  {
+    authorityView = view,
+    generation = 100,
+    intentGeneration = generation,
+    settled = true,
+    hydrating = false,
+  } = {},
+) {
+  const [authorityYear, authorityMonth, authorityDay] = authorityView
+    .split('-')
+    .map(Number);
+  const authority = authorityFixture({
+    route: '/',
+    generation,
+    calendar: {
+      kYear: authorityYear,
+      kMonth: authorityMonth,
+      kDay: authorityDay,
+      showGregorian: false,
+      expansion: 'compact',
+      anchorTarget: 'monthBody',
+      anchorAlignment: 0.458,
+      viewportHeight: 761,
+      layoutRevision: 1,
+    },
+  });
+  const validated = validateRestorationAuthorityRead(authority, {
+    account,
+    expectedRoute: '/',
+  });
+  return {
+    state: {
+      route: '/',
+      view,
+      intentGeneration,
+      settled,
+      hydrating,
+      stateIdentity: 7,
+    },
+    authority: { read: authority, validated },
+  };
+}
+
+async function runQuiescenceSequence(
+  sequence,
+  { timeoutMs = 1_000, requiredConsecutive = 3 } = {},
+) {
+  let index = 0;
+  let nowMs = 0;
+  return waitForTodayViewportQuiescence({
+    minimumYear: 5,
+    description: 'fixture viewport quiescence',
+    timeoutMs,
+    requiredConsecutive,
+    readObservation: async () => sequence[index++ % sequence.length],
+    waitForNextObservation: async () => {
+      nowMs += 100;
+    },
+    now: () => nowMs,
+  });
+}
+
+test('threshold crossing followed by continued momentum is not accepted', async () => {
+  const result = await runQuiescenceSequence([
+    quiescenceObservation('5-1-5'),
+    quiescenceObservation('5-3-5'),
+    quiescenceObservation('5-3-5'),
+    quiescenceObservation('5-3-5'),
+  ]);
+  assert.equal(result.state.view, '5-3-5');
+  assert.equal(result.evidence.acceptedObservationIndex, 3);
+  assert.equal(result.evidence.observations[0].accepted, false);
+  assert.equal(result.evidence.observations[1].movementDetected, true);
+});
+
+test('consecutive identical viewport and acknowledged authority are accepted', async () => {
+  const result = await runQuiescenceSequence([
+    quiescenceObservation('5-3-5', { generation: 101 }),
+    quiescenceObservation('5-3-5', { generation: 101 }),
+    quiescenceObservation('5-3-5', { generation: 101 }),
+  ]);
+  assert.equal(result.state.view, '5-3-5');
+  assert.equal(result.authority.validated.generation, 101);
+  assert.equal(result.evidence.consecutiveIdenticalViewportObservations, 3);
+  assert.equal(result.evidence.authorityMatchedViewport, true);
+});
+
+test('stable viewport with mismatched acknowledged authority is rejected', async () => {
+  await assert.rejects(
+    runQuiescenceSequence(
+      [quiescenceObservation('5-1-5', { authorityView: '5-3-5' })],
+      { timeoutMs: 300 },
+    ),
+    (error) => {
+      assert.match(error.message, /did not become quiescent and authoritative/);
+      assert.match(error.message, /authority Calendar 5-3-5 did not match viewport 5-1-5/);
+      assert.equal(error.quiescenceEvidence.observations.at(-1).authorityMatchedViewport, false);
+      return true;
+    },
+  );
+});
+
+test('authority match while viewport is still moving is rejected', async () => {
+  await assert.rejects(
+    runQuiescenceSequence(
+      [
+        quiescenceObservation('5-1-5'),
+        quiescenceObservation('5-3-5'),
+        quiescenceObservation('5-5-5'),
+      ],
+      { timeoutMs: 500 },
+    ),
+    (error) => {
+      assert.equal(
+        error.quiescenceEvidence.observations.every(
+          (observation) => observation.authorityMatchedViewport,
+        ),
+        true,
+      );
+      assert.equal(error.quiescenceEvidence.maximumConsecutiveIdenticalViewportObservations, 1);
+      return true;
+    },
+  );
+});
+
+test('quiescence timeout includes actionable viewport and authority evidence', async () => {
+  await assert.rejects(
+    runQuiescenceSequence(
+      [
+        quiescenceObservation('5-1-5', { authorityView: '5-3-5', intentGeneration: 544 }),
+        quiescenceObservation('5-3-5', { intentGeneration: 544 }),
+      ],
+      { timeoutMs: 400 },
+    ),
+    (error) => {
+      assert.match(error.message, /lastViewport=5-3-5/);
+      assert.match(error.message, /intentGeneration=544/);
+      assert.equal(error.quiescenceEvidence.timedOut, true);
+      assert.equal(error.quiescenceEvidence.observations.length, 4);
+      assert.deepEqual(
+        error.quiescenceEvidence.observations.map((observation) => observation.viewport),
+        ['5-1-5', '5-3-5', '5-1-5', '5-3-5'],
+      );
+      return true;
+    },
+  );
+});
 
 test('missing neutral sentinel classifies profile or origin lifecycle loss', () => {
   const result = classify(state({ storage: requiredStorage }));
