@@ -218,6 +218,84 @@
         "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix I three process restore manual scroll Today cycles complete in place",
         "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart :: CalendarPage startup stale-while-revalidate first paint :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix :: CalendarPage startup stale-while-revalidate first paint Calendar logical viewport process-restoration matrix J post-restore Today yields to a later scroll across termination"
       ]
+    },
+    {
+      "file": "test/features/settings/settings_page_guard_test.dart",
+      "mode": "exact",
+      "plainName": "settings page guard app bar sign-out action signs out and routes through auth gate",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": [
+        "SETTINGS-SIGNOUT-001"
+      ],
+      "expectedIds": [
+        "test/features/settings/settings_page_guard_test.dart :: settings page guard :: app bar sign-out action signs out and routes through auth gate"
+      ]
+    },
+    {
+      "file": "test/features/settings/settings_page_guard_test.dart",
+      "mode": "exact",
+      "plainName": "settings page guard scroll padding does not duplicate the route bottom inset",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": [
+        "SETTINGS-INSET-001"
+      ],
+      "expectedIds": [
+        "test/features/settings/settings_page_guard_test.dart :: settings page guard :: scroll padding does not duplicate the route bottom inset"
+      ]
+    },
+    {
+      "file": "test/features/settings/settings_page_guard_test.dart",
+      "mode": "exact",
+      "plainName": "settings page guard daily cosmic context toggle stays in calendar content settings",
+      "evidenceType": "storage-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": [
+        "SETTINGS-CONTENT-001"
+      ],
+      "expectedIds": [
+        "test/features/settings/settings_page_guard_test.dart :: settings page guard :: daily cosmic context toggle stays in calendar content settings"
+      ]
+    },
+    {
+      "file": "test/features/settings/settings_page_guard_test.dart",
+      "mode": "exact",
+      "plainName": "settings page guard calendar import settings support web read-only import",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": [
+        "CALENDAR-IMPORT-READONLY-001"
+      ],
+      "expectedIds": [
+        "test/features/settings/settings_page_guard_test.dart :: settings page guard :: calendar import settings support web read-only import"
+      ]
+    },
+    {
+      "file": "test/features/settings/settings_page_guard_test.dart",
+      "mode": "exact",
+      "plainName": "settings page guard build marker renders public version metadata only",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": [
+        "BUILD-MARKER-PUBLIC-001"
+      ],
+      "expectedIds": [
+        "test/features/settings/settings_page_guard_test.dart :: settings page guard :: build marker renders public version metadata only"
+      ]
+    },
+    {
+      "file": "test/features/settings/settings_page_guard_test.dart",
+      "mode": "exact",
+      "plainName": "settings page guard stale local push setting alone cannot enable self-test dispatch",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": [
+        "PUSH-DEVICE-READY-001"
+      ],
+      "expectedIds": [
+        "test/features/settings/settings_page_guard_test.dart :: settings page guard :: stale local push setting alone cannot enable self-test dispatch"
+      ]
     }
   ],
   "processUnits": [
