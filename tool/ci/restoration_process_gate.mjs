@@ -63,6 +63,267 @@ function sha256Json(value) {
 const sentinelKey = 'lock-gate.profile-sentinel.v1';
 const neutralStorageProbePath = '/__lock_gate_storage_probe.html';
 const neutralStorageProbeTitle = 'LOCK_GATE_NEUTRAL_STORAGE_PROBE';
+const restorationAuthorityContract = Object.freeze({
+  databaseName: 'kemetic.restoration.authority.v1',
+  databaseVersion: 1,
+  storeName: 'snapshots',
+  lastActiveUserKey: 'last_user',
+  latestKeyPrefix: 'latest:',
+  authoritySchemaVersion: 1,
+  source: {
+    platform:
+      'mobile/lib/services/restoration_durable_store_web.dart:9-17,53-82,135-203',
+    envelope: 'mobile/lib/services/restoration_durable_store.dart:80-206,215-237',
+    precedence: 'mobile/lib/services/app_restoration_service.dart:1798-1918,2433-2489',
+  },
+  semantics: {
+    validAcknowledgedEnvelopeSuppressesLegacyCandidates: true,
+    legacyMirrorsWrittenAfterAcknowledgedCommit: true,
+    newerOrEqualAcknowledgedGenerationRejectsOlderWrite: true,
+    writeAcknowledgedOn: 'IDBTransaction.oncomplete',
+    legacyMirrorDriftIsDiagnosticOnlyAfterAuthorityAndApplicationRestorePass: true,
+  },
+});
+
+function authorityLatestKey(account) {
+  return `${restorationAuthorityContract.latestKeyPrefix}${account.trim()}`;
+}
+
+export function restorationEnvelopeIntegrity(raw) {
+  const payload = JSON.stringify({
+    authoritySchemaVersion: raw.authoritySchemaVersion,
+    snapshotSchemaVersion: raw.snapshotSchemaVersion,
+    userId: raw.userId,
+    windowId: raw.windowId,
+    generation: raw.generation,
+    snapshotJson: raw.snapshotJson,
+  });
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < payload.length; index += 1) {
+    // Match the deployed Dart-to-JavaScript implementation exactly. The web
+    // compiler emits unsigned truncation after JavaScript-number multiplication
+    // for DurableRestorationEnvelope._integrityFor; Math.imul produces a
+    // different value and would reject production web envelopes.
+    hash = (((hash ^ payload.charCodeAt(index)) >>> 0) * 0x01000193) >>> 0;
+  }
+  return `fnv1a32:${hash.toString(16).padStart(8, '0')}`;
+}
+
+function parseCalendarView(value) {
+  const match = /^(-?\d+)-(\d+)-(\d+)$/.exec(value ?? '');
+  if (!match) return null;
+  return {
+    kYear: Number(match[1]),
+    kMonth: Number(match[2]),
+    kDay: Number(match[3]),
+  };
+}
+
+export function validateRestorationAuthorityRead(
+  authorityRead,
+  { account, expectedRoute, expectedCalendarView },
+) {
+  if (
+    authorityRead?.databaseName !== restorationAuthorityContract.databaseName ||
+    authorityRead?.databaseVersion !== restorationAuthorityContract.databaseVersion ||
+    authorityRead?.storeName !== restorationAuthorityContract.storeName ||
+    authorityRead?.transactionMode !== 'readonly' ||
+    authorityRead?.databasePresent !== true ||
+    authorityRead?.storePresent !== true ||
+    authorityRead?.readCompleted !== true ||
+    authorityRead?.writesAttempted !== false
+  ) {
+    throw new Error(
+      `invalid restoration authority reader context: ${JSON.stringify(authorityRead)}`,
+    );
+  }
+  const expectedLatestKey = authorityLatestKey(account);
+  if (
+    authorityRead.lastActiveUserKey !== restorationAuthorityContract.lastActiveUserKey ||
+    authorityRead.latestEnvelopeKey !== expectedLatestKey ||
+    authorityRead.lastActiveUserId !== account
+  ) {
+    throw new Error(
+      `restoration authority principal/key mismatch: ${JSON.stringify({
+        account,
+        lastActiveUserKey: authorityRead.lastActiveUserKey,
+        latestEnvelopeKey: authorityRead.latestEnvelopeKey,
+        lastActiveUserId: authorityRead.lastActiveUserId,
+      })}`,
+    );
+  }
+  if (
+    typeof authorityRead.latestEnvelope !== 'string' ||
+    authorityRead.latestEnvelope.trim() === ''
+  ) {
+    throw new Error('acknowledged restoration envelope is missing');
+  }
+  let envelope;
+  let snapshot;
+  try {
+    envelope = JSON.parse(authorityRead.latestEnvelope);
+    snapshot = JSON.parse(envelope.snapshotJson);
+  } catch (error) {
+    throw new Error(`acknowledged restoration envelope is malformed: ${error}`);
+  }
+  if (
+    envelope.authoritySchemaVersion !==
+      restorationAuthorityContract.authoritySchemaVersion ||
+    !Number.isInteger(envelope.snapshotSchemaVersion) ||
+    envelope.snapshotSchemaVersion < 1 ||
+    envelope.userId !== account ||
+    typeof envelope.windowId !== 'string' ||
+    envelope.windowId.trim() === '' ||
+    !Number.isInteger(envelope.generation) ||
+    envelope.generation < 0 ||
+    typeof envelope.snapshotJson !== 'string' ||
+    typeof envelope.integrity !== 'string'
+  ) {
+    throw new Error(
+      `acknowledged restoration envelope schema/binding is invalid: ${JSON.stringify(envelope)}`,
+    );
+  }
+  const expectedIntegrity = restorationEnvelopeIntegrity(envelope);
+  if (envelope.integrity !== expectedIntegrity) {
+    throw new Error(
+      `acknowledged restoration envelope integrity mismatch: ` +
+        `expected=${expectedIntegrity} observed=${envelope.integrity}`,
+    );
+  }
+  if (
+    snapshot?.schemaVersion !== envelope.snapshotSchemaVersion ||
+    snapshot?.userId !== account ||
+    snapshot?.userId !== envelope.userId ||
+    snapshot?.windowId !== envelope.windowId ||
+    snapshot?.updatedAtMs !== envelope.generation ||
+    snapshot?.routeLocation !== expectedRoute
+  ) {
+    throw new Error(
+      `acknowledged snapshot principal/generation/route mismatch: ${JSON.stringify({
+        expectedAccount: account,
+        expectedRoute,
+        envelopeUserId: envelope.userId,
+        envelopeWindowId: envelope.windowId,
+        envelopeGeneration: envelope.generation,
+        snapshotUserId: snapshot?.userId,
+        snapshotWindowId: snapshot?.windowId,
+        snapshotUpdatedAtMs: snapshot?.updatedAtMs,
+        snapshotRoute: snapshot?.routeLocation,
+      })}`,
+    );
+  }
+  const launchMetadata = snapshot.launchRouteMetadata;
+  if (
+    launchMetadata?.routeClass !== 'durablePrimary' ||
+    launchMetadata?.canonicalRoute !== expectedRoute ||
+    launchMetadata?.canRestoreAsSurface !== true
+  ) {
+    throw new Error(
+      `acknowledged snapshot lacks durable primary route metadata: ` +
+        JSON.stringify(launchMetadata),
+    );
+  }
+  const calendar = snapshot.calendar;
+  const expectedCalendar =
+    expectedCalendarView === undefined
+      ? undefined
+      : parseCalendarView(expectedCalendarView);
+  if (
+    (expectedCalendarView !== undefined && !expectedCalendar) ||
+    !calendar ||
+    !Number.isInteger(calendar.kYear) ||
+    !Number.isInteger(calendar.kMonth) ||
+    !Number.isInteger(calendar.kDay) ||
+    (expectedCalendar !== undefined &&
+      (calendar.kYear !== expectedCalendar.kYear ||
+        calendar.kMonth !== expectedCalendar.kMonth ||
+        calendar.kDay !== expectedCalendar.kDay)) ||
+    typeof calendar.anchorTarget !== 'string' ||
+    calendar.anchorTarget.trim() === '' ||
+    !Number.isFinite(calendar.anchorAlignment) ||
+    !Number.isFinite(calendar.viewportHeight) ||
+    !Number.isInteger(calendar.layoutRevision)
+  ) {
+    throw new Error(
+      `acknowledged snapshot Calendar anchor/placement mismatch: ${JSON.stringify({
+        expectedCalendar,
+        calendar,
+      })}`,
+    );
+  }
+  return {
+    databaseName: authorityRead.databaseName,
+    databaseVersion: authorityRead.databaseVersion,
+    storeName: authorityRead.storeName,
+    lastActiveUserKey: authorityRead.lastActiveUserKey,
+    latestEnvelopeKey: authorityRead.latestEnvelopeKey,
+    account,
+    windowId: envelope.windowId,
+    generation: envelope.generation,
+    routeLocation: snapshot.routeLocation,
+    launchRouteMetadata: launchMetadata,
+    calendar,
+    integrity: envelope.integrity,
+    envelopeSha256: sha256(Buffer.from(authorityRead.latestEnvelope)),
+    commitContract: {
+      explicitEnvelopeCommitMetadata: false,
+      productionAcknowledgement: 'IDBTransaction.oncomplete',
+      postTerminationReadCompleted: authorityRead.readCompleted,
+    },
+  };
+}
+
+export function compareRestorationAuthorityReads(observed, expected, description) {
+  const changedFields = [
+    'databaseName',
+    'databaseVersion',
+    'storeName',
+    'lastActiveUserKey',
+    'latestEnvelopeKey',
+    'lastActiveUserId',
+    'latestEnvelope',
+  ].filter((field) => observed?.[field] !== expected?.[field]);
+  const comparison = {
+    description,
+    changedFields,
+    exact: changedFields.length === 0,
+    expectedEnvelopeSha256:
+      typeof expected?.latestEnvelope === 'string'
+        ? sha256(Buffer.from(expected.latestEnvelope))
+        : null,
+    observedEnvelopeSha256:
+      typeof observed?.latestEnvelope === 'string'
+        ? sha256(Buffer.from(observed.latestEnvelope))
+        : null,
+  };
+  if (!comparison.exact) {
+    throw new Error(
+      `${description} did not preserve the exact acknowledged authority: ` +
+        JSON.stringify({ changedFields }),
+    );
+  }
+  return comparison;
+}
+
+export function legacyMirrorDiagnostics(storage, expected) {
+  const expectedKeys = Object.keys(expected);
+  const missingKeys = expectedKeys.filter((key) => !(key in storage));
+  const changedKeys = expectedKeys.filter(
+    (key) => key in storage && storage[key] !== expected[key],
+  );
+  return {
+    authority: 'diagnostic-only',
+    mayDifferWithoutFailingGate: true,
+    expectedKeys,
+    missingKeys,
+    changedKeys,
+    exact: missingKeys.length === 0 && changedKeys.length === 0,
+    expectedValuesSha256: sha256Json(expected),
+    observedValuesSha256: sha256Json(
+      Object.fromEntries(expectedKeys.map((key) => [key, storage[key]])),
+    ),
+  };
+}
 
 function requiredAppStorageKeys(account) {
   return [
@@ -749,18 +1010,196 @@ async function writeProfileSentinel(cdp, value) {
   })()`);
 }
 
-function captureExactExpectedStorage(storage, { account, sentinelValue }) {
+async function readRestorationAuthority(cdp, account, description) {
+  return evaluateUntil(
+    cdp,
+    `(async () => {
+      const databaseName = ${JSON.stringify(restorationAuthorityContract.databaseName)};
+      const databaseVersion = ${restorationAuthorityContract.databaseVersion};
+      const storeName = ${JSON.stringify(restorationAuthorityContract.storeName)};
+      const lastActiveUserKey = ${JSON.stringify(
+        restorationAuthorityContract.lastActiveUserKey,
+      )};
+      const latestEnvelopeKey = ${JSON.stringify(authorityLatestKey(account))};
+      const databases = typeof indexedDB.databases === 'function'
+        ? await indexedDB.databases()
+        : [];
+      const matchingDatabase = databases.find(
+        (database) => database.name === databaseName,
+      );
+      if (!matchingDatabase) {
+        return {
+          databaseName,
+          databaseVersion,
+          storeName,
+          lastActiveUserKey,
+          latestEnvelopeKey,
+          databasePresent: false,
+          storePresent: false,
+          transactionMode: 'readonly',
+          readCompleted: false,
+          writesAttempted: false,
+          lastActiveUserId: null,
+          latestEnvelope: null,
+        };
+      }
+      const database = await new Promise((resolveDatabase, rejectDatabase) => {
+        const request = indexedDB.open(databaseName);
+        request.onupgradeneeded = () => {
+          request.transaction?.abort();
+          rejectDatabase(new Error('neutral authority reader would create or upgrade storage'));
+        };
+        request.onerror = () => rejectDatabase(
+          request.error ?? new Error('neutral authority database open failed'),
+        );
+        request.onblocked = () => rejectDatabase(
+          new Error('neutral authority database open blocked'),
+        );
+        request.onsuccess = () => resolveDatabase(request.result);
+      });
+      try {
+        if (
+          database.version !== databaseVersion ||
+          !database.objectStoreNames.contains(storeName)
+        ) {
+          return {
+            databaseName,
+            databaseVersion: database.version,
+            storeName,
+            lastActiveUserKey,
+            latestEnvelopeKey,
+            databasePresent: true,
+            storePresent: database.objectStoreNames.contains(storeName),
+            transactionMode: 'readonly',
+            readCompleted: false,
+            writesAttempted: false,
+            lastActiveUserId: null,
+            latestEnvelope: null,
+          };
+        }
+        const transaction = database.transaction(storeName, 'readonly');
+        const completion = new Promise((resolveCompletion, rejectCompletion) => {
+          transaction.oncomplete = () => resolveCompletion(true);
+          transaction.onabort = () => rejectCompletion(
+            transaction.error ?? new Error('neutral authority read aborted'),
+          );
+          transaction.onerror = () => rejectCompletion(
+            transaction.error ?? new Error('neutral authority read failed'),
+          );
+        });
+        const store = transaction.objectStore(storeName);
+        const readKey = (key) => new Promise((resolveValue, rejectValue) => {
+          const request = store.get(key);
+          request.onerror = () => rejectValue(
+            request.error ?? new Error('neutral authority key read failed'),
+          );
+          request.onsuccess = () => resolveValue(request.result ?? null);
+        });
+        const [lastActiveUserId, latestEnvelope] = await Promise.all([
+          readKey(lastActiveUserKey),
+          readKey(latestEnvelopeKey),
+        ]);
+        await completion;
+        return {
+          databaseName,
+          databaseVersion: database.version,
+          storeName,
+          lastActiveUserKey,
+          latestEnvelopeKey,
+          databasePresent: true,
+          storePresent: true,
+          transactionMode: transaction.mode,
+          readCompleted: true,
+          writesAttempted: false,
+          lastActiveUserId,
+          latestEnvelope,
+        };
+      } finally {
+        database.close();
+      }
+    })()`,
+    description,
+  );
+}
+
+async function waitForRestorationAuthority(
+  cdp,
+  account,
+  expectations,
+  description,
+) {
+  const deadline = Date.now() + 30_000;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const read = await readRestorationAuthority(cdp, account, description);
+      const validated = validateRestorationAuthorityRead(read, {
+        account,
+        ...expectations,
+      });
+      return { read, validated };
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
+    }
+  }
+  throw new Error(`${description} did not become authoritative: ${lastError}`);
+}
+
+async function waitForStableRestorationAuthority(
+  cdp,
+  account,
+  expectations,
+  description,
+) {
+  const deadline = Date.now() + 30_000;
+  let previous;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const read = await readRestorationAuthority(cdp, account, description);
+      const validated = validateRestorationAuthorityRead(read, {
+        account,
+        ...expectations,
+      });
+      if (
+        previous !== undefined &&
+        previous.read.lastActiveUserId === read.lastActiveUserId &&
+        previous.read.latestEnvelope === read.latestEnvelope
+      ) {
+        return {
+          read,
+          validated,
+          stableReadEvidence: {
+            consecutiveExactReads: 2,
+            firstReadSha256: sha256Json(previous.read),
+            secondReadSha256: sha256Json(read),
+          },
+        };
+      }
+      previous = { read, validated };
+      lastError = new Error('acknowledged authority changed between consecutive reads');
+    } catch (error) {
+      previous = undefined;
+      lastError = error;
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
+  }
+  throw new Error(`${description} did not become stable and authoritative: ${lastError}`);
+}
+
+function captureLegacyMirrorBaseline(storage, { account, sentinelValue }) {
   const keys = [sentinelKey, ...requiredAppStorageKeys(account)];
   const missingKeys = keys.filter((key) => !(key in storage));
-  if (missingKeys.length > 0) {
-    throw new Error(
-      `live process is missing required storage values: ${JSON.stringify(missingKeys)}`,
-    );
-  }
   if (storage[sentinelKey] !== sentinelValue) {
     throw new Error('live process sentinel value changed before termination');
   }
-  return Object.fromEntries(keys.map((key) => [key, storage[key]]));
+  return {
+    values: Object.fromEntries(
+      keys.filter((key) => key in storage).map((key) => [key, storage[key]]),
+    ),
+    missingKeys,
+  };
 }
 
 function requireExactStorageValues(storage, expected, description) {
@@ -790,49 +1229,31 @@ function requireExactStorageValues(storage, expected, description) {
   return comparison;
 }
 
-function calendarPersistenceSnapshot(storage, account) {
-  const key = `kemetic.restoration.critical.latest.v2:${account}`;
-  const value = JSON.parse(storage[key]);
-  const calendar = value?.calendar;
-  if (
-    !calendar ||
-    !Number.isInteger(calendar.kYear) ||
-    !Number.isInteger(calendar.kMonth) ||
-    !Number.isInteger(calendar.kDay) ||
-    typeof calendar.anchorTarget !== 'string' ||
-    !Number.isFinite(calendar.anchorAlignment)
-  ) {
-    throw new Error(`invalid Calendar persistence snapshot in ${key}`);
-  }
-  return {
-    key,
-    routeLocation: value.routeLocation,
-    updatedAtMs: value.updatedAtMs,
-    calendar,
-    sha256: sha256Json(calendar),
-  };
-}
-
-function requireRestoredCalendarPlacement({ state, expectedView, expectedSnapshot, account }) {
-  const actualSnapshot = calendarPersistenceSnapshot(state.localStorage, account);
-  const logicalAnchor = `${actualSnapshot.calendar.kYear}-${actualSnapshot.calendar.kMonth}-${actualSnapshot.calendar.kDay}`;
+function requireRestoredCalendarPlacement({
+  state,
+  expectedSnapshot,
+  observedAuthority,
+}) {
+  const actualCalendar = observedAuthority.calendar;
+  const logicalAnchor =
+    `${actualCalendar.kYear}-${actualCalendar.kMonth}-${actualCalendar.kDay}`;
+  const expectedLogicalAnchor =
+    `${expectedSnapshot.calendar.kYear}-${expectedSnapshot.calendar.kMonth}-` +
+    `${expectedSnapshot.calendar.kDay}`;
   const placementMatched =
-    actualSnapshot.calendar.anchorTarget === expectedSnapshot.calendar.anchorTarget &&
-    actualSnapshot.calendar.anchorAlignment === expectedSnapshot.calendar.anchorAlignment &&
-    actualSnapshot.calendar.viewportHeight === expectedSnapshot.calendar.viewportHeight &&
-    actualSnapshot.calendar.layoutRevision === expectedSnapshot.calendar.layoutRevision;
+    actualCalendar.anchorTarget === expectedSnapshot.calendar.anchorTarget &&
+    actualCalendar.anchorAlignment === expectedSnapshot.calendar.anchorAlignment &&
+    actualCalendar.viewportHeight === expectedSnapshot.calendar.viewportHeight &&
+    actualCalendar.layoutRevision === expectedSnapshot.calendar.layoutRevision;
   const comparison = {
-    expectedView,
+    expectedView: expectedLogicalAnchor,
     observedView: state.view,
-    expectedLogicalAnchor:
-      `${expectedSnapshot.calendar.kYear}-${expectedSnapshot.calendar.kMonth}-${expectedSnapshot.calendar.kDay}`,
+    expectedLogicalAnchor,
     observedLogicalAnchor: logicalAnchor,
     expectedPlacement: expectedSnapshot.calendar,
-    observedPlacement: actualSnapshot.calendar,
+    observedPlacement: actualCalendar,
     logicalAnchorMatched:
-      state.view === expectedView &&
-      logicalAnchor ===
-        `${expectedSnapshot.calendar.kYear}-${expectedSnapshot.calendar.kMonth}-${expectedSnapshot.calendar.kDay}`,
+      state.view === expectedLogicalAnchor && logicalAnchor === expectedLogicalAnchor,
     placementMatched,
   };
   if (!comparison.logicalAnchorMatched || !comparison.placementMatched) {
@@ -1114,12 +1535,13 @@ async function main() {
   const account = 'restoration-e2e-lock-gate';
   const sentinelValue = `profile-${sha256Json({ buildId, origin, profile })}`;
   const receipt = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     passed: false,
     buildId,
     browserBinary: binary,
     origin,
     accountNamespace: account,
+    restorationAuthorityContract,
     profile: {
       path: profile,
       pathSha256: sha256(Buffer.from(profile)),
@@ -1179,24 +1601,54 @@ async function main() {
             `cycle ${cycleNumber} ${boundaryName} was not on Planner before termination`,
           );
         }
-        const expectedStorage = captureExactExpectedStorage(liveState.localStorage, {
+        const legacyBaseline = captureLegacyMirrorBaseline(liveState.localStorage, {
           account,
           sentinelValue,
         });
-        const expectedCalendarSnapshot = calendarPersistenceSnapshot(
-          expectedStorage,
-          account,
+        const profileBeforeTermination = await captureProfileEvidence(profile);
+        const screenshotBeforeTermination = await screenshot(
+          active.cdp,
+          join(
+            resultsDir,
+            `cycle-${cycleNumber}-${boundaryName}-planner-before-sigterm.png`,
+          ),
         );
+        // Make the final pre-SIGTERM operation a predicate-based confirmation
+        // that the acknowledged envelope has stopped advancing. This prevents
+        // an older, already-valid read from racing a later acknowledged write.
+        const expectedAuthority = await waitForStableRestorationAuthority(
+          active.cdp,
+          account,
+          {
+            expectedRoute: liveState.route,
+          },
+          `cycle ${cycleNumber} ${boundaryName} live acknowledged authority`,
+        );
+        const selectedCalendar = parseCalendarView(expectedView);
+        const authoritativeCalendar = expectedAuthority.validated.calendar;
+        if (!selectedCalendar || authoritativeCalendar.kYear !== selectedCalendar.kYear) {
+          throw new Error(
+            `cycle ${cycleNumber} ${boundaryName} acknowledged Calendar year drifted ` +
+              `from the selected distant position: ${JSON.stringify({
+                selectedCalendar,
+                authoritativeCalendar,
+              })}`,
+          );
+        }
+        const authoritativeCalendarView =
+          `${authoritativeCalendar.kYear}-${authoritativeCalendar.kMonth}-` +
+          `${authoritativeCalendar.kDay}`;
+        const expectedCalendarSnapshot = {
+          key: expectedAuthority.read.latestEnvelopeKey,
+          routeLocation: expectedAuthority.validated.routeLocation,
+          updatedAtMs: expectedAuthority.validated.generation,
+          calendar: expectedAuthority.validated.calendar,
+          sha256: sha256Json(expectedAuthority.validated.calendar),
+        };
         const liveStorageText = Object.entries(liveState.localStorage).flat().join('\n');
         const missingLiveTokens = requiredTokens.filter(
           (token) => !liveStorageText.includes(token),
         );
-        if (missingLiveTokens.length > 0) {
-          throw new Error(
-            `cycle ${cycleNumber} ${boundaryName} live storage was incomplete: ` +
-              JSON.stringify(missingLiveTokens),
-          );
-        }
         const terminatedApplicationPid = active.realBrowserPid;
         const applicationEvidence = {
           ...browserLaunchEvidence(active),
@@ -1204,25 +1656,31 @@ async function main() {
           cycleNumber,
           boundaryName,
           expectedSurface: 'Planner',
-          expectedCalendarView: expectedView,
+          selectedCalendarViewBeforePlanner: expectedView,
+          expectedCalendarView: authoritativeCalendarView,
           liveState,
-          exactExpectedStorage: expectedStorage,
-          exactExpectedStorageSha256: sha256Json(expectedStorage),
+          expectedAuthority: expectedAuthority.read,
+          validatedExpectedAuthority: expectedAuthority.validated,
+          expectedAuthoritySha256: sha256Json(expectedAuthority.read),
+          legacyMirrorBaseline: legacyBaseline,
           expectedCalendarSnapshot,
           durabilityBeforeTermination: {
-            authority: 'live window.localStorage exact-value read',
-            requiredExactKeys: Object.keys(expectedStorage),
-            requiredTokens,
-            missingTokens: missingLiveTokens,
+            authority: 'acknowledged IndexedDB envelope exact-value read',
+            databaseName: restorationAuthorityContract.databaseName,
+            databaseVersion: restorationAuthorityContract.databaseVersion,
+            storeName: restorationAuthorityContract.storeName,
+            latestEnvelopeKey: expectedAuthority.read.latestEnvelopeKey,
+            transactionMode: expectedAuthority.read.transactionMode,
+            readCompleted: expectedAuthority.read.readCompleted,
+            writesAttempted: expectedAuthority.read.writesAttempted,
+            productionAcknowledgement: 'IDBTransaction.oncomplete',
+            stableReadEvidence: expectedAuthority.stableReadEvidence,
+            legacyMirrorTokens: requiredTokens,
+            missingLegacyMirrorTokens: missingLiveTokens,
+            legacyMirrorsAuthoritative: false,
           },
-          profileBeforeTermination: await captureProfileEvidence(profile),
-          screenshot: await screenshot(
-            active.cdp,
-            join(
-              resultsDir,
-              `cycle-${cycleNumber}-${boundaryName}-planner-before-sigterm.png`,
-            ),
-          ),
+          profileBeforeTermination,
+          screenshot: screenshotBeforeTermination,
           observedAt: new Date().toISOString(),
         };
         receipt.launches.push(applicationEvidence);
@@ -1281,16 +1739,55 @@ async function main() {
               JSON.stringify(neutralState),
           );
         }
-        const neutralComparison = requireExactStorageValues(
-          neutralState.localStorage,
-          expectedStorage,
+        const neutralAuthority = await readRestorationAuthority(
+          active.cdp,
+          account,
+          `cycle ${cycleNumber} ${boundaryName} neutral acknowledged authority`,
+        );
+        const validatedNeutralAuthority = validateRestorationAuthorityRead(
+          neutralAuthority,
+          {
+            account,
+            expectedRoute: liveState.route,
+            expectedCalendarView: authoritativeCalendarView,
+          },
+        );
+        const neutralAuthorityComparison = compareRestorationAuthorityReads(
+          neutralAuthority,
+          expectedAuthority.read,
           `cycle ${cycleNumber} ${boundaryName} neutral fresh process`,
         );
         const secondNeutralRead = await readNeutralStorageProbe(active.cdp);
-        const neutralReadOnlyComparison = requireExactStorageValues(
-          secondNeutralRead.localStorage,
-          expectedStorage,
+        const secondNeutralAuthority = await readRestorationAuthority(
+          active.cdp,
+          account,
+          `cycle ${cycleNumber} ${boundaryName} neutral read-only authority`,
+        );
+        const validatedSecondNeutralAuthority = validateRestorationAuthorityRead(
+          secondNeutralAuthority,
+          {
+            account,
+            expectedRoute: liveState.route,
+            expectedCalendarView: authoritativeCalendarView,
+          },
+        );
+        const neutralAuthorityReadOnlyComparison = compareRestorationAuthorityReads(
+          secondNeutralAuthority,
+          neutralAuthority,
           `cycle ${cycleNumber} ${boundaryName} neutral read-only verification`,
+        );
+        const neutralLocalStorageReadOnlyComparison = requireExactStorageValues(
+          secondNeutralRead.localStorage,
+          neutralState.localStorage,
+          `cycle ${cycleNumber} ${boundaryName} neutral localStorage read-only verification`,
+        );
+        const firstLegacyMirrorDiagnostic = legacyMirrorDiagnostics(
+          neutralState.localStorage,
+          legacyBaseline.values,
+        );
+        const secondLegacyMirrorDiagnostic = legacyMirrorDiagnostics(
+          secondNeutralRead.localStorage,
+          legacyBaseline.values,
         );
         const neutralEvidence = {
           ...browserLaunchEvidence(active),
@@ -1302,8 +1799,16 @@ async function main() {
           flutterApplicationBooted: false,
           firstRead: neutralState,
           secondRead: secondNeutralRead,
-          exactValueComparison: neutralComparison,
-          readOnlyComparison: neutralReadOnlyComparison,
+          authorityContract: restorationAuthorityContract,
+          firstAuthorityRead: neutralAuthority,
+          validatedFirstAuthorityRead: validatedNeutralAuthority,
+          secondAuthorityRead: secondNeutralAuthority,
+          validatedSecondAuthorityRead: validatedSecondNeutralAuthority,
+          exactAuthorityComparison: neutralAuthorityComparison,
+          authorityReadOnlyComparison: neutralAuthorityReadOnlyComparison,
+          localStorageReadOnlyComparison: neutralLocalStorageReadOnlyComparison,
+          firstLegacyMirrorDiagnostic,
+          secondLegacyMirrorDiagnostic,
           screenshot: await screenshot(
             active.cdp,
             join(resultsDir, `cycle-${cycleNumber}-${boundaryName}-neutral-reader.png`),
@@ -1329,6 +1834,23 @@ async function main() {
           throw new Error('fresh application did not use a distinct Chrome PID');
         }
         const restoredPlanner = await readTodayProcessHarnessState(active.cdp, buildId);
+        const restoredApplicationAuthority = await readRestorationAuthority(
+          active.cdp,
+          account,
+          `cycle ${cycleNumber} ${boundaryName} restored application authority`,
+        );
+        const validatedRestoredApplicationAuthority =
+          validateRestorationAuthorityRead(restoredApplicationAuthority, {
+            account,
+            expectedRoute: restoredPlanner.route,
+            expectedCalendarView: authoritativeCalendarView,
+          });
+        const restoredApplicationAuthorityComparison =
+          compareRestorationAuthorityReads(
+            restoredApplicationAuthority,
+            expectedAuthority.read,
+            `cycle ${cycleNumber} ${boundaryName} restored application`,
+          );
         const classification = classifyFreshProcess({
           state: restoredPlanner,
           expectedSurface: 'Planner',
@@ -1352,6 +1874,13 @@ async function main() {
             active.realBrowserPid !== terminatedApplicationPid,
           distinctFromNeutralPid: active.realBrowserPid !== neutralPid,
           initialState: restoredPlanner,
+          authorityRead: restoredApplicationAuthority,
+          validatedAuthority: validatedRestoredApplicationAuthority,
+          authorityComparison: restoredApplicationAuthorityComparison,
+          legacyMirrorDiagnostic: legacyMirrorDiagnostics(
+            restoredPlanner.localStorage,
+            legacyBaseline.values,
+          ),
           profileImmediatelyAfterStart: await captureProfileEvidence(profile),
           observedAt: new Date().toISOString(),
         };
@@ -1359,13 +1888,17 @@ async function main() {
         const verification = {
           cycleNumber,
           boundaryName,
-          expectedStorageSha256: sha256Json(expectedStorage),
+          expectedAuthoritySha256: sha256Json(expectedAuthority.read),
           rawLevelDbDiagnostic: rawLevelDbEvidence,
           rawLevelDbPredicateAuthoritative: false,
+          legacyMirrorBaseline: legacyBaseline,
+          legacyMirrorsAuthoritative: false,
           neutralProcess: neutralEvidence,
           expectedCalendarSnapshot,
           restoredApplicationPid: active.realBrowserPid,
           restoredPlanner,
+          restoredApplicationAuthority,
+          restoredApplicationAuthorityComparison,
         };
         receipt.neutralStorageVerifications.push(verification);
         return {
@@ -1411,12 +1944,14 @@ async function main() {
         const selectedState = firstFarScroll.state;
         const selectedAnchor = parseKemeticAnchor(selectedState.view);
         if (!selectedAnchor) throw new Error(`invalid far Calendar view ${selectedState.view}`);
-        await evaluateUntil(
+        const selectedCalendarAuthority = await waitForRestorationAuthority(
           active.cdp,
-          `(() => Object.values(localStorage).some((value) =>
-            String(value).includes(${JSON.stringify(`\"kYear\":${selectedAnchor.kYear}`)})
-          ) ? true : null)()`,
-          `cycle ${cycleNumber} durable far Calendar year before Planner`,
+          account,
+          {
+            expectedRoute: '/',
+            expectedCalendarView: selectedState.view,
+          },
+          `cycle ${cycleNumber} acknowledged far Calendar before Planner`,
         );
         await sendHarnessKey(active.cdp, 'p');
         await waitForTodayProcessState(
@@ -1444,14 +1979,23 @@ async function main() {
           `cycle ${cycleNumber} far Calendar after neutral and application processes`,
         );
         const restoredFarState = await readTodayProcessHarnessState(active.cdp, buildId);
+        const restoredFarAuthority = await waitForRestorationAuthority(
+          active.cdp,
+          account,
+          {
+            expectedRoute: '/',
+            expectedCalendarView: restoredFarState.view,
+          },
+          `cycle ${cycleNumber} restored far Calendar authority`,
+        );
         const restoredFarPlacement = requireRestoredCalendarPlacement({
           state: restoredFarState,
-          expectedView: selectedState.view,
           expectedSnapshot: firstBoundary.expectedCalendarSnapshot,
-          account,
+          observedAuthority: restoredFarAuthority.validated,
         });
         Object.assign(firstBoundary.applicationLaunchEvidence, {
           restoredCalendarState: restoredFarState,
+          restoredCalendarAuthority: restoredFarAuthority,
           restoredCalendarPlacement: restoredFarPlacement,
           screenshot: await screenshot(
             active.cdp,
@@ -1514,12 +2058,14 @@ async function main() {
         if (!laterAnchor || laterState.view === laterState.today) {
           throw new Error(`later manual Calendar position was not selected: ${laterState.view}`);
         }
-        await evaluateUntil(
+        const laterCalendarAuthority = await waitForRestorationAuthority(
           active.cdp,
-          `(() => Object.values(localStorage).some((value) =>
-            String(value).includes(${JSON.stringify(`\"kYear\":${laterAnchor.kYear}`)})
-          ) ? true : null)()`,
-          `cycle ${cycleNumber} durable later manual Calendar year after Today`,
+          account,
+          {
+            expectedRoute: '/',
+            expectedCalendarView: laterState.view,
+          },
+          `cycle ${cycleNumber} acknowledged later manual Calendar after Today`,
         );
         await sendHarnessKey(active.cdp, 'p');
         await waitForTodayProcessState(
@@ -1550,14 +2096,23 @@ async function main() {
         if (restoredLaterState.view === restoredLaterState.today) {
           throw new Error('later manual Calendar position restored as Today');
         }
+        const restoredLaterAuthority = await waitForRestorationAuthority(
+          active.cdp,
+          account,
+          {
+            expectedRoute: '/',
+            expectedCalendarView: restoredLaterState.view,
+          },
+          `cycle ${cycleNumber} restored later Calendar authority`,
+        );
         const restoredLaterPlacement = requireRestoredCalendarPlacement({
           state: restoredLaterState,
-          expectedView: laterState.view,
           expectedSnapshot: secondBoundary.expectedCalendarSnapshot,
-          account,
+          observedAuthority: restoredLaterAuthority.validated,
         });
         Object.assign(secondBoundary.applicationLaunchEvidence, {
           restoredCalendarState: restoredLaterState,
+          restoredCalendarAuthority: restoredLaterAuthority,
           restoredCalendarPlacement: restoredLaterPlacement,
           screenshot: await screenshot(
             active.cdp,
@@ -1572,7 +2127,9 @@ async function main() {
           firstFarScroll: {
             observations: firstFarScroll.observations,
             selectedState,
+            selectedAuthority: selectedCalendarAuthority,
             restoredState: restoredFarState,
+            restoredAuthority: restoredFarAuthority,
             restoredPlacement: restoredFarPlacement,
           },
           manualStateBeforeToday: manualState,
@@ -1581,7 +2138,9 @@ async function main() {
           laterManualScroll: {
             observations: laterScroll.observations,
             selectedState: laterState,
+            selectedAuthority: laterCalendarAuthority,
             restoredState: restoredLaterState,
+            restoredAuthority: restoredLaterAuthority,
             restoredPlacement: restoredLaterPlacement,
           },
           firstBoundary: firstBoundary.verification,
