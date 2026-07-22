@@ -4,7 +4,8 @@
     "test/widgets/global_drawer_navigation_contract_test.dart",
     "test/widgets/global_navigation_shell_test.dart",
     "test/widgets/flow_studio_primary_stack_contract_test.dart",
-    "test/widgets/utility_fallback_navigation_contract_test.dart"
+    "test/widgets/utility_fallback_navigation_contract_test.dart",
+    "test/services/web_restoration_durability_contract_test.dart"
   ],
   "units": [
     {
@@ -42,6 +43,15 @@
       "contractRefs": ["UX-RESTORE-001", "UX-RESTORE-002", "UX-RESTORE-003"],
       "expectedTestCount": 55,
       "expectedIdsSha256": "016a80f9ae4411ea68ef68e3d8fa322ae1515d59a0d9c089f9189b68366f7ad4"
+    },
+    {
+      "file": "test/services/web_restoration_durability_contract_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "storage-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["WEB-RESTORE-DURABILITY-001"],
+      "expectedTestCount": 9,
+      "expectedIdsSha256": "b6a0d837c91a3192937060bae547a503a2261f705b21112c4001c8c6a428f892"
     },
     {
       "file": "test/services/restoration_coordinator_test.dart",
