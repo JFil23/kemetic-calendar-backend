@@ -4,18 +4,6 @@
   "maxLifetimeDays": 14,
   "entries": [
     {
-      "file": "test/features/calendar/the_reading_house_flow_test.dart",
-      "groupHierarchy": [],
-      "testName": "joined readers keep Reading House flow context in Day View",
-      "normalizedCategory": "guard-allowlist-violation",
-      "classification": "BRITTLE_IMPLEMENTATION_GUARD",
-      "contractRef": "READING-HOUSE-DAYVIEW-FLOW-CONTEXT-001",
-      "ticket": "TEST-READING-HOUSE-GUARD-001",
-      "owner": "Calendar / Reading House",
-      "created": "2026-07-18",
-      "expires": "2026-07-31"
-    },
-    {
       "file": "test/services/navigation_trace_guard_test.dart",
       "groupHierarchy": ["navigation trace guard"],
       "testName": "source contains the PWA tap-path labels and overlay state",
