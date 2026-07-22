@@ -9,7 +9,7 @@ monitor.
 The locked shard has no quarantine input. Its exact behavioral inventory is in
 `locked-contracts.json`; every whole-file selection is pinned by test count and
 the SHA-256 of its sorted stable IDs, and every mixed-file selection must emit
-exactly one expected stable ID. Source-string and grep guards are rejected as
+exactly its declared stable-ID set. Source-string and grep guards are rejected as
 locked evidence. `NAV-CONTRACT-001` and the complete navigation matrix are
 never quarantinable.
 

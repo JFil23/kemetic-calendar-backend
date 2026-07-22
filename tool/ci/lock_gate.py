@@ -307,8 +307,8 @@ def _load_locked_manifest(path: Path) -> tuple[dict[str, Any], list[str]]:
             if not isinstance(unit.get("plainName"), str) or not unit["plainName"]:
                 errors.append(f"locked exact unit {index} lacks plainName")
             expected = unit.get("expectedIds")
-            if not isinstance(expected, list) or len(expected) != 1:
-                errors.append(f"locked exact unit {index} must contain one expectedId")
+            if not isinstance(expected, list) or not expected:
+                errors.append(f"locked exact unit {index} lacks expectedIds")
         else:
             count = unit.get("expectedTestCount")
             digest = unit.get("expectedIdsSha256")

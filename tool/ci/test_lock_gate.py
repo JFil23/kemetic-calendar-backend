@@ -4,7 +4,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 
-from tool.ci.lock_gate import evaluate_full_suite, stable_id
+from tool.ci.lock_gate import _load_locked_manifest, evaluate_full_suite, stable_id
 
 
 class LockGateEvaluatorTest(unittest.TestCase):
@@ -190,6 +190,17 @@ class LockGateEvaluatorTest(unittest.TestCase):
             "created": created,
             "expires": expires,
         }
+
+    def test_locked_exact_unit_accepts_declared_multi_test_set(self) -> None:
+        identities = [
+            stable_id("test/example_test.dart", ["matrix"], "case A"),
+            stable_id("test/example_test.dart", ["matrix"], "case B"),
+        ]
+        manifest = self._locked(identities)
+
+        _, errors = _load_locked_manifest(manifest)
+
+        self.assertEqual(errors, [])
 
     def _evaluate(self, run: Path, registry: Path, locked: Path, status: int):
         return evaluate_full_suite(
