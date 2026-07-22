@@ -954,6 +954,204 @@ async function waitForTodayProcessState(cdp, buildId, predicate, description) {
   );
 }
 
+function restorationAuthorityCalendarView(authority) {
+  const calendar = authority?.validated?.calendar;
+  if (
+    !Number.isInteger(calendar?.kYear) ||
+    !Number.isInteger(calendar?.kMonth) ||
+    !Number.isInteger(calendar?.kDay)
+  ) {
+    return null;
+  }
+  return `${calendar.kYear}-${calendar.kMonth}-${calendar.kDay}`;
+}
+
+export async function waitForTodayViewportQuiescence({
+  minimumYear,
+  description,
+  readObservation,
+  waitForNextObservation,
+  timeoutMs = 30_000,
+  requiredConsecutive = 12,
+  now = Date.now,
+}) {
+  if (!Number.isInteger(minimumYear)) throw new Error('minimumYear must be an integer');
+  if (!Number.isInteger(requiredConsecutive) || requiredConsecutive < 2) {
+    throw new Error('requiredConsecutive must be an integer of at least 2');
+  }
+  if (typeof readObservation !== 'function' || typeof waitForNextObservation !== 'function') {
+    throw new Error('quiescence observation callbacks are required');
+  }
+
+  const startedAtMs = now();
+  const deadline = startedAtMs + timeoutMs;
+  const observations = [];
+  let candidateViewport = null;
+  let previousViewport = null;
+  let consecutiveViewport = 0;
+  let consecutiveAuthoritativeViewport = 0;
+  let maximumConsecutiveViewport = 0;
+  let maximumConsecutiveAuthoritativeViewport = 0;
+
+  while (now() < deadline) {
+    const observation = await readObservation();
+    const state = observation?.state;
+    const viewport = state?.view ?? null;
+    const anchor = parseKemeticAnchor(viewport);
+    const thresholdReached = anchor !== null && anchor.kYear >= minimumYear;
+    const viewportEligible =
+      state?.route === '/' &&
+      state?.settled === true &&
+      state?.hydrating === false &&
+      thresholdReached;
+    const movementDetected = previousViewport !== null && viewport !== previousViewport;
+    const authorityViewport = restorationAuthorityCalendarView(observation?.authority);
+    const authorityMatchedViewport =
+      viewportEligible &&
+      observation?.authority?.validated?.routeLocation === '/' &&
+      authorityViewport === viewport;
+
+    if (!viewportEligible) {
+      candidateViewport = null;
+      consecutiveViewport = 0;
+      consecutiveAuthoritativeViewport = 0;
+    } else if (candidateViewport !== viewport) {
+      candidateViewport = viewport;
+      consecutiveViewport = 1;
+      consecutiveAuthoritativeViewport = authorityMatchedViewport ? 1 : 0;
+    } else {
+      consecutiveViewport += 1;
+      consecutiveAuthoritativeViewport = authorityMatchedViewport
+        ? consecutiveAuthoritativeViewport + 1
+        : 0;
+    }
+    maximumConsecutiveViewport = Math.max(maximumConsecutiveViewport, consecutiveViewport);
+    maximumConsecutiveAuthoritativeViewport = Math.max(
+      maximumConsecutiveAuthoritativeViewport,
+      consecutiveAuthoritativeViewport,
+    );
+
+    const accepted =
+      consecutiveViewport >= requiredConsecutive &&
+      consecutiveAuthoritativeViewport >= requiredConsecutive;
+    const authorityRead = observation?.authority?.read;
+    const diagnostic = {
+      observationIndex: observations.length,
+      observedAtMs: now(),
+      viewport,
+      route: state?.route ?? null,
+      movementDetected,
+      intentGeneration: state?.intentGeneration ?? null,
+      settlementState: state?.settled ?? null,
+      hydrationInFlight: state?.hydrating ?? null,
+      stateIdentity: state?.stateIdentity ?? null,
+      thresholdReached,
+      candidateViewport,
+      consecutiveIdenticalViewportObservations: consecutiveViewport,
+      consecutiveAuthoritativeViewportObservations: consecutiveAuthoritativeViewport,
+      authorityMatchedViewport,
+      authorityViewport,
+      authorityGeneration: observation?.authority?.validated?.generation ?? null,
+      authorityEnvelopeSha256:
+        typeof authorityRead?.latestEnvelope === 'string'
+          ? sha256(Buffer.from(authorityRead.latestEnvelope))
+          : null,
+      authorityError: observation?.authorityError ?? null,
+      accepted,
+    };
+    observations.push(diagnostic);
+    previousViewport = viewport;
+
+    if (accepted) {
+      return {
+        state,
+        authority: observation.authority,
+        evidence: {
+          description,
+          minimumYear,
+          requiredConsecutive,
+          timedOut: false,
+          acceptedObservationIndex: diagnostic.observationIndex,
+          stableViewport: viewport,
+          authorityMatchedViewport: true,
+          consecutiveIdenticalViewportObservations: consecutiveViewport,
+          consecutiveAuthoritativeViewportObservations:
+            consecutiveAuthoritativeViewport,
+          maximumConsecutiveIdenticalViewportObservations: maximumConsecutiveViewport,
+          maximumConsecutiveAuthoritativeViewportObservations:
+            maximumConsecutiveAuthoritativeViewport,
+          observations,
+        },
+      };
+    }
+
+    await waitForNextObservation();
+  }
+
+  const last = observations.at(-1);
+  const evidence = {
+    description,
+    minimumYear,
+    requiredConsecutive,
+    timedOut: true,
+    elapsedMs: now() - startedAtMs,
+    stableViewport: null,
+    authorityMatchedViewport: false,
+    maximumConsecutiveIdenticalViewportObservations: maximumConsecutiveViewport,
+    maximumConsecutiveAuthoritativeViewportObservations:
+      maximumConsecutiveAuthoritativeViewport,
+    observations,
+  };
+  const lastAuthorityDetail = last?.authorityMatchedViewport
+    ? `authority matched viewport ${last.viewport}`
+    : last?.authorityViewport === null || last?.authorityViewport === undefined
+      ? `authority unavailable: ${last?.authorityError ?? 'no acknowledged Calendar authority'}`
+      : `authority Calendar ${last.authorityViewport} did not match viewport ${last?.viewport}`;
+  const error = new Error(
+    `${description} did not become quiescent and authoritative; ` +
+      `lastViewport=${last?.viewport ?? 'none'}; ` +
+      `intentGeneration=${last?.intentGeneration ?? 'none'}; ` +
+      `settled=${last?.settlementState ?? 'none'}; ` +
+      `maxConsecutiveViewport=${maximumConsecutiveViewport}; ` +
+      `maxConsecutiveAuthoritativeViewport=${maximumConsecutiveAuthoritativeViewport}; ` +
+      lastAuthorityDetail,
+  );
+  error.quiescenceEvidence = evidence;
+  throw error;
+}
+
+async function waitForTodayProcessViewportQuiescence(
+  cdp,
+  buildId,
+  account,
+  minimumYear,
+  description,
+) {
+  return waitForTodayViewportQuiescence({
+    minimumYear,
+    description,
+    readObservation: async () => {
+      const state = await readTodayProcessHarnessState(cdp, buildId);
+      try {
+        const read = await readRestorationAuthority(cdp, account, description);
+        const validated = validateRestorationAuthorityRead(read, {
+          account,
+          expectedRoute: '/',
+          expectedCalendarView: state.view,
+        });
+        return { state, authority: { read, validated } };
+      } catch (error) {
+        return { state, authority: null, authorityError: error?.stack ?? String(error) };
+      }
+    },
+    waitForNextObservation: () =>
+      cdp.evaluate(
+        `new Promise((resolveFrame) => requestAnimationFrame(() => ` +
+          `requestAnimationFrame(() => resolveFrame(true))))`,
+      ),
+  });
+}
+
 async function synthesizeCalendarSwipe(cdp, direction = 'future') {
   await cdp.call('Input.synthesizeScrollGesture', {
     x: 640,
@@ -964,14 +1162,26 @@ async function synthesizeCalendarSwipe(cdp, direction = 'future') {
   });
 }
 
-async function scrollTodayProcessToYear(cdp, buildId, minimumYear) {
+async function scrollTodayProcessToYear(cdp, buildId, account, minimumYear) {
   const observations = [];
   for (let attempt = 0; attempt < 80; attempt += 1) {
     const before = await readTodayProcessHarnessState(cdp, buildId);
     const beforeAnchor = parseKemeticAnchor(before.view);
     observations.push({ attempt, phase: 'before', state: before });
     if (beforeAnchor && beforeAnchor.kYear >= minimumYear) {
-      return { state: before, observations };
+      const quiescent = await waitForTodayProcessViewportQuiescence(
+        cdp,
+        buildId,
+        account,
+        minimumYear,
+        `Calendar viewport at or beyond Kemetic year ${minimumYear}`,
+      );
+      return {
+        state: quiescent.state,
+        authority: quiescent.authority,
+        observations,
+        quiescence: quiescent.evidence,
+      };
     }
     await synthesizeCalendarSwipe(cdp, 'future');
     const after = await readTodayProcessHarnessState(cdp, buildId);
@@ -1939,6 +2149,7 @@ async function main() {
         const firstFarScroll = await scrollTodayProcessToYear(
           active.cdp,
           buildId,
+          account,
           todayAnchor.kYear + 3,
         );
         const selectedState = firstFarScroll.state;
@@ -2006,6 +2217,7 @@ async function main() {
         const manualScroll = await scrollTodayProcessToYear(
           active.cdp,
           buildId,
+          account,
           selectedAnchor.kYear + 1,
         );
         const manualState = manualScroll.state;
@@ -2051,6 +2263,7 @@ async function main() {
         const laterScroll = await scrollTodayProcessToYear(
           active.cdp,
           buildId,
+          account,
           todayAnchor.kYear + cycleNumber,
         );
         const laterState = laterScroll.state;
@@ -2126,6 +2339,7 @@ async function main() {
           startState: cycleStartState,
           firstFarScroll: {
             observations: firstFarScroll.observations,
+            quiescence: firstFarScroll.quiescence,
             selectedState,
             selectedAuthority: selectedCalendarAuthority,
             restoredState: restoredFarState,
@@ -2134,9 +2348,11 @@ async function main() {
           },
           manualStateBeforeToday: manualState,
           manualTouchScrollObservations: manualScroll.observations,
+          manualTouchScrollQuiescence: manualScroll.quiescence,
           todayStabilitySamples: todaySamples,
           laterManualScroll: {
             observations: laterScroll.observations,
+            quiescence: laterScroll.quiescence,
             selectedState: laterState,
             selectedAuthority: laterCalendarAuthority,
             restoredState: restoredLaterState,
@@ -2350,6 +2566,9 @@ async function main() {
     }
   } catch (error) {
     receipt.error = error?.stack ?? String(error);
+    if (error?.quiescenceEvidence) {
+      receipt.quiescenceFailure = error.quiescenceEvidence;
+    }
     if (error?.terminationEvidence) {
       receipt.forcedTerminations.push(error.terminationEvidence);
       active = undefined;
