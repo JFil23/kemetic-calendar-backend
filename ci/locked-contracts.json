@@ -220,6 +220,19 @@
       ]
     },
     {
+      "file": "test/features/calendar/the_reading_house_flow_test.dart",
+      "mode": "exact",
+      "plainName": "joined readers keep Reading House flow context in Day View",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": [
+        "READING-HOUSE-DAYVIEW-FLOW-CONTEXT-001"
+      ],
+      "expectedIds": [
+        "test/features/calendar/the_reading_house_flow_test.dart :: joined readers keep Reading House flow context in Day View"
+      ]
+    },
+    {
       "file": "test/features/settings/settings_page_guard_test.dart",
       "mode": "exact",
       "plainName": "settings page guard app bar sign-out action signs out and routes through auth gate",
