@@ -890,9 +890,17 @@ async function readTodayProcessHarnessState(cdp, buildId) {
           : [entry.slice(0, separator), entry.slice(separator + 1)];
       }));
       const route = parts[2];
+      // route is serialized by the integration harness from GoRouter's
+      // routerDelegate.currentConfiguration. visibleRoute is derived from
+      // the browser URL below. Both probes are application-wide; neither
+      // depends on CalendarPage.globalKey. The Calendar fields in the title
+      // are intentionally non-applicable while Planner is the active route.
       const visibleRoute = location.hash.startsWith('#/')
         ? location.hash.slice(1).split('?')[0]
         : location.pathname;
+      const appView = document.querySelector('flutter-view, flt-glass-pane');
+      const appViewRect = appView?.getBoundingClientRect();
+      const appViewStyle = appView == null ? null : getComputedStyle(appView);
       const databases = typeof indexedDB.databases === 'function'
         ? await indexedDB.databases()
         : [];
@@ -911,6 +919,12 @@ async function readTodayProcessHarnessState(cdp, buildId) {
         hydrating: fields.hydrating === 'true',
         settled: fields.settled === 'true',
         stateIdentity: Number(fields.stateIdentity ?? 0),
+        appViewMounted:
+          appView != null &&
+          appViewRect.width > 0 &&
+          appViewRect.height > 0 &&
+          appViewStyle.display !== 'none' &&
+          appViewStyle.visibility !== 'hidden',
         url: location.href,
         origin: location.origin,
         localStorage: Object.fromEntries(Object.entries(localStorage).sort()),
@@ -938,6 +952,9 @@ async function waitForTodayProcessState(cdp, buildId, predicate, description) {
       }));
       const state = {
         route: parts[2],
+        visibleRoute: location.hash.startsWith('#/')
+          ? location.hash.slice(1).split('?')[0]
+          : location.pathname,
         today: fields.today,
         view: fields.view,
         todayVisible: fields.todayVisible === 'true',
@@ -1117,6 +1134,247 @@ export async function waitForTodayViewportQuiescence({
       lastAuthorityDetail,
   );
   error.quiescenceEvidence = evidence;
+  throw error;
+}
+
+export async function waitForTodayRouteConvergence({
+  description,
+  expectedSurface,
+  expectedRoute,
+  expectedOrigin,
+  account,
+  expectedAuthority,
+  expectedCalendarView,
+  readObservation,
+  waitForNextObservation,
+  timeoutMs = 30_000,
+  requiredConsecutive = 3,
+  now = Date.now,
+}) {
+  if (!description) throw new Error('route convergence description is required');
+  if (!expectedSurface || !expectedRoute || !expectedOrigin || !account) {
+    throw new Error('route convergence expectations are required');
+  }
+  if (!expectedAuthority) throw new Error('expected restoration authority is required');
+  if (!Number.isInteger(requiredConsecutive) || requiredConsecutive < 2) {
+    throw new Error('requiredConsecutive must be an integer of at least 2');
+  }
+  if (typeof readObservation !== 'function' || typeof waitForNextObservation !== 'function') {
+    throw new Error('route convergence observation callbacks are required');
+  }
+
+  const startedAtMs = now();
+  const deadline = startedAtMs + timeoutMs;
+  const expectedValidatedAuthority = validateRestorationAuthorityRead(
+    expectedAuthority,
+    {
+      account,
+      expectedRoute,
+      expectedCalendarView,
+    },
+  );
+  const observations = [];
+  let candidateSignature = null;
+  let consecutiveConsistent = 0;
+  let maximumConsecutiveConsistent = 0;
+
+  while (now() < deadline) {
+    const observation = await readObservation();
+    const state = observation?.state;
+    let authority = null;
+    let authorityError = observation?.authorityError ?? null;
+    try {
+      const read = observation?.authority?.read;
+      const validated = validateRestorationAuthorityRead(read, {
+        account,
+        expectedRoute,
+        expectedCalendarView,
+      });
+      if (validated.generation < expectedValidatedAuthority.generation) {
+        throw new Error(
+          `${description} acknowledged a stale generation: ` +
+            `expectedAtLeast=${expectedValidatedAuthority.generation} ` +
+            `observed=${validated.generation}`,
+        );
+      }
+      authority = {
+        read,
+        validated,
+        comparison: {
+          description,
+          exactBinding: true,
+          expectedAccount: account,
+          observedAccount: validated.account,
+          expectedRoute,
+          observedRoute: validated.routeLocation,
+          minimumGeneration: expectedValidatedAuthority.generation,
+          observedGeneration: validated.generation,
+          observedWindowId: validated.windowId,
+          observedIntegrity: validated.integrity,
+          observedEnvelopeSha256: validated.envelopeSha256,
+        },
+      };
+    } catch (error) {
+      authorityError = error?.stack ?? String(error);
+    }
+
+    const calendarProbeApplicable = expectedSurface === 'Calendar';
+    const stateIdentityValid =
+      Number.isInteger(state?.stateIdentity) && state.stateIdentity > 0;
+    const calendarSettlementMatched =
+      !calendarProbeApplicable || state?.settled === true;
+    const calendarStateIdentityMatched =
+      !calendarProbeApplicable || stateIdentityValid;
+    const surfaceMatched = state?.label === expectedSurface;
+    const appViewMounted = state?.appViewMounted === true;
+    const debugRouteMatched = state?.route === expectedRoute;
+    const browserRouteMatched = state?.visibleRoute === expectedRoute;
+    const originMatched = state?.origin === expectedOrigin;
+    const authorityMatched = authority !== null;
+    const eligible =
+      surfaceMatched &&
+      appViewMounted &&
+      debugRouteMatched &&
+      browserRouteMatched &&
+      originMatched &&
+      calendarSettlementMatched &&
+      calendarStateIdentityMatched &&
+      authorityMatched;
+    const authorityEnvelopeSha256 =
+      typeof authority?.read?.latestEnvelope === 'string'
+        ? sha256(Buffer.from(authority.read.latestEnvelope))
+        : null;
+    const signature = eligible
+      ? JSON.stringify({
+          surface: state.label,
+          debugRoute: state.route,
+          browserRoute: state.visibleRoute,
+          origin: state.origin,
+          calendarProbeApplicable,
+          calendarSettled:
+            calendarProbeApplicable ? state.settled : 'not-applicable',
+          calendarStateIdentity:
+            calendarProbeApplicable ? state.stateIdentity : 'not-applicable',
+          authorityGeneration: authority.validated.generation,
+          authorityWindowId: authority.validated.windowId,
+          authorityEnvelopeSha256,
+        })
+      : null;
+
+    if (signature === null) {
+      candidateSignature = null;
+      consecutiveConsistent = 0;
+    } else if (candidateSignature !== signature) {
+      candidateSignature = signature;
+      consecutiveConsistent = 1;
+    } else {
+      consecutiveConsistent += 1;
+    }
+    maximumConsecutiveConsistent = Math.max(
+      maximumConsecutiveConsistent,
+      consecutiveConsistent,
+    );
+
+    const accepted = consecutiveConsistent >= requiredConsecutive;
+    const diagnostic = {
+      observationIndex: observations.length,
+      observedAtMs: now(),
+      state: {
+        label: state?.label ?? null,
+        debugRoute: state?.route ?? null,
+        browserRoute: state?.visibleRoute ?? null,
+        url: state?.url ?? null,
+        origin: state?.origin ?? null,
+        appViewMounted: state?.appViewMounted ?? null,
+        settled: state?.settled ?? null,
+        hydrating: state?.hydrating ?? null,
+        stateIdentity: state?.stateIdentity ?? null,
+      },
+      surfaceMatched,
+      appViewMounted,
+      debugRouteMatched,
+      browserRouteMatched,
+      originMatched,
+      calendarProbeApplicable,
+      calendarSettlementMatched,
+      calendarStateIdentityMatched,
+      stateIdentityValid,
+      authorityMatched,
+      authorityAccount: authority?.validated?.account ?? null,
+      authorityRoute: authority?.validated?.routeLocation ?? null,
+      authorityGeneration: authority?.validated?.generation ?? null,
+      authorityWindowId: authority?.validated?.windowId ?? null,
+      authorityEnvelopeSha256,
+      authorityError,
+      consecutiveConsistentObservations: consecutiveConsistent,
+      accepted,
+    };
+    observations.push(diagnostic);
+
+    if (accepted) {
+      return {
+        state,
+        authority,
+        evidence: {
+          description,
+          expectedSurface,
+          expectedRoute,
+          expectedOrigin,
+          account,
+          expectedCalendarView: expectedCalendarView ?? null,
+          routeProbeProvenance: {
+            debugRoute:
+              'integration harness GoRouter routerDelegate.currentConfiguration',
+            browserRoute: 'window.location hash/path',
+            calendarDerived: false,
+          },
+          calendarProbeApplicable,
+          requiredConsecutive,
+          timedOut: false,
+          acceptedObservationIndex: diagnostic.observationIndex,
+          consecutiveConsistentObservations: consecutiveConsistent,
+          maximumConsecutiveConsistentObservations: maximumConsecutiveConsistent,
+          observations,
+        },
+      };
+    }
+
+    await waitForNextObservation();
+  }
+
+  const last = observations.at(-1);
+  const evidence = {
+    description,
+    expectedSurface,
+    expectedRoute,
+    expectedOrigin,
+    account,
+    expectedCalendarView: expectedCalendarView ?? null,
+    routeProbeProvenance: {
+      debugRoute:
+        'integration harness GoRouter routerDelegate.currentConfiguration',
+      browserRoute: 'window.location hash/path',
+      calendarDerived: false,
+    },
+    calendarProbeApplicable: expectedSurface === 'Calendar',
+    requiredConsecutive,
+    timedOut: true,
+    elapsedMs: now() - startedAtMs,
+    maximumConsecutiveConsistentObservations: maximumConsecutiveConsistent,
+    observations,
+  };
+  const error = new Error(
+    `${description} did not converge to an authoritative restored route; ` +
+      `surface=${last?.state?.label ?? 'none'}; ` +
+      `debugRoute=${last?.state?.debugRoute ?? 'none'}; ` +
+      `browserRoute=${last?.state?.browserRoute ?? 'none'}; ` +
+      `appViewMounted=${last?.state?.appViewMounted ?? 'none'}; ` +
+      `calendarSettled=${last?.calendarSettlementMatched ?? 'none'}; ` +
+      `calendarStateIdentity=${last?.calendarStateIdentityMatched ?? 'none'}; ` +
+      `authorityRoute=${last?.authorityRoute ?? 'none'}; ` +
+      `maxConsecutive=${maximumConsecutiveConsistent}`,
+  );
+  error.routeConvergenceEvidence = evidence;
   throw error;
 }
 
@@ -1510,6 +1768,13 @@ export function classifyFreshProcess({
   let classification = 'passed';
   if (!originMatched || !sentinelSurvived) classification = 'profile-or-origin-lifecycle-loss';
   else if (missingAppKeys.length > 0) classification = 'application-storage-loss';
+  else if (
+    expectedSurface === 'Calendar' &&
+    (state.settled === false ||
+      (Number.isInteger(state.stateIdentity) && state.stateIdentity <= 0))
+  ) {
+    classification = 'application-restoration-transitional';
+  }
   else if (state.label !== expectedSurface || state.route !== state.visibleRoute) {
     classification = 'application-restoration-reader-failure';
   }
@@ -2043,24 +2308,45 @@ async function main() {
         ) {
           throw new Error('fresh application did not use a distinct Chrome PID');
         }
-        const restoredPlanner = await readTodayProcessHarnessState(active.cdp, buildId);
-        const restoredApplicationAuthority = await readRestorationAuthority(
-          active.cdp,
+        const routeConvergenceDescription =
+          `cycle ${cycleNumber} ${boundaryName} restored Planner route`;
+        const routeConvergence = await waitForTodayRouteConvergence({
+          description: routeConvergenceDescription,
+          expectedSurface: 'Planner',
+          expectedRoute: '/rhythm/today',
+          expectedOrigin: origin,
           account,
-          `cycle ${cycleNumber} ${boundaryName} restored application authority`,
-        );
+          expectedAuthority: expectedAuthority.read,
+          expectedCalendarView: authoritativeCalendarView,
+          readObservation: async () => {
+            const state = await readTodayProcessHarnessState(active.cdp, buildId);
+            try {
+              const read = await readRestorationAuthority(
+                active.cdp,
+                account,
+                routeConvergenceDescription,
+              );
+              return { state, authority: { read } };
+            } catch (error) {
+              return {
+                state,
+                authority: null,
+                authorityError: error?.stack ?? String(error),
+              };
+            }
+          },
+          waitForNextObservation: () =>
+            active.cdp.evaluate(
+              `new Promise((resolveFrame) => requestAnimationFrame(() => ` +
+                `requestAnimationFrame(() => resolveFrame(true))))`,
+            ),
+        });
+        const restoredPlanner = routeConvergence.state;
+        const restoredApplicationAuthority = routeConvergence.authority.read;
         const validatedRestoredApplicationAuthority =
-          validateRestorationAuthorityRead(restoredApplicationAuthority, {
-            account,
-            expectedRoute: restoredPlanner.route,
-            expectedCalendarView: authoritativeCalendarView,
-          });
+          routeConvergence.authority.validated;
         const restoredApplicationAuthorityComparison =
-          compareRestorationAuthorityReads(
-            restoredApplicationAuthority,
-            expectedAuthority.read,
-            `cycle ${cycleNumber} ${boundaryName} restored application`,
-          );
+          routeConvergence.authority.comparison;
         const classification = classifyFreshProcess({
           state: restoredPlanner,
           expectedSurface: 'Planner',
@@ -2084,6 +2370,7 @@ async function main() {
             active.realBrowserPid !== terminatedApplicationPid,
           distinctFromNeutralPid: active.realBrowserPid !== neutralPid,
           initialState: restoredPlanner,
+          routeConvergence: routeConvergence.evidence,
           authorityRead: restoredApplicationAuthority,
           validatedAuthority: validatedRestoredApplicationAuthority,
           authorityComparison: restoredApplicationAuthorityComparison,
@@ -2125,7 +2412,12 @@ async function main() {
       await waitForTodayProcessState(
         active.cdp,
         buildId,
-        (state) => state.route === '/' && state.settled && state.view !== 'none',
+        (state) =>
+          state.route === '/' &&
+          state.visibleRoute === '/' &&
+          state.settled &&
+          state.stateIdentity > 0 &&
+          state.view !== 'none',
         'initial settled production Calendar',
       );
       receipt.sentinel.written = await writeProfileSentinel(active.cdp, sentinelValue);
@@ -2140,7 +2432,12 @@ async function main() {
         await waitForTodayProcessState(
           active.cdp,
           buildId,
-          (state) => state.route === '/' && state.settled && state.view !== 'none',
+          (state) =>
+            state.route === '/' &&
+            state.visibleRoute === '/' &&
+            state.settled &&
+            state.stateIdentity > 0 &&
+            state.view !== 'none',
           `cycle ${cycleNumber} settled production Calendar`,
         );
         const todayAnchor = parseKemeticAnchor(cycleStartState.today);
@@ -2186,7 +2483,12 @@ async function main() {
         await waitForTodayProcessState(
           active.cdp,
           buildId,
-          (state) => state.route === '/' && state.settled && state.view !== 'none',
+          (state) =>
+            state.route === '/' &&
+            state.visibleRoute === '/' &&
+            state.settled &&
+            state.stateIdentity > 0 &&
+            state.view !== 'none',
           `cycle ${cycleNumber} far Calendar after neutral and application processes`,
         );
         const restoredFarState = await readTodayProcessHarnessState(active.cdp, buildId);
@@ -2302,7 +2604,12 @@ async function main() {
         await waitForTodayProcessState(
           active.cdp,
           buildId,
-          (state) => state.route === '/' && state.settled && state.view !== 'none',
+          (state) =>
+            state.route === '/' &&
+            state.visibleRoute === '/' &&
+            state.settled &&
+            state.stateIdentity > 0 &&
+            state.view !== 'none',
           `cycle ${cycleNumber} later Calendar after neutral and application processes`,
         );
         const restoredLaterState = await readTodayProcessHarnessState(active.cdp, buildId);
@@ -2568,6 +2875,9 @@ async function main() {
     receipt.error = error?.stack ?? String(error);
     if (error?.quiescenceEvidence) {
       receipt.quiescenceFailure = error.quiescenceEvidence;
+    }
+    if (error?.routeConvergenceEvidence) {
+      receipt.routeConvergenceFailure = error.routeConvergenceEvidence;
     }
     if (error?.terminationEvidence) {
       receipt.forcedTerminations.push(error.terminationEvidence);
