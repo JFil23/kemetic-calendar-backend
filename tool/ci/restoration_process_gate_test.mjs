@@ -10,6 +10,7 @@ import {
   legacyMirrorDiagnostics,
   restorationEnvelopeIntegrity,
   terminationBoundaryReady,
+  waitForTodayRouteConvergence,
   validateRestorationAuthorityRead,
   waitForTodayViewportQuiescence,
 } from './restoration_process_gate.mjs';
@@ -25,11 +26,22 @@ const requiredStorage = {
     '{"routeLocation":"/rhythm/today"}',
 };
 
-function state({ label = 'Planner', route = '/rhythm/today', storage = {} } = {}) {
+function state({
+  label = 'Planner',
+  route = '/rhythm/today',
+  visibleRoute = route,
+  settled = true,
+  stateIdentity = 7,
+  appViewMounted = true,
+  storage = {},
+} = {}) {
   return {
     label,
     route,
-    visibleRoute: route,
+    visibleRoute,
+    settled,
+    stateIdentity,
+    appViewMounted,
     origin,
     localStorage: storage,
     indexedDB: [],
@@ -170,6 +182,65 @@ async function runQuiescenceSequence(
   });
 }
 
+function routeConvergenceObservation(
+  {
+    label = 'Planner',
+    route = '/rhythm/today',
+    visibleRoute = route,
+    settled = false,
+    stateIdentity = 0,
+    appViewMounted = true,
+    authority = authorityFixture(),
+  } = {},
+) {
+  return {
+    state: state({
+      label,
+      route,
+      visibleRoute,
+      settled,
+      stateIdentity,
+      appViewMounted,
+      storage: {
+        ...requiredStorage,
+        'lock-gate.profile-sentinel.v1': sentinelValue,
+      },
+    }),
+    authority: { read: authority },
+  };
+}
+
+async function runRouteConvergenceSequence(
+  sequence,
+  {
+    expectedAuthority = authorityFixture(),
+    expectedSurface = 'Planner',
+    expectedRoute = '/rhythm/today',
+    expectedCalendarView,
+    timeoutMs = 1_000,
+    requiredConsecutive = 3,
+  } = {},
+) {
+  let index = 0;
+  let nowMs = 0;
+  return waitForTodayRouteConvergence({
+    description: 'fixture restored Planner route',
+    expectedSurface,
+    expectedRoute,
+    expectedOrigin: origin,
+    account,
+    expectedAuthority,
+    expectedCalendarView,
+    timeoutMs,
+    requiredConsecutive,
+    readObservation: async () => sequence[Math.min(index++, sequence.length - 1)],
+    waitForNextObservation: async () => {
+      nowMs += 100;
+    },
+    now: () => nowMs,
+  });
+}
+
 test('threshold crossing followed by continued momentum is not accepted', async () => {
   const result = await runQuiescenceSequence([
     quiescenceObservation('5-1-5'),
@@ -289,6 +360,169 @@ test('surviving sentinel, app keys, and expected surface pass', () => {
     }),
   );
   assert.equal(result.classification, 'passed');
+});
+
+test('Planner convergence ignores absent Calendar state and holds transitional routing', async () => {
+  const result = await runRouteConvergenceSequence([
+    routeConvergenceObservation({ visibleRoute: '/' }),
+    routeConvergenceObservation(),
+    routeConvergenceObservation(),
+    routeConvergenceObservation(),
+  ]);
+  assert.equal(result.state.visibleRoute, '/rhythm/today');
+  assert.equal(result.state.settled, false);
+  assert.equal(result.state.stateIdentity, 0);
+  assert.equal(result.evidence.calendarProbeApplicable, false);
+  assert.equal(result.evidence.consecutiveConsistentObservations, 3);
+  assert.equal(result.evidence.routeProbeProvenance.calendarDerived, false);
+  assert.equal(result.evidence.acceptedObservationIndex, 3);
+  assert.equal(result.evidence.observations[0].browserRouteMatched, false);
+  assert.equal(
+    result.evidence.observations[0].consecutiveConsistentObservations,
+    0,
+  );
+});
+
+test('Planner convergence rejects stale, mismatched, or changing authority', async () => {
+  const staleAuthority = authorityFixture({ generation: 99 });
+  const wrongRouteAuthority = authorityFixture({ route: '/' });
+  for (const authority of [staleAuthority, wrongRouteAuthority]) {
+    await assert.rejects(
+      runRouteConvergenceSequence(
+        [routeConvergenceObservation({ authority })],
+        { timeoutMs: 300 },
+      ),
+      (error) => {
+        assert.match(
+          error.message,
+          /did not converge to an authoritative restored route/,
+        );
+        assert.equal(error.routeConvergenceEvidence.timedOut, true);
+        assert.equal(
+          error.routeConvergenceEvidence.observations.every(
+            (observation) => observation.authorityMatched === false,
+          ),
+          true,
+        );
+        return true;
+      },
+    );
+  }
+  await assert.rejects(
+    runRouteConvergenceSequence(
+      [100, 101, 102, 103, 104].map((generation) =>
+        routeConvergenceObservation({
+          authority: authorityFixture({ generation }),
+        }),
+      ),
+      { timeoutMs: 500 },
+    ),
+    (error) => {
+      assert.equal(error.routeConvergenceEvidence.timedOut, true);
+      assert.equal(
+        error.routeConvergenceEvidence.maximumConsecutiveConsistentObservations,
+        1,
+      );
+      return true;
+    },
+  );
+});
+
+test('genuinely router-wide Planner route mismatch fails closed with history', async () => {
+  for (const observation of [
+    routeConvergenceObservation({
+      route: '/',
+      visibleRoute: '/rhythm/today',
+    }),
+    routeConvergenceObservation({ appViewMounted: false }),
+  ]) {
+    await assert.rejects(
+      runRouteConvergenceSequence([observation], { timeoutMs: 400 }),
+      (error) => {
+        assert.equal(error.routeConvergenceEvidence.observations.length, 4);
+        assert.equal(
+          error.routeConvergenceEvidence.maximumConsecutiveConsistentObservations,
+          0,
+        );
+        return true;
+      },
+    );
+  }
+});
+
+test('Planner-to-Calendar transition requires settled positive Calendar identity', async () => {
+  const calendarAuthority = authorityFixture({ route: '/' });
+  for (const observation of [
+    routeConvergenceObservation({
+      label: 'Calendar',
+      route: '/',
+      settled: false,
+      stateIdentity: 8,
+      authority: calendarAuthority,
+    }),
+    routeConvergenceObservation({
+      label: 'Calendar',
+      route: '/',
+      settled: true,
+      stateIdentity: 0,
+      authority: calendarAuthority,
+    }),
+  ]) {
+    await assert.rejects(
+      runRouteConvergenceSequence([observation], {
+        expectedAuthority: calendarAuthority,
+        expectedSurface: 'Calendar',
+        expectedRoute: '/',
+        expectedCalendarView: '5-5-5',
+        timeoutMs: 300,
+      }),
+      (error) => {
+        assert.equal(error.routeConvergenceEvidence.calendarProbeApplicable, true);
+        assert.equal(
+          error.routeConvergenceEvidence.maximumConsecutiveConsistentObservations,
+          0,
+        );
+        return true;
+      },
+    );
+  }
+
+  const planner = await runRouteConvergenceSequence([
+    routeConvergenceObservation(),
+    routeConvergenceObservation(),
+    routeConvergenceObservation(),
+  ]);
+  assert.equal(planner.state.stateIdentity, 0);
+
+  const calendar = await runRouteConvergenceSequence(
+    [
+      routeConvergenceObservation({
+        label: 'Calendar',
+        route: '/',
+        settled: false,
+        stateIdentity: 0,
+        authority: calendarAuthority,
+      }),
+      ...Array.from({ length: 3 }, () =>
+        routeConvergenceObservation({
+          label: 'Calendar',
+          route: '/',
+          settled: true,
+          stateIdentity: 42,
+          authority: calendarAuthority,
+        }),
+      ),
+    ],
+    {
+      expectedAuthority: calendarAuthority,
+      expectedSurface: 'Calendar',
+      expectedRoute: '/',
+      expectedCalendarView: '5-5-5',
+    },
+  );
+  assert.equal(calendar.evidence.acceptedObservationIndex, 3);
+  assert.equal(calendar.state.stateIdentity, 42);
+  assert.equal(calendar.state.settled, true);
 });
 
 test('persistent browser context rejects temporary flags and profile drift', () => {
@@ -433,8 +667,25 @@ test('neutral authority rejects wrong principal, integrity, and generation bindi
         account,
         expectedRoute: '/rhythm/today',
         expectedCalendarView: '5-5-5',
-      }),
+    }),
     /generation\/route mismatch/,
+  );
+
+  const invalidWriterBinding = authorityFixture();
+  const writerEnvelope = JSON.parse(invalidWriterBinding.latestEnvelope);
+  const writerSnapshot = JSON.parse(writerEnvelope.snapshotJson);
+  writerSnapshot.windowId = 'foreign-window';
+  writerEnvelope.snapshotJson = JSON.stringify(writerSnapshot);
+  writerEnvelope.integrity = restorationEnvelopeIntegrity(writerEnvelope);
+  invalidWriterBinding.latestEnvelope = JSON.stringify(writerEnvelope);
+  assert.throws(
+    () =>
+      validateRestorationAuthorityRead(invalidWriterBinding, {
+        account,
+        expectedRoute: '/rhythm/today',
+        expectedCalendarView: '5-5-5',
+      }),
+    /principal\/generation\/route mismatch/,
   );
 });
 
