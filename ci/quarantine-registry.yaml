@@ -4,18 +4,6 @@
   "maxLifetimeDays": 14,
   "entries": [
     {
-      "file": "test/services/navigation_trace_guard_test.dart",
-      "groupHierarchy": ["navigation trace guard"],
-      "testName": "source contains the PWA tap-path labels and overlay state",
-      "normalizedCategory": "guard-allowlist-violation",
-      "classification": "INTENTIONALLY_OBSOLETE",
-      "contractRef": "UX-DRAWER-007",
-      "ticket": "TEST-TRACE-GUARD-001",
-      "owner": "Mobile Navigation",
-      "created": "2026-07-18",
-      "expires": "2026-07-31"
-    },
-    {
       "file": "test/services/app_bar_action_guard_test.dart",
       "groupHierarchy": ["app bar action guard"],
       "testName": "global drawer bubble does not absorb taps while keyboard is visible",

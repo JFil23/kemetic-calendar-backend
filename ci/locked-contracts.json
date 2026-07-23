@@ -27,6 +27,17 @@
       "expectedIdsSha256": "27922eb2062c37e0bb3aa45ed9167cc2336d1215e14bc06abb67285e863393e1"
     },
     {
+      "file": "test/services/navigation_trace_guard_test.dart",
+      "mode": "exact",
+      "plainName": "navigation trace guard production drawer tap emits ordered route and overlay state trace",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["TEST-TRACE-GUARD-001", "UX-DRAWER-007"],
+      "expectedIds": [
+        "test/services/navigation_trace_guard_test.dart :: navigation trace guard :: production drawer tap emits ordered route and overlay state trace"
+      ]
+    },
+    {
       "file": "test/services/app_navigation_restoration_controller_test.dart",
       "mode": "whole-file",
       "evidenceType": "storage-behavior",
