@@ -5,6 +5,7 @@
     "test/widgets/global_navigation_shell_test.dart",
     "test/widgets/flow_studio_primary_stack_contract_test.dart",
     "test/widgets/utility_fallback_navigation_contract_test.dart",
+    "test/widgets/global_shell_auth_timer_lifecycle_test.dart",
     "test/services/web_restoration_durability_contract_test.dart"
   ],
   "units": [
@@ -35,6 +36,45 @@
       "contractRefs": ["TEST-TRACE-GUARD-001", "UX-DRAWER-007"],
       "expectedIds": [
         "test/services/navigation_trace_guard_test.dart :: navigation trace guard :: production drawer tap emits ordered route and overlay state trace"
+      ]
+    },
+    {
+      "file": "test/widgets/global_shell_auth_timer_lifecycle_test.dart",
+      "mode": "exact",
+      "plainName": "GLOBAL-SHELL-AUTH-TIMER-001 mounted authenticated shell performs one delayed guidance refresh",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": [
+        "GLOBAL-SHELL-AUTH-TIMER-LIFECYCLE-001"
+      ],
+      "expectedIds": [
+        "test/widgets/global_shell_auth_timer_lifecycle_test.dart :: GLOBAL-SHELL-AUTH-TIMER-001 mounted authenticated shell performs one delayed guidance refresh"
+      ]
+    },
+    {
+      "file": "test/widgets/global_shell_auth_timer_lifecycle_test.dart",
+      "mode": "exact",
+      "plainName": "GLOBAL-SHELL-AUTH-TIMER-002 disposing authenticated shell cancels its delayed refresh and leaves no pending work",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": [
+        "GLOBAL-SHELL-AUTH-TIMER-LIFECYCLE-001"
+      ],
+      "expectedIds": [
+        "test/widgets/global_shell_auth_timer_lifecycle_test.dart :: GLOBAL-SHELL-AUTH-TIMER-002 disposing authenticated shell cancels its delayed refresh and leaves no pending work"
+      ]
+    },
+    {
+      "file": "test/widgets/global_shell_auth_timer_lifecycle_test.dart",
+      "mode": "exact",
+      "plainName": "GLOBAL-SHELL-AUTH-TIMER-003 repeated auth then sign-out leaves no delayed refresh or shell-owned work",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": [
+        "GLOBAL-SHELL-AUTH-TIMER-LIFECYCLE-001"
+      ],
+      "expectedIds": [
+        "test/widgets/global_shell_auth_timer_lifecycle_test.dart :: GLOBAL-SHELL-AUTH-TIMER-003 repeated auth then sign-out leaves no delayed refresh or shell-owned work"
       ]
     },
     {
