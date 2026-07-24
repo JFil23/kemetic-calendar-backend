@@ -40,6 +40,17 @@
       ]
     },
     {
+      "file": "test/services/app_bar_action_guard_test.dart",
+      "mode": "exact",
+      "plainName": "app bar action guard global drawer bubble does not absorb taps while keyboard is visible",
+      "evidenceType": "router-widget",
+      "coverageRole": "LOCKED",
+      "contractRefs": ["TEST-DRAWER-KEYBOARD-GUARD-001", "UX-DRAWER-006"],
+      "expectedIds": [
+        "test/services/app_bar_action_guard_test.dart :: app bar action guard :: global drawer bubble does not absorb taps while keyboard is visible"
+      ]
+    },
+    {
       "file": "test/widgets/global_shell_auth_timer_lifecycle_test.dart",
       "mode": "exact",
       "plainName": "GLOBAL-SHELL-AUTH-TIMER-001 mounted authenticated shell performs one delayed guidance refresh",
