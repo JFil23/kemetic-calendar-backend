@@ -228,21 +228,25 @@ export function validateRestorationAuthorityRead(
     expectedCalendarView === undefined
       ? undefined
       : parseCalendarView(expectedCalendarView);
+  const calendarPresent = calendar != null;
+  const calendarValid =
+    calendarPresent &&
+    Number.isInteger(calendar.kYear) &&
+    Number.isInteger(calendar.kMonth) &&
+    Number.isInteger(calendar.kDay) &&
+    typeof calendar.anchorTarget === 'string' &&
+    calendar.anchorTarget.trim() !== '' &&
+    Number.isFinite(calendar.anchorAlignment) &&
+    Number.isFinite(calendar.viewportHeight) &&
+    Number.isInteger(calendar.layoutRevision);
   if (
     (expectedCalendarView !== undefined && !expectedCalendar) ||
-    !calendar ||
-    !Number.isInteger(calendar.kYear) ||
-    !Number.isInteger(calendar.kMonth) ||
-    !Number.isInteger(calendar.kDay) ||
+    (expectedCalendarView !== undefined && !calendarValid) ||
+    (calendarPresent && !calendarValid) ||
     (expectedCalendar !== undefined &&
       (calendar.kYear !== expectedCalendar.kYear ||
         calendar.kMonth !== expectedCalendar.kMonth ||
-        calendar.kDay !== expectedCalendar.kDay)) ||
-    typeof calendar.anchorTarget !== 'string' ||
-    calendar.anchorTarget.trim() === '' ||
-    !Number.isFinite(calendar.anchorAlignment) ||
-    !Number.isFinite(calendar.viewportHeight) ||
-    !Number.isInteger(calendar.layoutRevision)
+        calendar.kDay !== expectedCalendar.kDay))
   ) {
     throw new Error(
       `acknowledged snapshot Calendar anchor/placement mismatch: ${JSON.stringify({
@@ -810,6 +814,9 @@ async function readInitialHarnessState(cdp, buildId) {
       const visibleRoute = location.hash.startsWith('#/')
         ? location.hash.slice(1).split('?')[0]
         : location.pathname;
+      const appView = document.querySelector('flutter-view, flt-glass-pane');
+      const appViewRect = appView?.getBoundingClientRect();
+      const appViewStyle = appView == null ? null : getComputedStyle(appView);
       const databases = typeof indexedDB.databases === 'function'
         ? await indexedDB.databases()
         : [];
@@ -818,6 +825,12 @@ async function readInitialHarnessState(cdp, buildId) {
         label: parts[2],
         route: parts[3],
         visibleRoute,
+        appViewMounted:
+          appView != null &&
+          appViewRect.width > 0 &&
+          appViewRect.height > 0 &&
+          appViewStyle.display !== 'none' &&
+          appViewStyle.visibility !== 'hidden',
         url: location.href,
         origin: location.origin,
         localStorage: Object.fromEntries(Object.entries(localStorage).sort()),
@@ -846,6 +859,9 @@ async function readCalendarViewportHarnessState(cdp, buildId) {
       const visibleRoute = location.hash.startsWith('#/')
         ? location.hash.slice(1).split('?')[0]
         : location.pathname;
+      const appView = document.querySelector('flutter-view, flt-glass-pane');
+      const appViewRect = appView?.getBoundingClientRect();
+      const appViewStyle = appView == null ? null : getComputedStyle(appView);
       const databases = typeof indexedDB.databases === 'function'
         ? await indexedDB.databases()
         : [];
@@ -854,6 +870,12 @@ async function readCalendarViewportHarnessState(cdp, buildId) {
         label: parts[2],
         route: parts[3],
         visibleRoute,
+        appViewMounted:
+          appView != null &&
+          appViewRect.width > 0 &&
+          appViewRect.height > 0 &&
+          appViewStyle.display !== 'none' &&
+          appViewStyle.visibility !== 'hidden',
         savedCalendarAnchor: fields.saved,
         visibleCalendarAnchor: fields.visible,
         calendarDecision: fields.decision,
@@ -1137,7 +1159,7 @@ export async function waitForTodayViewportQuiescence({
   throw error;
 }
 
-export async function waitForTodayRouteConvergence({
+export async function waitForRestoredSurfaceAuthority({
   description,
   expectedSurface,
   expectedRoute,
@@ -1376,6 +1398,43 @@ export async function waitForTodayRouteConvergence({
   );
   error.routeConvergenceEvidence = evidence;
   throw error;
+}
+
+export const plannerRestorationAuthorityCallers = Object.freeze({
+  genericFreshProcess: 'generic-fresh-process',
+  calendarViewportProcess: 'calendar-viewport-process',
+  todayProcess: 'today-process',
+});
+
+export async function waitForPlannerRestorationAuthority({
+  caller,
+  ...options
+}) {
+  if (!Object.values(plannerRestorationAuthorityCallers).includes(caller)) {
+    throw new Error(`unsupported Planner restoration authority caller: ${caller}`);
+  }
+  try {
+    const result = await waitForRestoredSurfaceAuthority({
+      ...options,
+      expectedSurface: 'Planner',
+      expectedRoute: '/rhythm/today',
+    });
+    return {
+      ...result,
+      evidence: {
+        ...result.evidence,
+        plannerAuthorityCaller: caller,
+      },
+    };
+  } catch (error) {
+    if (error?.routeConvergenceEvidence) {
+      error.routeConvergenceEvidence = {
+        ...error.routeConvergenceEvidence,
+        plannerAuthorityCaller: caller,
+      };
+    }
+    throw error;
+  }
 }
 
 async function waitForTodayProcessViewportQuiescence(
@@ -1654,6 +1713,78 @@ async function waitForStableRestorationAuthority(
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
   }
   throw new Error(`${description} did not become stable and authoritative: ${lastError}`);
+}
+
+async function waitForPlannerRelaunchAuthority({
+  caller,
+  launch,
+  profile,
+  origin,
+  account,
+  buildId,
+  expectedAuthority,
+  expectedCalendarView,
+  forbiddenBrowserPids,
+  readState,
+  description,
+}) {
+  assertLaunchContinuity(launch, { profile, origin });
+  if (typeof readState !== 'function') {
+    throw new Error(`${description} state reader is required`);
+  }
+  const reusedPid = forbiddenBrowserPids.find(
+    (pid) => pid === launch.realBrowserPid,
+  );
+  if (reusedPid !== undefined) {
+    throw new Error(
+      `${description} reused Chrome PID ${reusedPid}; fresh process proof is invalid`,
+    );
+  }
+  const result = await waitForPlannerRestorationAuthority({
+    caller,
+    description,
+    expectedOrigin: origin,
+    account,
+    expectedAuthority,
+    expectedCalendarView,
+    readObservation: async () => {
+      const state = await readState(launch.cdp, buildId);
+      try {
+        const read = await readRestorationAuthority(
+          launch.cdp,
+          account,
+          description,
+        );
+        return { state, authority: { read } };
+      } catch (error) {
+        return {
+          state,
+          authority: null,
+          authorityError: error?.stack ?? String(error),
+        };
+      }
+    },
+    waitForNextObservation: () =>
+      launch.cdp.evaluate(
+        `new Promise((resolveFrame) => requestAnimationFrame(() => ` +
+          `requestAnimationFrame(() => resolveFrame(true))))`,
+      ),
+  });
+  return {
+    ...result,
+    evidence: {
+      ...result.evidence,
+      processAuthority: {
+        profile,
+        profileSha256: sha256(Buffer.from(profile)),
+        origin,
+        account,
+        realBrowserPid: launch.realBrowserPid,
+        forbiddenBrowserPids,
+        freshProcess: true,
+      },
+    },
+  };
 }
 
 function captureLegacyMirrorBaseline(storage, { account, sentinelValue }) {
@@ -2310,36 +2441,18 @@ async function main() {
         }
         const routeConvergenceDescription =
           `cycle ${cycleNumber} ${boundaryName} restored Planner route`;
-        const routeConvergence = await waitForTodayRouteConvergence({
-          description: routeConvergenceDescription,
-          expectedSurface: 'Planner',
-          expectedRoute: '/rhythm/today',
-          expectedOrigin: origin,
+        const routeConvergence = await waitForPlannerRelaunchAuthority({
+          caller: plannerRestorationAuthorityCallers.todayProcess,
+          launch: active,
+          profile,
+          origin,
           account,
+          buildId,
+          forbiddenBrowserPids: [terminatedApplicationPid, neutralPid],
+          description: routeConvergenceDescription,
           expectedAuthority: expectedAuthority.read,
           expectedCalendarView: authoritativeCalendarView,
-          readObservation: async () => {
-            const state = await readTodayProcessHarnessState(active.cdp, buildId);
-            try {
-              const read = await readRestorationAuthority(
-                active.cdp,
-                account,
-                routeConvergenceDescription,
-              );
-              return { state, authority: { read } };
-            } catch (error) {
-              return {
-                state,
-                authority: null,
-                authorityError: error?.stack ?? String(error),
-              };
-            }
-          },
-          waitForNextObservation: () =>
-            active.cdp.evaluate(
-              `new Promise((resolveFrame) => requestAnimationFrame(() => ` +
-                `requestAnimationFrame(() => resolveFrame(true))))`,
-            ),
+          readState: readTodayProcessHarnessState,
         });
         const restoredPlanner = routeConvergence.state;
         const restoredApplicationAuthority = routeConvergence.authority.read;
@@ -2694,6 +2807,7 @@ async function main() {
         );
       }
       const expectedAnchor = selectedState.savedCalendarAnchor;
+      const expectedLogicalCalendarView = expectedAnchor.split('@', 1)[0];
       await sendHarnessKey(active.cdp, 'p');
       await waitForCalendarViewportSurface(active.cdp, {
         label: 'Planner',
@@ -2707,6 +2821,16 @@ async function main() {
         '/rhythm/today',
         'monthBody',
       ]);
+      const expectedPlannerAuthority = await waitForStableRestorationAuthority(
+        active.cdp,
+        account,
+        {
+          expectedRoute: '/rhythm/today',
+          expectedCalendarView: expectedLogicalCalendarView,
+        },
+        'Calendar viewport Planner pre-termination acknowledged authority',
+      );
+      const terminatedPlannerPid = active.realBrowserPid;
       receipt.launches.push({
         ...browserLaunchEvidence(active),
         expectedSurface: 'Planner',
@@ -2715,6 +2839,10 @@ async function main() {
         stateBeforeTermination: plannerState,
         expectedCalendarAnchor: expectedAnchor,
         durabilityBeforeTermination: plannerDurability,
+        expectedAuthority: expectedPlannerAuthority.read,
+        validatedExpectedAuthority: expectedPlannerAuthority.validated,
+        expectedAuthorityStableReadEvidence:
+          expectedPlannerAuthority.stableReadEvidence,
         profileBeforeTermination: await captureProfileEvidence(profile),
         screenshot: await screenshot(
           active.cdp,
@@ -2726,8 +2854,20 @@ async function main() {
       active = undefined;
 
       active = await launchChrome({ binary, profile, url: appUrl, ordinal: 2 });
-      assertLaunchContinuity(active, { profile, origin });
-      const restoredPlanner = await readCalendarViewportHarnessState(active.cdp, buildId);
+      const plannerRestoration = await waitForPlannerRelaunchAuthority({
+        caller: plannerRestorationAuthorityCallers.calendarViewportProcess,
+        launch: active,
+        profile,
+        origin,
+        account,
+        buildId,
+        expectedAuthority: expectedPlannerAuthority.read,
+        expectedCalendarView: expectedLogicalCalendarView,
+        forbiddenBrowserPids: [terminatedPlannerPid],
+        readState: readCalendarViewportHarnessState,
+        description: 'Calendar viewport process restored Planner authority',
+      });
+      const restoredPlanner = plannerRestoration.state;
       const plannerClassification = classifyFreshProcess({
         state: restoredPlanner,
         expectedSurface: 'Planner',
@@ -2753,6 +2893,12 @@ async function main() {
         ...browserLaunchEvidence(active),
         expectedInitialSurface: 'Planner',
         initialState: restoredPlanner,
+        routeConvergence: plannerRestoration.evidence,
+        authorityRead: plannerRestoration.authority.read,
+        validatedAuthority: plannerRestoration.authority.validated,
+        authorityComparison: plannerRestoration.authority.comparison,
+        distinctFromTerminatedApplicationPid:
+          active.realBrowserPid !== terminatedPlannerPid,
         restoredCalendarState: restoredCalendar,
         profileImmediatelyAfterStart: await captureProfileEvidence(profile),
         screenshot: await screenshot(
@@ -2791,9 +2937,16 @@ async function main() {
       ...requiredAppStorageKeys(account),
       '/rhythm/today',
     ]);
+    const expectedPlannerAuthority = await waitForStableRestorationAuthority(
+      active.cdp,
+      account,
+      { expectedRoute: '/rhythm/today' },
+      'generic Planner pre-termination acknowledged authority',
+    );
     const storageBeforePlannerTermination = await active.cdp.evaluate(
       `Object.fromEntries(Object.entries(localStorage).sort())`,
     );
+    const terminatedPlannerPid = active.realBrowserPid;
     receipt.launches.push({
       ...browserLaunchEvidence(active),
       expectedSurface: 'Planner',
@@ -2803,6 +2956,10 @@ async function main() {
       sentinelPresentBeforeTermination:
         storageBeforePlannerTermination[sentinelKey] === sentinelValue,
       durabilityBeforeTermination: plannerDurability,
+      expectedAuthority: expectedPlannerAuthority.read,
+      validatedExpectedAuthority: expectedPlannerAuthority.validated,
+      expectedAuthorityStableReadEvidence:
+        expectedPlannerAuthority.stableReadEvidence,
       profileBeforeTermination: await captureProfileEvidence(profile),
       screenshot: await screenshot(active.cdp, join(resultsDir, '01-planner-before-termination.png')),
       observedAt: new Date().toISOString(),
@@ -2811,8 +2968,19 @@ async function main() {
     active = undefined;
 
     active = await launchChrome({ binary, profile, url: appUrl, ordinal: 2 });
-    assertLaunchContinuity(active, { profile, origin });
-    const restoredPlanner = await readInitialHarnessState(active.cdp, buildId);
+    const plannerRestoration = await waitForPlannerRelaunchAuthority({
+      caller: plannerRestorationAuthorityCallers.genericFreshProcess,
+      launch: active,
+      profile,
+      origin,
+      account,
+      buildId,
+      expectedAuthority: expectedPlannerAuthority.read,
+      forbiddenBrowserPids: [terminatedPlannerPid],
+      readState: readInitialHarnessState,
+      description: 'generic fresh-process restored Planner authority',
+    });
+    const restoredPlanner = plannerRestoration.state;
     const plannerClassification = classifyFreshProcess({
       state: restoredPlanner,
       expectedSurface: 'Planner',
@@ -2825,6 +2993,12 @@ async function main() {
       ...browserLaunchEvidence(active),
       expectedInitialSurface: 'Planner',
       initialState: restoredPlanner,
+      routeConvergence: plannerRestoration.evidence,
+      authorityRead: plannerRestoration.authority.read,
+      validatedAuthority: plannerRestoration.authority.validated,
+      authorityComparison: plannerRestoration.authority.comparison,
+      distinctFromTerminatedApplicationPid:
+        active.realBrowserPid !== terminatedPlannerPid,
       profileImmediatelyAfterStart: await captureProfileEvidence(profile),
       observedAt: new Date().toISOString(),
     });

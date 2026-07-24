@@ -8,9 +8,11 @@ import {
   classifyFreshProcess,
   compareRestorationAuthorityReads,
   legacyMirrorDiagnostics,
+  plannerRestorationAuthorityCallers,
   restorationEnvelopeIntegrity,
   terminationBoundaryReady,
-  waitForTodayRouteConvergence,
+  waitForPlannerRestorationAuthority,
+  waitForRestoredSurfaceAuthority,
   validateRestorationAuthorityRead,
   waitForTodayViewportQuiescence,
 } from './restoration_process_gate.mjs';
@@ -91,8 +93,8 @@ function authorityFixture({
     userId: fixtureAccount,
     windowId: 'window-fixture',
     updatedAtMs: snapshotGeneration,
-    calendar,
   };
+  if (calendar !== null) snapshot.calendar = calendar;
   const envelope = {
     authoritySchemaVersion: 1,
     snapshotSchemaVersion: 1,
@@ -219,14 +221,13 @@ async function runRouteConvergenceSequence(
     expectedCalendarView,
     timeoutMs = 1_000,
     requiredConsecutive = 3,
+    caller = plannerRestorationAuthorityCallers.genericFreshProcess,
   } = {},
 ) {
   let index = 0;
   let nowMs = 0;
-  return waitForTodayRouteConvergence({
+  const options = {
     description: 'fixture restored Planner route',
-    expectedSurface,
-    expectedRoute,
     expectedOrigin: origin,
     account,
     expectedAuthority,
@@ -238,6 +239,14 @@ async function runRouteConvergenceSequence(
       nowMs += 100;
     },
     now: () => nowMs,
+  };
+  if (expectedSurface === 'Planner' && expectedRoute === '/rhythm/today') {
+    return waitForPlannerRestorationAuthority({ caller, ...options });
+  }
+  return waitForRestoredSurfaceAuthority({
+    ...options,
+    expectedSurface,
+    expectedRoute,
   });
 }
 
@@ -381,6 +390,57 @@ test('Planner convergence ignores absent Calendar state and holds transitional r
     result.evidence.observations[0].consecutiveConsistentObservations,
     0,
   );
+});
+
+test('persistent transitional Planner browser route times out with complete history', async () => {
+  await assert.rejects(
+    runRouteConvergenceSequence(
+      [routeConvergenceObservation({ visibleRoute: '/' })],
+      { timeoutMs: 400 },
+    ),
+    (error) => {
+      const evidence = error.routeConvergenceEvidence;
+      assert.equal(evidence.timedOut, true);
+      assert.equal(
+        evidence.plannerAuthorityCaller,
+        plannerRestorationAuthorityCallers.genericFreshProcess,
+      );
+      assert.equal(evidence.observations.length, 4);
+      assert.equal(
+        evidence.observations.every(
+          (observation) =>
+            observation.state.browserRoute === '/' &&
+            observation.browserRouteMatched === false &&
+            observation.accepted === false,
+        ),
+        true,
+      );
+      return true;
+    },
+  );
+});
+
+test('all process Planner callers use the same restoration authority', async () => {
+  for (const caller of [
+    plannerRestorationAuthorityCallers.genericFreshProcess,
+    plannerRestorationAuthorityCallers.calendarViewportProcess,
+    plannerRestorationAuthorityCallers.todayProcess,
+  ]) {
+    const result = await runRouteConvergenceSequence(
+      [
+        routeConvergenceObservation({ visibleRoute: '/' }),
+        routeConvergenceObservation(),
+        routeConvergenceObservation(),
+        routeConvergenceObservation(),
+      ],
+      { caller },
+    );
+    assert.equal(result.evidence.plannerAuthorityCaller, caller);
+    assert.equal(result.evidence.acceptedObservationIndex, 3);
+    assert.equal(result.evidence.consecutiveConsistentObservations, 3);
+    assert.equal(result.evidence.observations[0].browserRouteMatched, false);
+    assert.equal(result.evidence.observations.at(-1).authorityMatched, true);
+  }
 });
 
 test('Planner convergence rejects stale, mismatched, or changing authority', async () => {
@@ -633,6 +693,25 @@ test('neutral authority validates the exact production database envelope contrac
     }).calendar.kMonth,
     5,
     'a live authority read validates its bound Calendar value without inventing an older expectation',
+  );
+  const plannerOnlyAuthority = authorityFixture({ calendar: null });
+  assert.equal(
+    validateRestorationAuthorityRead(plannerOnlyAuthority, {
+      account,
+      expectedRoute: '/rhythm/today',
+    }).calendar,
+    undefined,
+    'generic Planner restoration does not invent a Calendar-only authority requirement',
+  );
+  assert.throws(
+    () =>
+      validateRestorationAuthorityRead(plannerOnlyAuthority, {
+        account,
+        expectedRoute: '/rhythm/today',
+        expectedCalendarView: '5-5-5',
+      }),
+    /Calendar anchor\/placement mismatch/,
+    'Calendar restoration remains strict when a Calendar authority is expected',
   );
 });
 
