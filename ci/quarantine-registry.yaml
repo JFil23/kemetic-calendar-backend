@@ -6,18 +6,6 @@
     {
       "file": "test/services/app_bar_action_guard_test.dart",
       "groupHierarchy": ["app bar action guard"],
-      "testName": "community feed distinguishes load errors from empty state",
-      "normalizedCategory": "guard-allowlist-violation",
-      "classification": "BRITTLE_IMPLEMENTATION_GUARD",
-      "contractRef": "PROFILE-COMMUNITY-LOAD-STATE-001",
-      "ticket": "TEST-COMMUNITY-FEED-001",
-      "owner": "Mobile Profile",
-      "created": "2026-07-18",
-      "expires": "2026-07-31"
-    },
-    {
-      "file": "test/services/app_bar_action_guard_test.dart",
-      "groupHierarchy": ["app bar action guard"],
       "testName": "raw context.push usage stays centralized or explicitly local",
       "normalizedCategory": "guard-allowlist-violation",
       "classification": "POLICY_GUARD_DEBT",
