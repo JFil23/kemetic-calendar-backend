@@ -6,6 +6,7 @@
     "test/widgets/flow_studio_primary_stack_contract_test.dart",
     "test/widgets/utility_fallback_navigation_contract_test.dart",
     "test/widgets/global_shell_auth_timer_lifecycle_test.dart",
+    "test/widgets/global_shell_unread_realtime_lifecycle_test.dart",
     "test/services/web_restoration_durability_contract_test.dart"
   ],
   "units": [
@@ -76,6 +77,17 @@
       "expectedIds": [
         "test/widgets/global_shell_auth_timer_lifecycle_test.dart :: GLOBAL-SHELL-AUTH-TIMER-003 repeated auth then sign-out leaves no delayed refresh or shell-owned work"
       ]
+    },
+    {
+      "file": "test/widgets/global_shell_unread_realtime_lifecycle_test.dart",
+      "mode": "whole-file",
+      "evidenceType": "lifecycle-behavior",
+      "coverageRole": "LOCKED",
+      "contractRefs": [
+        "GLOBAL-SHELL-UNREAD-REALTIME-LIFECYCLE-001"
+      ],
+      "expectedTestCount": 6,
+      "expectedIdsSha256": "fb6dc5e5bcfb21cc6cf81b8dbbe1da174a7be15e5f750ca3d54abc0770894683"
     },
     {
       "file": "test/services/app_navigation_restoration_controller_test.dart",
