@@ -112,6 +112,72 @@ jobs:
           node --check tool/ci/restoration_process_gate.mjs
           node --test tool/ci/restoration_process_gate_test.mjs
 
+  release-pipeline-contracts:
+    name: LOCK-GATE release pipeline contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact history and mobile gitlink
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up pinned Flutter build authority
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.3"
+          channel: stable
+          cache: true
+
+      - name: Run complete build and served-artifact contracts
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          python3 mobile/scripts/web_release_pipeline_test.py
+          python3 mobile/scripts/served_artifact_verifier_test.py
+          python3 -m unittest tool.ci.test_reconstruction_registry
+          python3 -m unittest tool.ci.test_release_pipeline_gate
+          python3 tool/ci/release_pipeline_gate.py \
+            --workflow .github/workflows/mobile.yml
+
+      - name: Enforce append-only reconstruction authority
+        run: |
+          set -euo pipefail
+          base_ref="${{ github.event.pull_request.base.sha }}"
+          if [[ -z "$base_ref" ]]; then
+            base_ref="$(git rev-parse HEAD^)"
+          fi
+          python3 tool/ci/reconstruction_registry.py \
+            --repo-root . \
+            --base-git-ref "$base_ref"
+
+      - name: Validate pipeline source and closed contracts
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            mobile/scripts/web_release_pipeline.py \
+            mobile/scripts/web_release_pipeline_test.py \
+            mobile/scripts/served_artifact_verifier.py \
+            mobile/scripts/served_artifact_verifier_test.py \
+            tool/ci/reconstruction_registry.py \
+            tool/ci/test_reconstruction_registry.py \
+            tool/ci/release_pipeline_gate.py \
+            tool/ci/test_release_pipeline_gate.py
+          bash -n \
+            mobile/scripts/build_web_release.sh \
+            mobile/scripts/deploy_cloudflare_pages.sh
+          python3 -m json.tool \
+            mobile/config/web/staging.public.json >/dev/null
+          python3 -m json.tool \
+            mobile/config/web/production.public.json >/dev/null
+          python3 -m json.tool \
+            mobile/config/web/cloudflare-served-contract.v1.json >/dev/null
+          python3 -m json.tool \
+            mobile/config/web/environment-delta-contract.v1.json >/dev/null
+          git diff --check
+          git -C mobile diff --check
+
   locked-contract-vm:
     name: LOCK-GATE zero-tolerance behavioral VM
     runs-on: ubuntu-latest
@@ -427,6 +493,7 @@ jobs:
     needs:
       - mobile-fast-suite
       - lock-gate-evaluator
+      - release-pipeline-contracts
       - locked-contract-vm
       - locked-contract-process
       - full-suite-quarantine-monitor
@@ -436,6 +503,7 @@ jobs:
         run: |
           test "${{ needs.mobile-fast-suite.result }}" = "success"
           test "${{ needs.lock-gate-evaluator.result }}" = "success"
+          test "${{ needs.release-pipeline-contracts.result }}" = "success"
           test "${{ needs.locked-contract-vm.result }}" = "success"
           test "${{ needs.locked-contract-process.result }}" = "success"
           test "${{ needs.full-suite-quarantine-monitor.result }}" = "success"
