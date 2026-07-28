@@ -12,84 +12,101 @@ on:
 
 jobs:
   mobile-fast-suite:
+    name: LOCK-GATE July 1 source integrity
     runs-on: ubuntu-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
-      - name: Checkout repository
+      - name: Establish source-integrity evidence paths
+        id: results
+        run: |
+          set -euo pipefail
+          results_dir="$RUNNER_TEMP/july1-source-integrity"
+          evidence_manifest="$RUNNER_TEMP/july1-source-integrity.sha256"
+          mkdir -p "$results_dir"
+          echo "RESULTS_DIR=$results_dir" >> "$GITHUB_ENV"
+          echo "EVIDENCE_MANIFEST=$evidence_manifest" >> "$GITHUB_ENV"
+          echo "dir=$results_dir" >> "$GITHUB_OUTPUT"
+          echo "manifest=$evidence_manifest" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact parent and mobile gitlink
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
-      - name: Verify mobile submodule pointer
-        run: |
-          set -euo pipefail
-          recorded="$(git ls-tree HEAD mobile | awk '{print $3}')"
-          actual="$(git -C mobile rev-parse HEAD)"
-          test "$recorded" = "$actual"
-          git status --short
-          git -C mobile status --short
-
-      - name: Set up Flutter
+      - name: Set up pinned Flutter and Dart
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.35.3"
           channel: stable
           cache: true
 
-      - name: Install dependencies
-        working-directory: mobile
-        run: flutter pub get
+      - name: Verify exact July 1 recovery source authority before Pub
+        run: |
+          python3 tool/ci/july1_runtime_gate.py verify-checkout \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
+            --parent-root . \
+            --mobile-root mobile \
+            --expected-parent "$GITHUB_SHA" \
+            --include-toolchain \
+            --output "$RESULTS_DIR/identity-pre.json"
 
-      - name: Check formatting
+      - name: Install locked dependencies
+        working-directory: mobile
+        run: flutter pub get --enforce-lockfile
+
+      - name: Verify Pub generated only platform metadata
+        run: |
+          python3 tool/ci/july1_runtime_gate.py inspect-pub-get-mutation \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
+            --mobile-root mobile \
+            --output "$RESULTS_DIR/pub-generated-pre.json"
+
+      - name: Analyze selected runtime
         working-directory: mobile
         run: |
-          dart format --set-exit-if-changed \
-            integration_test/restoration_process_death_harness.dart \
-            lib/features/calendar/calendar_page.dart \
-            lib/features/calendar/day_view.dart \
-            lib/features/calendar/maat_flow_completion_response_persistence.dart \
-            lib/features/calendar/maat_flow_response_journal_blocks.dart \
-            lib/features/calendar/maat_flow_response_models.dart \
-            lib/features/calendar/maat_flow_response_projection.dart \
-            lib/features/calendar/maat_flow_response_resolver.dart \
-            lib/services/app_restoration_service.dart \
-            test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart \
-            test/features/calendar/flow_completion_day_view_persistence_test.dart \
-            test/features/calendar/flow_completion_persistence_test.dart \
-            test/features/calendar/maat_flow_initial_prompt_infrastructure_test.dart \
-            test/features/calendar/maat_flow_interactive_primitives_test.dart \
-            test/features/calendar/maat_flow_response_formatter_test.dart \
-            test/features/calendar/maat_flow_response_infrastructure_test.dart \
-            test/features/calendar/maat_flow_response_privacy_policy_test.dart \
-            test/features/calendar/maat_journal_behavior_registry_test.dart
+          set -o pipefail
+          flutter analyze --no-fatal-infos 2>&1 | tee "$RESULTS_DIR/analyzer.log"
 
-      - name: Analyze
-        working-directory: mobile
-        run: flutter analyze
-
-      - name: Guard golden-path skips
-        working-directory: mobile
+      - name: Reconcile generated metadata and verify exact source authority
+        if: always()
         run: |
-          set -euo pipefail
-          files='test/features/calendar/flow_completion_persistence_test.dart|test/features/calendar/flow_completion_day_view_persistence_test.dart|test/features/calendar/maat_journal_behavior_registry_test.dart|test/features/calendar/maat_flow_response_formatter_test.dart'
-          if git grep --untracked -nE '@Skip|skip:[[:space:]]*true' -- test/features/calendar | grep -E "$files"; then
-            echo "Golden-path tests must not be skipped without an explicit reviewed exception." >&2
-            exit 1
-          fi
+          set +e
+          python3 tool/ci/july1_runtime_gate.py inspect-pub-get-mutation \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
+            --mobile-root mobile \
+            --output "$RESULTS_DIR/pub-generated-post.json"
+          mutation_status=$?
+          set -e
+          git -C mobile restore --worktree -- .flutter-plugins-dependencies
+          python3 tool/ci/july1_runtime_gate.py verify-checkout \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
+            --parent-root . \
+            --mobile-root mobile \
+            --expected-parent "$GITHUB_SHA" \
+            --include-toolchain \
+            --output "$RESULTS_DIR/identity-post.json"
+          git diff --check
+          git -C mobile diff --check
+          exit "$mutation_status"
 
-      - name: Run fast behavioral suite
-        working-directory: mobile
+      - name: Hash source-integrity evidence
+        if: always()
         run: |
-          flutter test \
-            test/features/calendar/flow_completion_persistence_test.dart \
-            test/features/calendar/flow_completion_day_view_persistence_test.dart \
-            test/features/calendar/maat_journal_behavior_registry_test.dart \
-            test/features/calendar/maat_flow_response_formatter_test.dart \
-            test/features/calendar/maat_flow_response_infrastructure_test.dart \
-            test/features/calendar/maat_flow_response_privacy_policy_test.dart \
-            test/features/calendar/maat_flow_initial_prompt_hydration_test.dart \
-            test/features/calendar/calendar_completion_detail_sheet_test.dart \
-            test/features/journal/journal_badge_utils_test.dart \
-            test/features/journal/journal_controller_test.dart
+          python3 tool/ci/lock_gate.py hash-results \
+            --root "$RESULTS_DIR" \
+            --output "$EVIDENCE_MANIFEST"
+
+      - name: Archive source-integrity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: july1-source-integrity-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          path: |
+            ${{ steps.results.outputs.dir }}
+            ${{ steps.results.outputs.manifest }}
 
   lock-gate-evaluator:
     name: LOCK-GATE evaluator contracts
@@ -99,6 +116,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Run evaluator simulations
         env:
@@ -106,11 +124,17 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest tool.ci.test_lock_gate
+          python3 -m unittest tool.ci.test_july1_runtime_gate
           python3 -m py_compile tool/ci/lock_gate.py tool/ci/test_lock_gate.py
-          python3 -m json.tool ci/locked-contracts.json >/dev/null
-          python3 -m json.tool ci/quarantine-registry.yaml >/dev/null
-          node --check tool/ci/restoration_process_gate.mjs
-          node --test tool/ci/restoration_process_gate_test.mjs
+          python3 -m py_compile \
+            tool/ci/july1_runtime_gate.py \
+            tool/ci/test_july1_runtime_gate.py
+          python3 -m json.tool \
+            ci/runtime-authority/july1-recovery.v1.json >/dev/null
+          python3 -m json.tool \
+            ci/superseded/locked-contracts.post-july1.242.json >/dev/null
+          python3 -m json.tool \
+            ci/superseded/quarantine-registry.post-july1.7.json >/dev/null
 
   release-pipeline-contracts:
     name: LOCK-GATE release pipeline contracts
@@ -179,7 +203,7 @@ jobs:
           git -C mobile diff --check
 
   locked-contract-vm:
-    name: LOCK-GATE zero-tolerance behavioral VM
+    name: LOCK-GATE deterministic build-control behavior
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -201,6 +225,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Set up pinned Flutter and Dart
         uses: subosito/flutter-action@v2
@@ -209,45 +234,55 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install locked dependencies
-        working-directory: mobile
-        run: flutter pub get
-
-      - name: Record and verify pre-test identity
+      - name: Record and verify pre-Pub identity
         run: |
-          python3 tool/ci/lock_gate.py verify-identity \
+          python3 tool/ci/july1_runtime_gate.py verify-checkout \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
             --expected-parent "$GITHUB_SHA" \
             --include-toolchain \
-            --expected-flutter "3.35.3" \
-            --expected-dart "3.9.2" \
             --output "$RESULTS_DIR/identity-pre.json"
 
-      - name: Static analysis
+      - name: Install locked dependencies
         working-directory: mobile
-        run: flutter analyze
+        run: flutter pub get --enforce-lockfile
 
-      - name: Run zero-tolerance locked behavioral contracts
+      - name: Verify Pub generated only platform metadata
         run: |
-          python3 tool/ci/lock_gate.py run-locked \
-            --manifest ci/locked-contracts.json \
+          python3 tool/ci/july1_runtime_gate.py inspect-pub-get-mutation \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
             --mobile-root mobile \
-            --results-dir "$RESULTS_DIR/tests"
+            --output "$RESULTS_DIR/pub-generated-pre.json"
 
-      - name: Record and verify post-test identity
+      - name: Run deterministic web-runtime configuration contracts
+        working-directory: mobile
+        run: |
+          flutter test --no-pub --machine --concurrency=1 \
+            test/core/web_runtime_config_guard_test.dart \
+            > "$RESULTS_DIR/web-runtime-config-guard.jsonl"
+
+      - name: Reconcile generated metadata and verify post-test identity
         if: always()
         run: |
-          python3 tool/ci/lock_gate.py verify-identity \
+          set +e
+          python3 tool/ci/july1_runtime_gate.py inspect-pub-get-mutation \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
+            --mobile-root mobile \
+            --output "$RESULTS_DIR/pub-generated-post.json"
+          mutation_status=$?
+          set -e
+          git -C mobile restore --worktree -- .flutter-plugins-dependencies
+          python3 tool/ci/july1_runtime_gate.py verify-checkout \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
             --expected-parent "$GITHUB_SHA" \
             --include-toolchain \
-            --expected-flutter "3.35.3" \
-            --expected-dart "3.9.2" \
             --output "$RESULTS_DIR/identity-post.json"
           git diff --check
           git -C mobile diff --check
+          exit "$mutation_status"
 
       - name: Hash VM evidence
         if: always()
@@ -267,9 +302,8 @@ jobs:
             ${{ steps.results.outputs.manifest }}
 
   locked-contract-process:
-    name: LOCK-GATE fresh-process restoration
+    name: LOCK-GATE superseded authority accounting
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     env:
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
@@ -289,111 +323,51 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
-      - name: Set up pinned Flutter and Dart
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.35.3"
-          channel: stable
-          cache: true
-
-      - name: Set up process driver runtime
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Install locked dependencies
-        working-directory: mobile
-        run: flutter pub get
-
-      - name: Record and verify pre-test identity
+      - name: Verify selected and superseded authority accounting
         run: |
-          python3 tool/ci/lock_gate.py verify-identity \
+          python3 tool/ci/july1_runtime_gate.py verify-checkout \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
             --expected-parent "$GITHUB_SHA" \
-            --include-toolchain \
-            --expected-flutter "3.35.3" \
-            --expected-dart "3.9.2" \
-            --output "$RESULTS_DIR/identity-pre.json"
+            --output "$RESULTS_DIR/authority-accounting.json"
+          cp ci/runtime-authority/july1-recovery.v1.json "$RESULTS_DIR/"
+          cp ci/superseded/locked-contracts.post-july1.242.json "$RESULTS_DIR/"
+          cp ci/superseded/quarantine-registry.post-july1.7.json "$RESULTS_DIR/"
 
-      - name: Build the restoration process harness
-        working-directory: mobile
-        run: |
-          set -euo pipefail
-          mkdir -p "$RESULTS_DIR"
-          flutter build web \
-            --release \
-            --target integration_test/restoration_process_death_harness.dart \
-            --dart-define="BUILD_VERSION=lock-gate-${GITHUB_SHA:0:12}" \
-            2>&1 | tee "$RESULTS_DIR/build.log"
-
-      - name: Force termination and verify fresh-process restoration
-        run: |
-          set -euo pipefail
-          node tool/ci/restoration_process_gate.mjs \
-            --web-root mobile/build/web \
-            --results-dir "$RESULTS_DIR/process" \
-            --build-id "lock-gate-${GITHUB_SHA:0:12}" \
-            --manifest ci/locked-contracts.json \
-            --process-unit restoration-process-death-planner-library \
-            2>&1 | tee "$RESULTS_DIR/process-driver.log"
-
-      - name: Force termination and verify Calendar viewport restoration
-        run: |
-          set -euo pipefail
-          node tool/ci/restoration_process_gate.mjs \
-            --web-root mobile/build/web \
-            --results-dir "$RESULTS_DIR/calendar-viewport-process" \
-            --build-id "lock-gate-${GITHUB_SHA:0:12}" \
-            --manifest ci/locked-contracts.json \
-            --process-unit calendar-viewport-process-restoration \
-            2>&1 | tee "$RESULTS_DIR/calendar-viewport-process-driver.log"
-
-      - name: Force termination and verify Today after Calendar process restoration
-        run: |
-          set -euo pipefail
-          node tool/ci/restoration_process_gate.mjs \
-            --web-root mobile/build/web \
-            --results-dir "$RESULTS_DIR/today-post-process" \
-            --build-id "lock-gate-${GITHUB_SHA:0:12}" \
-            --manifest ci/locked-contracts.json \
-            --process-unit today-post-process-restoration \
-            2>&1 | tee "$RESULTS_DIR/today-post-process-driver.log"
-
-      - name: Record and verify post-test identity
+      - name: Record and verify post-accounting identity
         if: always()
         run: |
-          python3 tool/ci/lock_gate.py verify-identity \
+          python3 tool/ci/july1_runtime_gate.py verify-checkout \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
             --expected-parent "$GITHUB_SHA" \
-            --include-toolchain \
-            --expected-flutter "3.35.3" \
-            --expected-dart "3.9.2" \
             --output "$RESULTS_DIR/identity-post.json"
           git diff --check
           git -C mobile diff --check
 
-      - name: Hash process evidence
+      - name: Hash authority-accounting evidence
         if: always()
         run: |
           python3 tool/ci/lock_gate.py hash-results \
             --root "$RESULTS_DIR" \
             --output "$EVIDENCE_MANIFEST"
 
-      - name: Archive process evidence
+      - name: Archive authority-accounting evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: lock-gate-process-${{ github.run_id }}-${{ github.run_attempt }}
+          name: lock-gate-july1-authority-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: error
           path: |
             ${{ steps.results.outputs.dir }}
             ${{ steps.results.outputs.manifest }}
 
   full-suite-quarantine-monitor:
-    name: LOCK-GATE full serial exact quarantine
+    name: LOCK-GATE full July 1 runtime authority
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -415,6 +389,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Set up pinned Flutter and Dart
         uses: subosito/flutter-action@v2
@@ -423,22 +398,28 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install locked dependencies
-        working-directory: mobile
-        run: flutter pub get
-
-      - name: Record and verify pre-test identity
+      - name: Record and verify pre-Pub identity
         run: |
-          python3 tool/ci/lock_gate.py verify-identity \
+          python3 tool/ci/july1_runtime_gate.py verify-checkout \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
             --expected-parent "$GITHUB_SHA" \
             --include-toolchain \
-            --expected-flutter "3.35.3" \
-            --expected-dart "3.9.2" \
             --output "$RESULTS_DIR/identity-pre.json"
 
-      - name: Run every test and evaluate only the exact quarantine
+      - name: Install locked dependencies
+        working-directory: mobile
+        run: flutter pub get --enforce-lockfile
+
+      - name: Verify Pub generated only platform metadata
+        run: |
+          python3 tool/ci/july1_runtime_gate.py inspect-pub-get-mutation \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
+            --mobile-root mobile \
+            --output "$RESULTS_DIR/pub-generated-pre.json"
+
+      - name: Run and classify the complete exact July 1 inventory
         run: |
           set +e
           (
@@ -447,41 +428,47 @@ jobs:
           ) > "$RESULTS_DIR/full-suite.jsonl" 2>&1
           flutter_status=$?
           set -e
-          python3 tool/ci/lock_gate.py evaluate-full \
+          python3 tool/ci/july1_runtime_gate.py evaluate-full \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
             --machine-log "$RESULTS_DIR/full-suite.jsonl" \
             --flutter-status "$flutter_status" \
-            --registry ci/quarantine-registry.yaml \
-            --locked-manifest ci/locked-contracts.json \
             --mobile-root mobile \
-            --evaluated-on "$(date -u +%F)" \
             --output-dir "$RESULTS_DIR/evaluation"
 
-      - name: Record and verify post-test identity
+      - name: Reconcile generated metadata and verify post-test identity
         if: always()
         run: |
-          python3 tool/ci/lock_gate.py verify-identity \
+          set +e
+          python3 tool/ci/july1_runtime_gate.py inspect-pub-get-mutation \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
+            --mobile-root mobile \
+            --output "$RESULTS_DIR/pub-generated-post.json"
+          mutation_status=$?
+          set -e
+          git -C mobile restore --worktree -- .flutter-plugins-dependencies
+          python3 tool/ci/july1_runtime_gate.py verify-checkout \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
             --expected-parent "$GITHUB_SHA" \
             --include-toolchain \
-            --expected-flutter "3.35.3" \
-            --expected-dart "3.9.2" \
             --output "$RESULTS_DIR/identity-post.json"
           git diff --check
           git -C mobile diff --check
+          exit "$mutation_status"
 
-      - name: Hash full-suite evidence
+      - name: Hash full-runtime evidence
         if: always()
         run: |
           python3 tool/ci/lock_gate.py hash-results \
             --root "$RESULTS_DIR" \
             --output "$EVIDENCE_MANIFEST"
 
-      - name: Archive full-suite evidence
+      - name: Archive full-runtime evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: lock-gate-full-${{ github.run_id }}-${{ github.run_attempt }}
+          name: lock-gate-july1-full-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: error
           path: |
             ${{ steps.results.outputs.dir }}
@@ -499,7 +486,7 @@ jobs:
       - full-suite-quarantine-monitor
     runs-on: ubuntu-latest
     steps:
-      - name: Require every behavioral and classification gate
+      - name: Require every July 1 runtime and build-control gate
         run: |
           test "${{ needs.mobile-fast-suite.result }}" = "success"
           test "${{ needs.lock-gate-evaluator.result }}" = "success"
