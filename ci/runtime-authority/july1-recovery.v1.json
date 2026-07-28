@@ -1,0 +1,373 @@
+{
+  "schemaVersion": 1,
+  "profileId": "JULY1-RECOVERY-RUNTIME-AUTHORITY-001",
+  "status": "ACTIVE_EXACT_RECOVERY_RUNTIME",
+  "identity": {
+    "parentAuthorityBaseCommit": "7c270354a9c03310339820c1f5dfb7b101f26bec",
+    "currentMobileBaseCommit": "eb2dc9e794ff0d9770d4f05da95dea66fe8f6cf4",
+    "historicalMobileCommit": "86c4c28aeb5e81b69b89e0d644aa1b26e48837e3",
+    "authorizedForwardCommit": "684bf157904d5f8647f51184db3416aa872ce67a",
+    "mergedMobileCommit": "ef0c90bad0e9044961327df8de43ad706d9d5dcb",
+    "mobileTree": "1fda59a1a0aed31bc0f23fcc70803779128fa5f5",
+    "libTree": "eab0396a65f4951bb5a4c70034811ad2cfde20a4",
+    "testTree": "f63d3107b72f56f0e715ad7240a14861ccbff0a8",
+    "pubspecLockSha256": "e366b4717d33df04c32c011d29877b133c2fb7941319f6b4ddf2b0650af8153c",
+    "flutterVersion": "3.35.3",
+    "dartVersion": "3.9.2"
+  },
+  "controlOverlay": {
+    "historicalRuntimeRule": "The complete recovery mobile tree is historical July 1 plus exactly these deterministic build, packaging, identity, verification, and test-control paths.",
+    "paths": [
+      {
+        "path": ".gitignore",
+        "class": "packaging-control",
+        "sha256": "491fe8975f07400c87b4c9cea966bf3a2d5d0d9b39e52bbb5a2be85663ef2774"
+      },
+      {
+        "path": "README.md",
+        "class": "build-documentation",
+        "sha256": "a5eba6603fa994066c4131331e0b2393607a9269f862f14c02651874f044c386"
+      },
+      {
+        "path": "config/web/cloudflare-served-contract.v1.json",
+        "class": "verification-control",
+        "sha256": "015766114bd068749906d30c21d0bc824b5a85a3443a0e905cb693b82f6e496c"
+      },
+      {
+        "path": "config/web/environment-delta-contract.v1.json",
+        "class": "environment-control",
+        "sha256": "8b07527888c3cd53119202c4cba43c388813408647ca2948618f00b179fc5195"
+      },
+      {
+        "path": "config/web/icons/staging/Icon-192.png",
+        "class": "staging-identity-control",
+        "sha256": "d7ba3f0a24213a14260102fa1e8041076abe8f608350205b0afe5eee581ca71c"
+      },
+      {
+        "path": "config/web/icons/staging/Icon-512.png",
+        "class": "staging-identity-control",
+        "sha256": "196e616ad1d0feb88f69fb04829c089212ef3b3d7fe9a10440cf778833162d6c"
+      },
+      {
+        "path": "config/web/icons/staging/Icon-maskable-192.png",
+        "class": "staging-identity-control",
+        "sha256": "d7ba3f0a24213a14260102fa1e8041076abe8f608350205b0afe5eee581ca71c"
+      },
+      {
+        "path": "config/web/icons/staging/Icon-maskable-512.png",
+        "class": "staging-identity-control",
+        "sha256": "196e616ad1d0feb88f69fb04829c089212ef3b3d7fe9a10440cf778833162d6c"
+      },
+      {
+        "path": "config/web/production.public.json",
+        "class": "named-public-environment",
+        "sha256": "f9b175961ad2ce7485b36b2e1fc63dbda02a6e8370c217edd1ca5d5005a70bfc"
+      },
+      {
+        "path": "config/web/staging.public.json",
+        "class": "named-public-environment",
+        "sha256": "40cc3143603cfa4adbac252f5d8f09ca80292bb75f093fefd2ec69d08f43df79"
+      },
+      {
+        "path": "docs/web_release_build_contract.md",
+        "class": "build-documentation",
+        "sha256": "1c4338432b45a18970b2d82cddb681e65200e0af3d6ebc5b17a1e59c869d1112"
+      },
+      {
+        "path": "launch-p0-verification.md",
+        "class": "verification-documentation",
+        "sha256": "91f830ba5de461d76cc6d3705b9a78e716ae6825c2ac794a3ce8232b49c12d8f"
+      },
+      {
+        "path": "scripts/build_web_release.sh",
+        "class": "deterministic-builder",
+        "sha256": "8b64f06b1cb01a2cb274f03f8eef6d4e0b7441e1c67fe01ad12800f882693672"
+      },
+      {
+        "path": "scripts/deploy_cloudflare_pages.sh",
+        "class": "deployment-control",
+        "sha256": "d340faf6e7389b172a54cbbf46450362a1905a0de70a4d9220bf0ed59aa19bc2"
+      },
+      {
+        "path": "scripts/served_artifact_verifier.py",
+        "class": "verification-control",
+        "sha256": "0f4cf246f5a54fdf5dfe28f6ceaae6d571f6cae219e4d9cad1b4aaf05c1e6529"
+      },
+      {
+        "path": "scripts/served_artifact_verifier_test.py",
+        "class": "verification-test-control",
+        "sha256": "ac3f1244a6dfc85ce7e70d9f20cb0740d94ffd838e5e06cb25179a4bcb475509"
+      },
+      {
+        "path": "scripts/web_release_pipeline.py",
+        "class": "deterministic-builder",
+        "sha256": "285af4fe7c7eb11d0d429eae32a4ef8def2dfa89b73697f596673a6faa70ce43"
+      },
+      {
+        "path": "scripts/web_release_pipeline_test.py",
+        "class": "build-test-control",
+        "sha256": "8bad1313a54bf3c0639e3c55103d5e202162da67ba405ab8ef6376cd8b19d2fa"
+      },
+      {
+        "path": "test/core/web_runtime_config_guard_test.dart",
+        "class": "runtime-config-test-control",
+        "sha256": "7b36c0a7e703ec4ec8676aa867a5f7a684c2bc30a57b58e6ad20a177fb979178"
+      }
+    ],
+    "sortedPathSha256Digest": "a9e457b86f347376cb2a6a8e58c3364ee4e2ddfe459dce9fa3758c17eedfd11e",
+    "digestAlgorithm": "SHA-256 over sorted UTF-8 lines: <path> TAB <sha256> LF"
+  },
+  "parentDelta": {
+    "baseCommit": "7c270354a9c03310339820c1f5dfb7b101f26bec",
+    "exactPaths": [
+      ".github/workflows/mobile.yml",
+      "ci/LOCK_GATE.md",
+      "ci/locked-contracts.json",
+      "ci/quarantine-registry.yaml",
+      "ci/runtime-authority/july1-recovery.v1.json",
+      "ci/superseded/README.md",
+      "ci/superseded/locked-contracts.post-july1.242.json",
+      "ci/superseded/quarantine-registry.post-july1.7.json",
+      "mobile",
+      "tool/ci/july1_runtime_gate.py",
+      "tool/ci/test_july1_runtime_gate.py"
+    ],
+    "deletedPaths": [
+      "ci/locked-contracts.json",
+      "ci/quarantine-registry.yaml"
+    ],
+    "selfValidatedPath": "ci/runtime-authority/july1-recovery.v1.json",
+    "mobileGitlinkPath": "mobile",
+    "files": [
+      {
+        "path": ".github/workflows/mobile.yml",
+        "sha256": "e645730a4dd2e5bdca37e76c2727ee26fb9063b0b0e3f1256c950aad3bcbf919"
+      },
+      {
+        "path": "ci/LOCK_GATE.md",
+        "sha256": "af5fac4070b490b2f2d8eb8a53994ababb89d2d58756985a537279d78f11d36b"
+      },
+      {
+        "path": "ci/superseded/README.md",
+        "sha256": "c21d144950ed5713c523e39ec7d8993ed824e43291a8bb0332f6bb14de6dece0"
+      },
+      {
+        "path": "ci/superseded/locked-contracts.post-july1.242.json",
+        "sha256": "6528fea450eea5d43acb2f166c11ac182aa050c1e700520245bf93567e831a2d"
+      },
+      {
+        "path": "ci/superseded/quarantine-registry.post-july1.7.json",
+        "sha256": "30237a32f8c77a46e8520b5eba1ad527ac3afaf1d7f827c6919eb9bc49e27121"
+      },
+      {
+        "path": "tool/ci/july1_runtime_gate.py",
+        "sha256": "3841c6ab54a7d0f960e28c495718cdc99d6c85b0b6093e704dbeec52a54dc9f5"
+      },
+      {
+        "path": "tool/ci/test_july1_runtime_gate.py",
+        "sha256": "61ad7099293996e91ab3043edcfe6cf6561c876d88a273e1be091d3271bd6b61"
+      }
+    ],
+    "sortedPathSha256Digest": "29145f40f3a40300df43175111ba1c0b8fe35b145602450b17cba0732da4c2e8"
+  },
+  "generatedMetadata": {
+    "path": ".flutter-plugins-dependencies",
+    "committedSha256": "7a6605f9ed900da706bc657e5456ebf5dd3c723a60894bc381a85973a1a42c9e",
+    "canonicalSha256": "553e8d8aa798779f624ccdc40f33e5b93d551f44d310c6aa587ebbdfb2642bb8",
+    "permittedVolatileFields": [
+      "date_created",
+      "absolute plugin path roots"
+    ]
+  },
+  "executionEnvironment": {
+    "timeZone": "America/Los_Angeles",
+    "classification": "HISTORICAL_FIXTURE_ENVIRONMENT_BINDING",
+    "affectedTestId": "test/features/calendar/the_days_outside_year_flow_test.dart :: enrollment window is M12 D28 through before M13 D1",
+    "ticket": "TIMEZONE-DETERMINISM-001",
+    "laterTestOnlyFixCommit": "f0a56d83b269532d84ff66ce81d27001f0870c52",
+    "policy": "This reproduces the accepted July 1 test environment only. It is not product timezone policy, PASS, LOCKED behavior, quarantine, or accepted baseline debt."
+  },
+  "testInventory": {
+    "suiteFileCount": 212,
+    "suiteFilesSha256": "ba3db6d14dc4fa598de42c4c85d91d85a7108bbf84ab6ad07528113c5a4dc53b",
+    "substantiveCount": 1967,
+    "stableIdsSha256": "4850f73e049cc0b51f349e749ec7c697519a7818f3e672debcc7ef5bad0a5973",
+    "expectedPassCount": 1960,
+    "passingIdsSha256": "322697f32a5ecbaf95d2a6453bfca83c69df00aebcdc6ae947524f5f829ee9e8",
+    "expectedAcceptedDebtCount": 5,
+    "acceptedDebtIdsSha256": "032f461e78889f9af77a5c8493368ce561b4b3c5179062d6d10610667de1dce9",
+    "expectedOwnedSkipCount": 2,
+    "ownedSkipIdsSha256": "81abff3c561cb1091a314849c87a1f9a073d5a6ca656d8ea7e6b1b7f7cf31611"
+  },
+  "acceptedDebt": [
+    {
+      "id": "test/services/app_bar_action_guard_test.dart :: app bar action guard :: community feed distinguishes load errors from empty state",
+      "historicalCategory": "assertion-mismatch",
+      "evaluatorCategory": "guard-allowlist-violation",
+      "classification": "ACCEPTED_BASELINE_DEBT",
+      "ticket": "TEST-COMMUNITY-FEED-001",
+      "owner": "Mobile Profile"
+    },
+    {
+      "id": "test/services/app_bar_action_guard_test.dart :: app bar action guard :: raw context.push usage stays centralized or explicitly local",
+      "historicalCategory": "assertion-mismatch",
+      "evaluatorCategory": "guard-allowlist-violation",
+      "classification": "ACCEPTED_BASELINE_DEBT",
+      "ticket": "NAV-CENTRALIZATION-DECISION-001",
+      "owner": "Mobile Navigation"
+    },
+    {
+      "id": "test/widgets/daily_reflection_widget_data_test.dart :: daily reflection widget data matches KemeticDayData",
+      "historicalCategory": "assertion-mismatch",
+      "evaluatorCategory": "assertion-mismatch",
+      "classification": "ACCEPTED_BASELINE_DEBT",
+      "ticket": "TEST-KEMETIC-DAY-DATA-001",
+      "owner": "Calendar Content"
+    },
+    {
+      "id": "test/widgets/kemetic_day_info_test.dart :: KemeticDayData decan resolution :: keeps day card rhythms short and rejects rollback copy",
+      "historicalCategory": "assertion-mismatch",
+      "evaluatorCategory": "assertion-mismatch",
+      "classification": "ACCEPTED_BASELINE_DEBT",
+      "ticket": "TEST-KEMETIC-DAY-RHYTHM-001",
+      "owner": "Calendar Content"
+    },
+    {
+      "id": "test/widgets/kemetic_day_info_test.dart :: KemeticDayData decan resolution :: uses normalized visible date labels for all standard day cards",
+      "historicalCategory": "assertion-mismatch",
+      "evaluatorCategory": "assertion-mismatch",
+      "classification": "ACCEPTED_BASELINE_DEBT",
+      "ticket": "TEST-KEMETIC-DAY-LABELS-001",
+      "owner": "Calendar Content"
+    }
+  ],
+  "ownedSkips": [
+    {
+      "id": "test/dst_fix_test.dart :: DST Bug Fix Verification :: Local display at noon is stable across fall back",
+      "reason": "DST expectation depends on test timezone; pin zone or harden assertion",
+      "ticket": "TEST-DST-HERMETIC-001",
+      "owner": "Calendar Platform"
+    },
+    {
+      "id": "test/features/calendar/maat_flow_response_pilot_sheet_test.dart :: (suite)",
+      "reason": "Legacy Ma’at generated-preview pilot assertions need migration to the plain user-text journal model.",
+      "ticket": "TEST-MAAT-PILOT-MIGRATION-001",
+      "owner": "Calendar / Ma'at Flows"
+    }
+  ],
+  "supersededAuthority": {
+    "status": "SUPERSEDED_LATER_RUNTIME_EVIDENCE",
+    "lockedManifestPath": "ci/superseded/locked-contracts.post-july1.242.json",
+    "lockedManifestSha256": "6528fea450eea5d43acb2f166c11ac182aa050c1e700520245bf93567e831a2d",
+    "lockedVmTestCount": 242,
+    "lockedVmUnitCount": 34,
+    "processUnitCount": 3,
+    "registryPath": "ci/superseded/quarantine-registry.post-july1.7.json",
+    "registrySha256": "30237a32f8c77a46e8520b5eba1ad527ac3afaf1d7f827c6919eb9bc49e27121",
+    "laterRuntimeTestFiles": [
+      {
+        "path": "test/core/planner_launch_intent_test.dart",
+        "presentInJuly1": true
+      },
+      {
+        "path": "test/features/calendar/calendar_principal_generation_test.dart",
+        "presentInJuly1": false
+      },
+      {
+        "path": "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+        "presentInJuly1": false
+      },
+      {
+        "path": "test/features/calendar/the_reading_house_flow_test.dart",
+        "presentInJuly1": true
+      },
+      {
+        "path": "test/features/settings/settings_page_guard_test.dart",
+        "presentInJuly1": true
+      },
+      {
+        "path": "test/services/app_bar_action_guard_test.dart",
+        "presentInJuly1": true
+      },
+      {
+        "path": "test/services/app_navigation_restoration_controller_test.dart",
+        "presentInJuly1": true
+      },
+      {
+        "path": "test/services/app_restoration_service_test.dart",
+        "presentInJuly1": true
+      },
+      {
+        "path": "test/services/calendar_snapshot_repository_test.dart",
+        "presentInJuly1": false
+      },
+      {
+        "path": "test/services/navigation_trace_guard_test.dart",
+        "presentInJuly1": true
+      },
+      {
+        "path": "test/services/restoration_coordinator_test.dart",
+        "presentInJuly1": true
+      },
+      {
+        "path": "test/services/termination_safe_primary_navigation_test.dart",
+        "presentInJuly1": false
+      },
+      {
+        "path": "test/services/web_restoration_durability_contract_test.dart",
+        "presentInJuly1": false
+      },
+      {
+        "path": "test/widgets/flow_studio_primary_stack_contract_test.dart",
+        "presentInJuly1": false
+      },
+      {
+        "path": "test/widgets/global_drawer_navigation_contract_test.dart",
+        "presentInJuly1": false
+      },
+      {
+        "path": "test/widgets/global_navigation_shell_test.dart",
+        "presentInJuly1": true
+      },
+      {
+        "path": "test/widgets/global_shell_auth_timer_lifecycle_test.dart",
+        "presentInJuly1": false
+      },
+      {
+        "path": "test/widgets/global_shell_unread_realtime_lifecycle_test.dart",
+        "presentInJuly1": false
+      },
+      {
+        "path": "test/widgets/utility_fallback_navigation_contract_test.dart",
+        "presentInJuly1": false
+      }
+    ],
+    "absentTestFiles": [
+      "test/features/calendar/calendar_principal_generation_test.dart",
+      "test/features/calendar/calendar_stale_while_revalidate_first_paint_test.dart",
+      "test/services/calendar_snapshot_repository_test.dart",
+      "test/services/termination_safe_primary_navigation_test.dart",
+      "test/services/web_restoration_durability_contract_test.dart",
+      "test/widgets/flow_studio_primary_stack_contract_test.dart",
+      "test/widgets/global_drawer_navigation_contract_test.dart",
+      "test/widgets/global_shell_auth_timer_lifecycle_test.dart",
+      "test/widgets/global_shell_unread_realtime_lifecycle_test.dart",
+      "test/widgets/utility_fallback_navigation_contract_test.dart"
+    ],
+    "processHarness": {
+      "path": "integration_test/restoration_process_death_harness.dart",
+      "presentInJuly1": false
+    }
+  },
+  "evidence": {
+    "provenanceClassification": "NON_AUTHORITATIVE_RECOVERY_EVIDENCE",
+    "recoveryEvidenceParentCommit": "ce93d6af0cc0a809e7ddafde627f809c61daf202",
+    "recoveryEvidenceMobileCommit": "bedc84a95b7795b2101c9c692850add850cd9edf",
+    "localValidationCommit": "c5a1e80e0c9df0055d715b02b8579ad1513107cd",
+    "controlMachineLogSha256": "a1a33d1d8777ac2a6dba488f6fce4b9d13a017fe197c15543ae989ad8c8b5117",
+    "recoveryArchiveSha256": "7a89a67aff1674bcdc29fd8446521fc5b4dbbff28ee5ca882350d11613a66092",
+    "recoveryPayloadManifestSha256": "ec3d50e37d24ba39d9bb28d65f29c40be8fca6f5fac1b8116d57417521e82993",
+    "physicalAcceptance": "USER_ATTESTED_PASS",
+    "productionStatus": "NOT_STARTED"
+  }
+}
