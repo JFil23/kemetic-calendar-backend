@@ -372,6 +372,7 @@ jobs:
     timeout-minutes: 45
     env:
       PYTHONDONTWRITEBYTECODE: "1"
+      TZ: America/Los_Angeles
     steps:
       - name: Establish full-suite evidence paths
         id: results

@@ -28,6 +28,17 @@ The July 1 profile is bound to:
 - exactly five named failures classified as `ACCEPTED_BASELINE_DEBT`;
 - exactly two named and owned skips.
 
+The complete July 1 serial inventory runs under an explicit
+`TZ=America/Los_Angeles` historical fixture-environment binding. One unchanged
+July 1 test supplies a Pacific wall-clock date where its helper expects an
+instant; it passes in the original Pacific environment and fails under an
+ambient UTC host. The evaluator requires the exact `TZ` value and records it in
+the decision receipt. Missing or different `TZ` fails closed. This constraint
+is not product timezone policy, a pass/locked contract, quarantine, or accepted
+baseline debt. The later test-only correction
+`f0a56d83b269532d84ff66ce81d27001f0870c52` remains superseded evidence and is
+not imported into the exact July 1 test tree.
+
 Accepted baseline debt is not a pass, locked contract, quarantine, wildcard,
 or ignored result. A failure that passes, disappears, changes category, or is
 renamed fails the gate until the authority is deliberately reviewed and

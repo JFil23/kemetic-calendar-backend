@@ -10,9 +10,14 @@ from pathlib import Path
 
 from tool.ci.july1_runtime_gate import (
     EXPECTED_CONTROL_PATHS,
+    EXPECTED_EXECUTION_TIME_ZONE,
     EXPECTED_PARENT_DELETED_PATHS,
     EXPECTED_PARENT_DELTA_PATHS,
     EXPECTED_PARENT_HASHED_PATHS,
+    EXPECTED_TIME_ZONE_CLASSIFICATION,
+    EXPECTED_TIME_ZONE_FIX_COMMIT,
+    EXPECTED_TIME_ZONE_TEST_ID,
+    EXPECTED_TIME_ZONE_TICKET,
     _canonical_flutter_metadata,
     evaluate_full_suite,
     inspect_pub_get_mutation,
@@ -38,6 +43,8 @@ def _path_sha_digest(entries):
 
 class July1RuntimeGateTest(unittest.TestCase):
     def setUp(self):
+        self.original_time_zone = os.environ.get("TZ")
+        os.environ["TZ"] = EXPECTED_EXECUTION_TIME_ZONE
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.parent = self.root / "parent"
@@ -160,6 +167,10 @@ class July1RuntimeGateTest(unittest.TestCase):
 
     def tearDown(self):
         self.temp.cleanup()
+        if self.original_time_zone is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = self.original_time_zone
 
     def _git(self, cwd, *args):
         return subprocess.check_output(["git", *args], cwd=cwd, text=True).strip()
@@ -502,6 +513,14 @@ class July1RuntimeGateTest(unittest.TestCase):
                     "absolute plugin path roots",
                 ],
             },
+            "executionEnvironment": {
+                "timeZone": EXPECTED_EXECUTION_TIME_ZONE,
+                "classification": EXPECTED_TIME_ZONE_CLASSIFICATION,
+                "affectedTestId": EXPECTED_TIME_ZONE_TEST_ID,
+                "ticket": EXPECTED_TIME_ZONE_TICKET,
+                "laterTestOnlyFixCommit": EXPECTED_TIME_ZONE_FIX_COMMIT,
+                "policy": "Historical fixture environment only.",
+            },
             "testInventory": {
                 "suiteFileCount": 9,
                 "suiteFilesSha256": _digest(suite_files),
@@ -619,6 +638,28 @@ class July1RuntimeGateTest(unittest.TestCase):
         self.profile.write_text(json.dumps(profile))
         _, errors = load_profile(self.profile)
         self.assertTrue(any("ACCEPTED_BASELINE_DEBT" in error for error in errors))
+
+    def test_profile_rejects_fixture_binding_as_accepted_debt(self):
+        profile = json.loads(self.profile.read_text())
+        profile["acceptedDebt"].append(
+            {
+                "id": EXPECTED_TIME_ZONE_TEST_ID,
+                "historicalCategory": "assertion-mismatch",
+                "evaluatorCategory": "assertion-mismatch",
+                "classification": "ACCEPTED_BASELINE_DEBT",
+                "ticket": EXPECTED_TIME_ZONE_TICKET,
+                "owner": "Fixture Owner",
+            }
+        )
+        profile["testInventory"]["expectedAcceptedDebtCount"] = 2
+        profile["testInventory"]["acceptedDebtIdsSha256"] = _digest(
+            {self.debt_id, EXPECTED_TIME_ZONE_TEST_ID}
+        )
+        self.profile.write_text(json.dumps(profile))
+        _, errors = load_profile(self.profile)
+        self.assertTrue(
+            any("cannot enter acceptedDebt" in error for error in errors)
+        )
 
     def test_profile_rejects_control_path_substitution(self):
         profile = json.loads(self.profile.read_text())
@@ -900,6 +941,49 @@ class July1RuntimeGateTest(unittest.TestCase):
         self.assertEqual(
             decision["acceptedBaselineDebt"][0]["classification"],
             "ACCEPTED_BASELINE_DEBT",
+        )
+        self.assertEqual(
+            decision["executionEnvironment"],
+            {
+                "classification": EXPECTED_TIME_ZONE_CLASSIFICATION,
+                "affectedTestId": EXPECTED_TIME_ZONE_TEST_ID,
+                "expectedTimeZone": EXPECTED_EXECUTION_TIME_ZONE,
+                "observedTimeZone": EXPECTED_EXECUTION_TIME_ZONE,
+                "matched": True,
+                "ticket": EXPECTED_TIME_ZONE_TICKET,
+                "laterTestOnlyFixCommit": EXPECTED_TIME_ZONE_FIX_COMMIT,
+            },
+        )
+
+    def test_full_suite_rejects_missing_execution_timezone(self):
+        os.environ.pop("TZ")
+        decision = evaluate_full_suite(
+            profile_path=self.profile,
+            machine_log=self.log,
+            flutter_status=1,
+            mobile_root=self.mobile,
+        )
+        self.assertFalse(decision["passed"])
+        self.assertFalse(decision["executionEnvironment"]["matched"])
+        self.assertTrue(
+            any("execution timezone mismatch" in error for error in decision["errors"])
+        )
+
+    def test_full_suite_rejects_wrong_execution_timezone(self):
+        os.environ["TZ"] = "UTC"
+        decision = evaluate_full_suite(
+            profile_path=self.profile,
+            machine_log=self.log,
+            flutter_status=1,
+            mobile_root=self.mobile,
+        )
+        self.assertFalse(decision["passed"])
+        self.assertEqual(
+            decision["executionEnvironment"]["observedTimeZone"],
+            "UTC",
+        )
+        self.assertTrue(
+            any("execution timezone mismatch" in error for error in decision["errors"])
         )
 
     def test_full_suite_rejects_disappeared_debt(self):

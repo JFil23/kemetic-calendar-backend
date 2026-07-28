@@ -23,6 +23,14 @@ from typing import Any
 
 EXPECTED_PROFILE_STATUS = "ACTIVE_EXACT_RECOVERY_RUNTIME"
 EXPECTED_DEBT_CLASSIFICATION = "ACCEPTED_BASELINE_DEBT"
+EXPECTED_EXECUTION_TIME_ZONE = "America/Los_Angeles"
+EXPECTED_TIME_ZONE_CLASSIFICATION = "HISTORICAL_FIXTURE_ENVIRONMENT_BINDING"
+EXPECTED_TIME_ZONE_TEST_ID = (
+    "test/features/calendar/the_days_outside_year_flow_test.dart :: "
+    "enrollment window is M12 D28 through before M13 D1"
+)
+EXPECTED_TIME_ZONE_TICKET = "TIMEZONE-DETERMINISM-001"
+EXPECTED_TIME_ZONE_FIX_COMMIT = "f0a56d83b269532d84ff66ce81d27001f0870c52"
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -415,6 +423,21 @@ def load_profile(path: Path) -> tuple[dict[str, Any], list[str]]:
             "timestamp and absolute plugin path roots"
         )
 
+    execution_environment = _required_object(raw, "executionEnvironment", errors)
+    expected_execution_environment = {
+        "timeZone": EXPECTED_EXECUTION_TIME_ZONE,
+        "classification": EXPECTED_TIME_ZONE_CLASSIFICATION,
+        "affectedTestId": EXPECTED_TIME_ZONE_TEST_ID,
+        "ticket": EXPECTED_TIME_ZONE_TICKET,
+        "laterTestOnlyFixCommit": EXPECTED_TIME_ZONE_FIX_COMMIT,
+    }
+    for field, expected in expected_execution_environment.items():
+        if execution_environment.get(field) != expected:
+            errors.append(f"executionEnvironment.{field} must be {expected!r}")
+    policy = execution_environment.get("policy")
+    if not isinstance(policy, str) or not policy:
+        errors.append("executionEnvironment.policy must be a non-empty string")
+
     inventory = _required_object(raw, "testInventory", errors)
     count_fields = (
         "suiteFileCount",
@@ -499,6 +522,10 @@ def load_profile(path: Path) -> tuple[dict[str, Any], list[str]]:
     if debt_ids & skip_ids:
         errors.append(
             f"acceptedDebt and ownedSkips overlap: {sorted(debt_ids & skip_ids)}"
+        )
+    if EXPECTED_TIME_ZONE_TEST_ID in debt_ids:
+        errors.append(
+            "historical fixture-environment binding cannot enter acceptedDebt"
         )
     if inventory:
         if inventory.get("expectedAcceptedDebtCount") != len(debt_ids):
@@ -1445,6 +1472,19 @@ def evaluate_full_suite(
     }
     run = load_machine_run(machine_log, mobile_root)
     errors = [*profile_errors, *run.stream_errors]
+    execution_authority = (
+        profile.get("executionEnvironment")
+        if isinstance(profile.get("executionEnvironment"), dict)
+        else {}
+    )
+    expected_time_zone = execution_authority.get("timeZone")
+    observed_time_zone = os.environ.get("TZ")
+    time_zone_matches = observed_time_zone == expected_time_zone
+    if not time_zone_matches:
+        errors.append(
+            "execution timezone mismatch: "
+            f"{observed_time_zone!r} != {expected_time_zone!r}"
+        )
     hidden_failures = sorted(
         test.identity
         for test in run.tests
@@ -1636,6 +1676,17 @@ def evaluate_full_suite(
         "command": "evaluate-full",
         "profileId": profile.get("profileId"),
         "passed": False,
+        "executionEnvironment": {
+            "classification": execution_authority.get("classification"),
+            "affectedTestId": execution_authority.get("affectedTestId"),
+            "expectedTimeZone": expected_time_zone,
+            "observedTimeZone": observed_time_zone,
+            "matched": time_zone_matches,
+            "ticket": execution_authority.get("ticket"),
+            "laterTestOnlyFixCommit": execution_authority.get(
+                "laterTestOnlyFixCommit"
+            ),
+        },
         "observed": observed,
         "expected": comparisons,
         "acceptedBaselineDebt": debt_results,
