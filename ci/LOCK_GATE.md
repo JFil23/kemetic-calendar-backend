@@ -1,14 +1,16 @@
-# July 1 recovery `LOCK-GATE required`
+# July 1 recovery plus reminder preservation `LOCK-GATE required`
 
 `LOCK-GATE required` remains the stable branch-protection check. Its active
 authority is the versioned profile in
 `runtime-authority/july1-recovery.v1.json`.
 
-The selected runtime predates the later 242-contract shard. Ten of the nineteen
-later locked test files and the later fresh-process harness are absent from
-July 1. The exact later manifest and seven-entry registry therefore live under
-`superseded/` as non-executable evidence. They are never interpreted as
-passing against files that do not exist.
+The selected runtime is the recovered July 1 application plus the separately
+approved DB-backed reminder-occurrence preservation correction. It still
+predates the later 242-contract shard. Ten of the nineteen later locked test
+files and the later fresh-process harness are absent. The exact later manifest
+and seven-entry registry therefore live under `superseded/` as non-executable
+evidence. They are never interpreted as passing against files that do not
+exist.
 
 ## Active runtime authority
 
@@ -19,12 +21,13 @@ The July 1 profile is bound to:
   every non-self file, strict schema/self-path validation for this authority
   profile, and the exact merged mobile gitlink; any unrelated parent path fails
   closed;
-- the exact restored mobile tree, `lib/` tree, `test/` tree, dependency lock,
-  Flutter version, and Dart version;
+- the exact restored-and-corrected mobile tree, `lib/` tree, `test/` tree,
+  dependency lock, Flutter version, and Dart version;
 - the nineteen deterministic build-control files retained over historical
   July 1, each by exact path and SHA-256;
-- all 212 test suites and all 1,967 stable test IDs;
-- exactly 1,960 passes;
+- all 213 test suites and all 1,968 stable test IDs, including the permanent
+  production-path reminder-preservation contract;
+- exactly 1,961 passes;
 - exactly five named failures classified as `ACCEPTED_BASELINE_DEBT`;
 - exactly two named and owned skips.
 

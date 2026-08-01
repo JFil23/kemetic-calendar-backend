@@ -6,11 +6,11 @@
     "parentAuthorityBaseCommit": "7c270354a9c03310339820c1f5dfb7b101f26bec",
     "currentMobileBaseCommit": "eb2dc9e794ff0d9770d4f05da95dea66fe8f6cf4",
     "historicalMobileCommit": "86c4c28aeb5e81b69b89e0d644aa1b26e48837e3",
-    "authorizedForwardCommit": "684bf157904d5f8647f51184db3416aa872ce67a",
-    "mergedMobileCommit": "ef0c90bad0e9044961327df8de43ad706d9d5dcb",
-    "mobileTree": "1fda59a1a0aed31bc0f23fcc70803779128fa5f5",
-    "libTree": "eab0396a65f4951bb5a4c70034811ad2cfde20a4",
-    "testTree": "f63d3107b72f56f0e715ad7240a14861ccbff0a8",
+    "authorizedForwardCommit": "3059a8873e4d6e9ca40e1e53a821a6c9997c50e7",
+    "mergedMobileCommit": "3e3e1dc7c63e80e724e58abed36fc8b2c5ce70c0",
+    "mobileTree": "ea736659736a821ea0376e98076881a0cdb73c8e",
+    "libTree": "eba3d8dccb7089c06e2792ad058a1cf8af6897a8",
+    "testTree": "3096ad82db772415eb1bb213ec781fac30ed21c3",
     "pubspecLockSha256": "e366b4717d33df04c32c011d29877b133c2fb7941319f6b4ddf2b0650af8153c",
     "flutterVersion": "3.35.3",
     "dartVersion": "3.9.2"
@@ -145,7 +145,7 @@
       },
       {
         "path": "ci/LOCK_GATE.md",
-        "sha256": "af5fac4070b490b2f2d8eb8a53994ababb89d2d58756985a537279d78f11d36b"
+        "sha256": "65a7210a11d3f19bc24d578b57d36e29dfc52fce6c6c4e6bc64b2b9a3bec50b5"
       },
       {
         "path": "ci/superseded/README.md",
@@ -168,7 +168,7 @@
         "sha256": "61ad7099293996e91ab3043edcfe6cf6561c876d88a273e1be091d3271bd6b61"
       }
     ],
-    "sortedPathSha256Digest": "29145f40f3a40300df43175111ba1c0b8fe35b145602450b17cba0732da4c2e8"
+    "sortedPathSha256Digest": "2d9a2550d6956b766bc042fcd2864cf7828a4e0a1ea78edf39e6271021f8f58d"
   },
   "generatedMetadata": {
     "path": ".flutter-plugins-dependencies",
@@ -188,12 +188,12 @@
     "policy": "This reproduces the accepted July 1 test environment only. It is not product timezone policy, PASS, LOCKED behavior, quarantine, or accepted baseline debt."
   },
   "testInventory": {
-    "suiteFileCount": 212,
-    "suiteFilesSha256": "ba3db6d14dc4fa598de42c4c85d91d85a7108bbf84ab6ad07528113c5a4dc53b",
-    "substantiveCount": 1967,
-    "stableIdsSha256": "4850f73e049cc0b51f349e749ec7c697519a7818f3e672debcc7ef5bad0a5973",
-    "expectedPassCount": 1960,
-    "passingIdsSha256": "322697f32a5ecbaf95d2a6453bfca83c69df00aebcdc6ae947524f5f829ee9e8",
+    "suiteFileCount": 213,
+    "suiteFilesSha256": "e04a362197ad47974ae6a91fbd016ad502b3d51b13b630da81accae8d5a45006",
+    "substantiveCount": 1968,
+    "stableIdsSha256": "ffe6367ad45053f3480ba3bcc2d4f944250cb4b8db8ca7596ef022e58ad0f4d2",
+    "expectedPassCount": 1961,
+    "passingIdsSha256": "0a0972f1222a701539e44440c4b6b5390d53ba89ed47cb7699871baf0771dcbc",
     "expectedAcceptedDebtCount": 5,
     "acceptedDebtIdsSha256": "032f461e78889f9af77a5c8493368ce561b4b3c5179062d6d10610667de1dce9",
     "expectedOwnedSkipCount": 2,
