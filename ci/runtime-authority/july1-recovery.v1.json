@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "profileId": "JULY1-RECOVERY-RUNTIME-AUTHORITY-001",
+  "profileId": "MAAT-EVENT-LIST-LOCK-AUTHORITY-001",
   "status": "ACTIVE_EXACT_RECOVERY_RUNTIME",
   "identity": {
     "parentAuthorityBaseCommit": "7c270354a9c03310339820c1f5dfb7b101f26bec",
     "currentMobileBaseCommit": "eb2dc9e794ff0d9770d4f05da95dea66fe8f6cf4",
     "historicalMobileCommit": "86c4c28aeb5e81b69b89e0d644aa1b26e48837e3",
-    "authorizedForwardCommit": "3059a8873e4d6e9ca40e1e53a821a6c9997c50e7",
-    "mergedMobileCommit": "3e3e1dc7c63e80e724e58abed36fc8b2c5ce70c0",
-    "mobileTree": "ea736659736a821ea0376e98076881a0cdb73c8e",
-    "libTree": "eba3d8dccb7089c06e2792ad058a1cf8af6897a8",
-    "testTree": "3096ad82db772415eb1bb213ec781fac30ed21c3",
+    "authorizedForwardCommit": "0681e449dbde6b98644dae9023a09e01031a93a0",
+    "mergedMobileCommit": "0681e449dbde6b98644dae9023a09e01031a93a0",
+    "mobileTree": "1e97fd4741c867c1ad19dbfa1545d20d76221195",
+    "libTree": "27ed8a047657069e6f7fee7d1fc4a8c9c9a10f26",
+    "testTree": "bd5a47c5f87e3790ff85d0f435d5a93363c8b577",
     "pubspecLockSha256": "e366b4717d33df04c32c011d29877b133c2fb7941319f6b4ddf2b0650af8153c",
     "flutterVersion": "3.35.3",
     "dartVersion": "3.9.2"
@@ -31,7 +31,7 @@
       {
         "path": "config/web/cloudflare-served-contract.v1.json",
         "class": "verification-control",
-        "sha256": "015766114bd068749906d30c21d0bc824b5a85a3443a0e905cb693b82f6e496c"
+        "sha256": "e2c66386d4332ba5e598bd50dd4c6d5a86501c8646bf128087ac62e24d29899c"
       },
       {
         "path": "config/web/environment-delta-contract.v1.json",
@@ -66,12 +66,12 @@
       {
         "path": "config/web/staging.public.json",
         "class": "named-public-environment",
-        "sha256": "40cc3143603cfa4adbac252f5d8f09ca80292bb75f093fefd2ec69d08f43df79"
+        "sha256": "190545d2a3211031849a92260038652e8a33a2c3aa2378635e811b63e0b84432"
       },
       {
         "path": "docs/web_release_build_contract.md",
         "class": "build-documentation",
-        "sha256": "1c4338432b45a18970b2d82cddb681e65200e0af3d6ebc5b17a1e59c869d1112"
+        "sha256": "46e7c076862dafdd2c2288697200a0bdfa691599ebab3ad2bc14afb5a933b8ae"
       },
       {
         "path": "launch-p0-verification.md",
@@ -86,17 +86,17 @@
       {
         "path": "scripts/deploy_cloudflare_pages.sh",
         "class": "deployment-control",
-        "sha256": "d340faf6e7389b172a54cbbf46450362a1905a0de70a4d9220bf0ed59aa19bc2"
+        "sha256": "637a330580958f239ea459c5c25b5f9444367a1f498b1ef277e71a39bca6791a"
       },
       {
         "path": "scripts/served_artifact_verifier.py",
         "class": "verification-control",
-        "sha256": "0f4cf246f5a54fdf5dfe28f6ceaae6d571f6cae219e4d9cad1b4aaf05c1e6529"
+        "sha256": "0434e69752e21e15c04c8483ae95c1ae665834040ae962e33ca49ecaab6d9714"
       },
       {
         "path": "scripts/served_artifact_verifier_test.py",
         "class": "verification-test-control",
-        "sha256": "ac3f1244a6dfc85ce7e70d9f20cb0740d94ffd838e5e06cb25179a4bcb475509"
+        "sha256": "3fdfc242d816e57747978f23d5bb9831258db352a7345fca183033922bf8865c"
       },
       {
         "path": "scripts/web_release_pipeline.py",
@@ -106,7 +106,7 @@
       {
         "path": "scripts/web_release_pipeline_test.py",
         "class": "build-test-control",
-        "sha256": "8bad1313a54bf3c0639e3c55103d5e202162da67ba405ab8ef6376cd8b19d2fa"
+        "sha256": "6152e1f8e27b5586bb88a0abb0584fe93d46be880b58877c0b409a7143c35262"
       },
       {
         "path": "test/core/web_runtime_config_guard_test.dart",
@@ -114,7 +114,7 @@
         "sha256": "7b36c0a7e703ec4ec8676aa867a5f7a684c2bc30a57b58e6ad20a177fb979178"
       }
     ],
-    "sortedPathSha256Digest": "a9e457b86f347376cb2a6a8e58c3364ee4e2ddfe459dce9fa3758c17eedfd11e",
+    "sortedPathSha256Digest": "afcacb5fbccfa742493adde4e4acce18d8231586bac2fd8743a21188c7c1fcfc",
     "digestAlgorithm": "SHA-256 over sorted UTF-8 lines: <path> TAB <sha256> LF"
   },
   "parentDelta": {
@@ -188,12 +188,12 @@
     "policy": "This reproduces the accepted July 1 test environment only. It is not product timezone policy, PASS, LOCKED behavior, quarantine, or accepted baseline debt."
   },
   "testInventory": {
-    "suiteFileCount": 213,
-    "suiteFilesSha256": "e04a362197ad47974ae6a91fbd016ad502b3d51b13b630da81accae8d5a45006",
-    "substantiveCount": 1968,
-    "stableIdsSha256": "ffe6367ad45053f3480ba3bcc2d4f944250cb4b8db8ca7596ef022e58ad0f4d2",
-    "expectedPassCount": 1961,
-    "passingIdsSha256": "0a0972f1222a701539e44440c4b6b5390d53ba89ed47cb7699871baf0771dcbc",
+    "suiteFileCount": 214,
+    "suiteFilesSha256": "ef99ef27af9322f93e986c322100b4144cfc2f22ced20f8bfc320339035397da",
+    "substantiveCount": 1976,
+    "stableIdsSha256": "001f9861b697fd70b645ab127103e20b01140ed60d8d76c9405f643298425c66",
+    "expectedPassCount": 1969,
+    "passingIdsSha256": "5ba9282dcd48d2601747f5dc5d1f92dfdddffeb8349871f2b62cc7cb286bbd8c",
     "expectedAcceptedDebtCount": 5,
     "acceptedDebtIdsSha256": "032f461e78889f9af77a5c8493368ce561b4b3c5179062d6d10610667de1dce9",
     "expectedOwnedSkipCount": 2,
@@ -363,7 +363,7 @@
     "provenanceClassification": "NON_AUTHORITATIVE_RECOVERY_EVIDENCE",
     "recoveryEvidenceParentCommit": "ce93d6af0cc0a809e7ddafde627f809c61daf202",
     "recoveryEvidenceMobileCommit": "bedc84a95b7795b2101c9c692850add850cd9edf",
-    "localValidationCommit": "c5a1e80e0c9df0055d715b02b8579ad1513107cd",
+    "localValidationCommit": "0681e449dbde6b98644dae9023a09e01031a93a0",
     "controlMachineLogSha256": "a1a33d1d8777ac2a6dba488f6fce4b9d13a017fe197c15543ae989ad8c8b5117",
     "recoveryArchiveSha256": "7a89a67aff1674bcdc29fd8446521fc5b4dbbff28ee5ca882350d11613a66092",
     "recoveryPayloadManifestSha256": "ec3d50e37d24ba39d9bb28d65f29c40be8fca6f5fac1b8116d57417521e82993",
