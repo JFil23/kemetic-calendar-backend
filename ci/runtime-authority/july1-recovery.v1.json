@@ -6,11 +6,11 @@
     "parentAuthorityBaseCommit": "7c270354a9c03310339820c1f5dfb7b101f26bec",
     "currentMobileBaseCommit": "eb2dc9e794ff0d9770d4f05da95dea66fe8f6cf4",
     "historicalMobileCommit": "86c4c28aeb5e81b69b89e0d644aa1b26e48837e3",
-    "authorizedForwardCommit": "8dfb74f529d6981ba5c73b49f5fc4c17485ca0cc",
-    "mergedMobileCommit": "8dfb74f529d6981ba5c73b49f5fc4c17485ca0cc",
-    "mobileTree": "1d758a62aff6706a5d439cbb13e2d4af08f2c16e",
-    "libTree": "85f8de383f0115fe1c1d04b80368e1360d87b0fd",
-    "testTree": "55fda7a783c9d56d8ae2d8fd0d854b921590ad15",
+    "authorizedForwardCommit": "88c2a8eee2415e6533a723e800e0992c05d51d79",
+    "mergedMobileCommit": "88c2a8eee2415e6533a723e800e0992c05d51d79",
+    "mobileTree": "e8da13ec66b90a78c90fb8a1b2174696efa0bfbc",
+    "libTree": "74ae2009f89a69d3c2e16d3c03aa2f79ce96bc2b",
+    "testTree": "4408f46a72462d8b463a8ff7aaf0ae752bdb0c8a",
     "pubspecLockSha256": "e366b4717d33df04c32c011d29877b133c2fb7941319f6b4ddf2b0650af8153c",
     "flutterVersion": "3.35.3",
     "dartVersion": "3.9.2"
@@ -188,18 +188,34 @@
     "policy": "This reproduces the accepted July 1 test environment only. It is not product timezone policy, PASS, LOCKED behavior, quarantine, or accepted baseline debt."
   },
   "testInventory": {
-    "suiteFileCount": 218,
-    "suiteFilesSha256": "0224ba0e809f6755a82518a350a363fbe4e85c1798c67e9e81eb6b902c9f4bee",
-    "substantiveCount": 2000,
-    "stableIdsSha256": "667d5f3ca65898c80dd7852d420f944134e22549d5c0034e36f1bc07f4992810",
-    "expectedPassCount": 1993,
-    "passingIdsSha256": "db69d466d8a8b53cf58db1cf270773b0c7b09e28bb3148277fbb08cc12beb83c",
-    "expectedAcceptedDebtCount": 5,
-    "acceptedDebtIdsSha256": "032f461e78889f9af77a5c8493368ce561b4b3c5179062d6d10610667de1dce9",
+    "suiteFileCount": 223,
+    "suiteFilesSha256": "75266121c9b61ddeb1884d991e4587b3ee3fc4d5f953fe20ef08c4c279200ebb",
+    "substantiveCount": 1972,
+    "stableIdsSha256": "e44714a3fe80def862962209bf8082e001e767266b7674409ff40121601f68c5",
+    "expectedPassCount": 1962,
+    "passingIdsSha256": "b35c0524692311519d29136c86838b25876c38fdf38325050cf9d4c3cce4b46a",
+    "expectedAcceptedDebtCount": 8,
+    "acceptedDebtIdsSha256": "b6e2e5807f402e994859e05ec890368424019188d75f0fe521ec33acb9207035",
     "expectedOwnedSkipCount": 2,
     "ownedSkipIdsSha256": "81abff3c561cb1091a314849c87a1f9a073d5a6ca656d8ea7e6b1b7f7cf31611"
   },
   "acceptedDebt": [
+    {
+      "id": "test/features/calendar/day_sheet_date_picker_migration_test.dart :: debug smoke route seeds the real Day sheet surface",
+      "historicalCategory": "assertion-mismatch",
+      "evaluatorCategory": "guard-allowlist-violation",
+      "classification": "ACCEPTED_BASELINE_DEBT",
+      "ticket": "TEST-DAY-SHEET-DEBUG-SMOKE-GUARD-001",
+      "owner": "Calendar / Day Sheet"
+    },
+    {
+      "id": "test/features/calendar/shared_calendar_event_tap_navigation_guard_test.dart :: shared calendar upcoming event tap navigation :: real cached day intent opens before hydration and avoids dummy route",
+      "historicalCategory": "assertion-mismatch",
+      "evaluatorCategory": "guard-allowlist-violation",
+      "classification": "ACCEPTED_BASELINE_DEBT",
+      "ticket": "TEST-SHARED-CALENDAR-CACHED-DAY-GUARD-001",
+      "owner": "Calendar / Shared Events"
+    },
     {
       "id": "test/services/app_bar_action_guard_test.dart :: app bar action guard :: community feed distinguishes load errors from empty state",
       "historicalCategory": "assertion-mismatch",
@@ -215,6 +231,14 @@
       "classification": "ACCEPTED_BASELINE_DEBT",
       "ticket": "NAV-CENTRALIZATION-DECISION-001",
       "owner": "Mobile Navigation"
+    },
+    {
+      "id": "test/services/restoration_architecture_guard_test.dart :: restoration architecture guard :: Ma’at template restoration seeds initial routes",
+      "historicalCategory": "assertion-mismatch",
+      "evaluatorCategory": "assertion-mismatch",
+      "classification": "ACCEPTED_BASELINE_DEBT",
+      "ticket": "TEST-MAAT-RESTORATION-SEED-001",
+      "owner": "Mobile Navigation / Ma'at Flows"
     },
     {
       "id": "test/widgets/daily_reflection_widget_data_test.dart :: daily reflection widget data matches KemeticDayData",
@@ -363,7 +387,7 @@
     "provenanceClassification": "NON_AUTHORITATIVE_RECOVERY_EVIDENCE",
     "recoveryEvidenceParentCommit": "ce93d6af0cc0a809e7ddafde627f809c61daf202",
     "recoveryEvidenceMobileCommit": "bedc84a95b7795b2101c9c692850add850cd9edf",
-    "localValidationCommit": "8dfb74f529d6981ba5c73b49f5fc4c17485ca0cc",
+    "localValidationCommit": "88c2a8eee2415e6533a723e800e0992c05d51d79",
     "controlMachineLogSha256": "9a9b9c82a461c2848c6a00e164b79d5d81ec1c03a08857732d4fd7c1c1eb05b8",
     "recoveryArchiveSha256": "7a89a67aff1674bcdc29fd8446521fc5b4dbbff28ee5ca882350d11613a66092",
     "recoveryPayloadManifestSha256": "ec3d50e37d24ba39d9bb28d65f29c40be8fca6f5fac1b8116d57417521e82993",
