@@ -21,14 +21,16 @@ The July 1 profile is bound to:
   every non-self file, strict schema/self-path validation for this authority
   profile, and the exact merged mobile gitlink; any unrelated parent path fails
   closed;
+- the recovered linked-database migration ledger plus the versioned, set-based
+  calendar-hydration RPC migration, each bound by exact path and content hash;
 - the exact restored-and-corrected mobile tree, `lib/` tree, `test/` tree,
   dependency lock, Flutter version, and Dart version;
 - the nineteen deterministic build-control files retained over historical
   July 1, each by exact path and SHA-256;
-- all 213 test suites and all 1,968 stable test IDs, including the permanent
+- all 235 test suites and all 2,068 stable test IDs, including the permanent
   production-path reminder-preservation contract;
-- exactly 1,961 passes;
-- exactly five named failures classified as `ACCEPTED_BASELINE_DEBT`;
+- exactly 2,060 passes;
+- exactly six named failures classified as `ACCEPTED_BASELINE_DEBT`;
 - exactly two named and owned skips.
 
 The complete July 1 serial inventory runs under an explicit
