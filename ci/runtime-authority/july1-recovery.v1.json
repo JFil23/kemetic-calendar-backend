@@ -6,11 +6,11 @@
     "parentAuthorityBaseCommit": "7c270354a9c03310339820c1f5dfb7b101f26bec",
     "currentMobileBaseCommit": "eb2dc9e794ff0d9770d4f05da95dea66fe8f6cf4",
     "historicalMobileCommit": "86c4c28aeb5e81b69b89e0d644aa1b26e48837e3",
-    "authorizedForwardCommit": "430a1fd1ef7f38885bf210716c88479e11f6431b",
-    "mergedMobileCommit": "430a1fd1ef7f38885bf210716c88479e11f6431b",
-    "mobileTree": "5a1c5371132c30c8cc9893871471a92c87636bab",
-    "libTree": "765d5428d276d8df6996ac1a2529d998b1cb1f2a",
-    "testTree": "5066859a30d436b7316440f9bb7c1d8616a79f81",
+    "authorizedForwardCommit": "2366e1cd3e1816fbb1559298ed297d764f9baadd",
+    "mergedMobileCommit": "2366e1cd3e1816fbb1559298ed297d764f9baadd",
+    "mobileTree": "c04591de63d388150e0673223df55908a545304d",
+    "libTree": "08ac2f9823e6f117b26f03d71cd5251459f6f190",
+    "testTree": "65070ca4a859207df75e28d186828faac136fdd5",
     "pubspecLockSha256": "e366b4717d33df04c32c011d29877b133c2fb7941319f6b4ddf2b0650af8153c",
     "flutterVersion": "3.35.3",
     "dartVersion": "3.9.2"
@@ -129,6 +129,17 @@
       "ci/superseded/locked-contracts.post-july1.242.json",
       "ci/superseded/quarantine-registry.post-july1.7.json",
       "mobile",
+      "supabase/migrations/20260628113000_bound_filing_startup_queries.sql",
+      "supabase/migrations/20260628123000_optimize_filing_event_counts.sql",
+      "supabase/migrations/20260628130000_short_circuit_event_delete_checks.sql",
+      "supabase/migrations/20260628133000_use_fast_tombstone_filing_counts.sql",
+      "supabase/migrations/20260628140000_bound_flow_filing_fallback_once.sql",
+      "supabase/migrations/20260628143000_simplify_shared_calendar_filing_counts.sql",
+      "supabase/migrations/20260628150000_materialize_shared_calendar_counts.sql",
+      "supabase/migrations/20260628153000_set_based_shared_calendar_tombstones.sql",
+      "supabase/migrations/20260628160000_bound_shared_tombstone_helper_access.sql",
+      "supabase/migrations/20260708120000_admin_activity_ledger.sql",
+      "supabase/migrations/20260811143000_calendar_hydration_rpc_v1.sql",
       "tool/ci/july1_runtime_gate.py",
       "tool/ci/test_july1_runtime_gate.py"
     ],
@@ -145,7 +156,7 @@
       },
       {
         "path": "ci/LOCK_GATE.md",
-        "sha256": "65a7210a11d3f19bc24d578b57d36e29dfc52fce6c6c4e6bc64b2b9a3bec50b5"
+        "sha256": "11910ae749db55942a9dc7b8e5ee13f2a87c9ad9e10cb097703e86eb56ee2ae2"
       },
       {
         "path": "ci/superseded/README.md",
@@ -160,15 +171,59 @@
         "sha256": "30237a32f8c77a46e8520b5eba1ad527ac3afaf1d7f827c6919eb9bc49e27121"
       },
       {
+        "path": "supabase/migrations/20260628113000_bound_filing_startup_queries.sql",
+        "sha256": "84cf94f5ebf4dd630208e147a3287817555f26e88c4a8195b8f69239a21899c7"
+      },
+      {
+        "path": "supabase/migrations/20260628123000_optimize_filing_event_counts.sql",
+        "sha256": "580ce681bfa11088f2268a15a8a5343f9ae581cb0a89f894297d0cca6cc09110"
+      },
+      {
+        "path": "supabase/migrations/20260628130000_short_circuit_event_delete_checks.sql",
+        "sha256": "3989116a33115f198b36752d650162914f3c5e8f7810239154dcb19354aea5c8"
+      },
+      {
+        "path": "supabase/migrations/20260628133000_use_fast_tombstone_filing_counts.sql",
+        "sha256": "a579663501cadc3ee1d9dea996806363577d971969ddeaef56564dd405f0ead1"
+      },
+      {
+        "path": "supabase/migrations/20260628140000_bound_flow_filing_fallback_once.sql",
+        "sha256": "36a3e56d5df15e763e99e04b06c4699513af0e4bbb593b4dd86bf161c4774362"
+      },
+      {
+        "path": "supabase/migrations/20260628143000_simplify_shared_calendar_filing_counts.sql",
+        "sha256": "0acd029b1a42e1f0de2ffeb7304ca16de4cd25e93e060073a07265329a9230b6"
+      },
+      {
+        "path": "supabase/migrations/20260628150000_materialize_shared_calendar_counts.sql",
+        "sha256": "14a7f84956f6bbe3f13de906e709bd2a443ec23983352142f7f3b849e77c2f97"
+      },
+      {
+        "path": "supabase/migrations/20260628153000_set_based_shared_calendar_tombstones.sql",
+        "sha256": "2f803585b064a92a5d382e5db9415a8bd8619e3d61f318fddd206b310147d982"
+      },
+      {
+        "path": "supabase/migrations/20260628160000_bound_shared_tombstone_helper_access.sql",
+        "sha256": "dfb942dd30fcda268aaec2d49b0fba6a72ef82ebd6966151994fcdaf9c3218db"
+      },
+      {
+        "path": "supabase/migrations/20260708120000_admin_activity_ledger.sql",
+        "sha256": "f1d3c7d0f930027f6b7d7f79b0aca9b68c8159d1455eb7b010cfdb3e3f8dc376"
+      },
+      {
+        "path": "supabase/migrations/20260811143000_calendar_hydration_rpc_v1.sql",
+        "sha256": "0c6cccbb1362c348ce46c79e7e7feea69cc9657cded7130b216f134d4ce88e33"
+      },
+      {
         "path": "tool/ci/july1_runtime_gate.py",
-        "sha256": "3841c6ab54a7d0f960e28c495718cdc99d6c85b0b6093e704dbeec52a54dc9f5"
+        "sha256": "d7773882b1da6cfd75a734fc55893c3d443e0956a9dfc1754a36883f87cce264"
       },
       {
         "path": "tool/ci/test_july1_runtime_gate.py",
         "sha256": "61ad7099293996e91ab3043edcfe6cf6561c876d88a273e1be091d3271bd6b61"
       }
     ],
-    "sortedPathSha256Digest": "2d9a2550d6956b766bc042fcd2864cf7828a4e0a1ea78edf39e6271021f8f58d"
+    "sortedPathSha256Digest": "8216a553fda747f7926582d578ccc92f127096834b590db2dd54cd00c9f408b5"
   },
   "generatedMetadata": {
     "path": ".flutter-plugins-dependencies",
@@ -190,10 +245,10 @@
   "testInventory": {
     "suiteFileCount": 235,
     "suiteFilesSha256": "095ddda6766b302deb8643918ddf63d08e9147e8a96bba68f8a1fdac930c950f",
-    "substantiveCount": 2067,
-    "stableIdsSha256": "fe263d5ffeb8733de1e57a063844966ebf4d829645736cd535339388bb4f1e36",
-    "expectedPassCount": 2059,
-    "passingIdsSha256": "af62a44e01d47a991d45052a3fae6a7577908c6ed157bde211d5a72923df773e",
+    "substantiveCount": 2068,
+    "stableIdsSha256": "7ee41150c7f2dd254eb7607c8f25e045d5740e3b2b4d28be9fa0147a1ce74741",
+    "expectedPassCount": 2060,
+    "passingIdsSha256": "50f6919f33445bf807571f164aedd31cb46522fb09e5806f59b87046b79caba8",
     "expectedAcceptedDebtCount": 6,
     "acceptedDebtIdsSha256": "5c7e30e1b555760fbc86aec616d06f2c003e2e22ab95bd9c14e0f7e5e2ea1ad4",
     "expectedOwnedSkipCount": 2,
@@ -371,11 +426,11 @@
     "provenanceClassification": "NON_AUTHORITATIVE_RECOVERY_EVIDENCE",
     "recoveryEvidenceParentCommit": "ce93d6af0cc0a809e7ddafde627f809c61daf202",
     "recoveryEvidenceMobileCommit": "bedc84a95b7795b2101c9c692850add850cd9edf",
-    "localValidationCommit": "430a1fd1ef7f38885bf210716c88479e11f6431b",
-    "controlMachineLogSha256": "9a9b9c82a461c2848c6a00e164b79d5d81ec1c03a08857732d4fd7c1c1eb05b8",
+    "localValidationCommit": "2366e1cd3e1816fbb1559298ed297d764f9baadd",
+    "controlMachineLogSha256": "2b5e8ad41e9678dc4c20941d9d2d6699ce11e58cbba9eb294809678792ecb901",
     "recoveryArchiveSha256": "7a89a67aff1674bcdc29fd8446521fc5b4dbbff28ee5ca882350d11613a66092",
     "recoveryPayloadManifestSha256": "ec3d50e37d24ba39d9bb28d65f29c40be8fca6f5fac1b8116d57417521e82993",
-    "physicalAcceptance": "USER_ATTESTED_PASS",
+    "physicalAcceptance": "PENDING_RC",
     "productionStatus": "NOT_STARTED"
   }
 }
