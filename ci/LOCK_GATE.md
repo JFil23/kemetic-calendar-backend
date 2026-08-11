@@ -27,9 +27,9 @@ The July 1 profile is bound to:
   dependency lock, Flutter version, and Dart version;
 - the nineteen deterministic build-control files retained over historical
   July 1, each by exact path and SHA-256;
-- all 235 test suites and all 2,068 stable test IDs, including the permanent
+- all 236 test suites and all 2,069 stable test IDs, including the permanent
   production-path reminder-preservation contract;
-- exactly 2,060 passes;
+- exactly 2,061 passes;
 - exactly six named failures classified as `ACCEPTED_BASELINE_DEBT`;
 - exactly two named and owned skips.
 
