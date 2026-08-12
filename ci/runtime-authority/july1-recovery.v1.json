@@ -6,11 +6,11 @@
     "parentAuthorityBaseCommit": "7c270354a9c03310339820c1f5dfb7b101f26bec",
     "currentMobileBaseCommit": "eb2dc9e794ff0d9770d4f05da95dea66fe8f6cf4",
     "historicalMobileCommit": "86c4c28aeb5e81b69b89e0d644aa1b26e48837e3",
-    "authorizedForwardCommit": "f05e502f63b8f5696789a03044e4bfcc1e031940",
-    "mergedMobileCommit": "f05e502f63b8f5696789a03044e4bfcc1e031940",
-    "mobileTree": "7ea03a7ee612cf63f00660deea6dcaf9cc7a1a76",
-    "libTree": "4409149bd45c48f8af26965b15dbe741b2825c38",
-    "testTree": "167f1e88a2f05f79f20c7f328f20131995322935",
+    "authorizedForwardCommit": "5dee3f1b8c85f0c65a809945a0ddf2842d20a958",
+    "mergedMobileCommit": "5dee3f1b8c85f0c65a809945a0ddf2842d20a958",
+    "mobileTree": "ecbc2a356498769384d4f68c684891bc6344d30b",
+    "libTree": "aa1edbcb881ee2aff378669b3b9cf005830e39db",
+    "testTree": "0111d89d53dd5d8e9e225989bee20128e99b8b8f",
     "pubspecLockSha256": "e366b4717d33df04c32c011d29877b133c2fb7941319f6b4ddf2b0650af8153c",
     "flutterVersion": "3.35.3",
     "dartVersion": "3.9.2"
@@ -140,6 +140,9 @@
       "supabase/migrations/20260628160000_bound_shared_tombstone_helper_access.sql",
       "supabase/migrations/20260708120000_admin_activity_ledger.sql",
       "supabase/migrations/20260811143000_calendar_hydration_rpc_v1.sql",
+      "supabase/migrations/20260811160000_flow_accounting_rpc_v1.sql",
+      "supabase/migrations/20260811161500_fix_flow_accounting_null_start.sql",
+      "supabase/migrations/20260811163000_flow_accounting_consumers_v1.sql",
       "tool/ci/july1_runtime_gate.py",
       "tool/ci/test_july1_runtime_gate.py"
     ],
@@ -156,7 +159,7 @@
       },
       {
         "path": "ci/LOCK_GATE.md",
-        "sha256": "505b9c0210460649756ca89a27420639548b1a66141abd3ab07fb4b8457d97c5"
+        "sha256": "91e9e2a619097cf8afea20c3340ca0b32cb9a8d340090d48eb8f0bde72721224"
       },
       {
         "path": "ci/superseded/README.md",
@@ -215,15 +218,27 @@
         "sha256": "0c6cccbb1362c348ce46c79e7e7feea69cc9657cded7130b216f134d4ce88e33"
       },
       {
+        "path": "supabase/migrations/20260811160000_flow_accounting_rpc_v1.sql",
+        "sha256": "a24e5ee9147a136cca2156c4ba67ca448585ec73828696b34e9f44bfd84475e5"
+      },
+      {
+        "path": "supabase/migrations/20260811161500_fix_flow_accounting_null_start.sql",
+        "sha256": "23f95bf37cdbdc88feca5418a85797196e96e2922a590a176527d5c3e88f5c04"
+      },
+      {
+        "path": "supabase/migrations/20260811163000_flow_accounting_consumers_v1.sql",
+        "sha256": "5e7e08735e524ae6d31ec6d999ffc411d1c4ed12d0e06be67ea322017834b610"
+      },
+      {
         "path": "tool/ci/july1_runtime_gate.py",
-        "sha256": "d7773882b1da6cfd75a734fc55893c3d443e0956a9dfc1754a36883f87cce264"
+        "sha256": "f0630eebf6c48fffd67a7514c6f5bbdd68003b4296e1ffe7feb598c2580c8fb1"
       },
       {
         "path": "tool/ci/test_july1_runtime_gate.py",
         "sha256": "61ad7099293996e91ab3043edcfe6cf6561c876d88a273e1be091d3271bd6b61"
       }
     ],
-    "sortedPathSha256Digest": "8ba0bc3303051f15aeee0dceb0db8ecfe56941fe2096da3445054068aa603336"
+    "sortedPathSha256Digest": "00667d5c15fb1e57ef911fd2f1016a2c53a6ab768b6f8487c4f4a41204df918e"
   },
   "generatedMetadata": {
     "path": ".flutter-plugins-dependencies",
@@ -245,10 +260,10 @@
   "testInventory": {
     "suiteFileCount": 236,
     "suiteFilesSha256": "dade4900a10ba45ef7c0f3520b9700cd3035cbb4bb6e7ce79c12955f8724704d",
-    "substantiveCount": 2069,
-    "stableIdsSha256": "38824511cfd25a65ef18b543f42d346b7211ba0871286df438ca0ed0d01ddc5e",
-    "expectedPassCount": 2061,
-    "passingIdsSha256": "284c96ce081180f35547a223ff440e0ff2a676c5e972fa8de4c21ee172aca6c6",
+    "substantiveCount": 2071,
+    "stableIdsSha256": "cfd67483c6af33ab041e09b975599acd50df95ac15488cd19be5d3951fbe5c0e",
+    "expectedPassCount": 2063,
+    "passingIdsSha256": "354501ccf6db5d89b7964298e134729d6131f783ad1f5dad07264028b5d4361b",
     "expectedAcceptedDebtCount": 6,
     "acceptedDebtIdsSha256": "5c7e30e1b555760fbc86aec616d06f2c003e2e22ab95bd9c14e0f7e5e2ea1ad4",
     "expectedOwnedSkipCount": 2,

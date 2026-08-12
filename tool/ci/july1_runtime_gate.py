@@ -80,6 +80,9 @@ EXPECTED_PARENT_HASHED_PATHS = {
     "supabase/migrations/20260628160000_bound_shared_tombstone_helper_access.sql",
     "supabase/migrations/20260708120000_admin_activity_ledger.sql",
     "supabase/migrations/20260811143000_calendar_hydration_rpc_v1.sql",
+    "supabase/migrations/20260811160000_flow_accounting_rpc_v1.sql",
+    "supabase/migrations/20260811161500_fix_flow_accounting_null_start.sql",
+    "supabase/migrations/20260811163000_flow_accounting_consumers_v1.sql",
     "tool/ci/july1_runtime_gate.py",
     "tool/ci/test_july1_runtime_gate.py",
 }
