@@ -19,7 +19,10 @@ hydration, pinch, and rotation.
    routing months 1–13 through one structural section path. Publication is
    passive and no consumer authority changes.
 3. Run the new coordinator in instrumented passive shadow mode.
-4. Cut the banner over to the ratified leading-edge contract.
+4. Cut the banner over to the ratified scroll-geometry contract. The first RC
+   used the incoming section edge; phone review then amended the banner-only
+   handoff to the measured edge after the outgoing third-decan label. See
+   `product_contract.md`.
 5. Migrate restoration to logical anchors and reject legacy pixel geometry.
 6. Cut hydration over to snapshot-derived visible ranges.
 7. Cut pinch targeting over to section geometry.
@@ -53,8 +56,13 @@ writers pending their later phases. The visual follow-up at mobile commit
 `9c72f2852d35f3bc3911b897267cb9caf2595727` removes the month-label
 cross-dissolve so the banner changes immediately at the same boundary. The
 narrow-phone Heriu follow-up is complete at mobile commit
-`fd1d6ed493a1aa689b58510dcb859c62a0889222`. The sealed Phase 4 staging
-artifact is deployed to the canonical RC origin and recorded in
+`fd1d6ed493a1aa689b58510dcb859c62a0889222`. The final-day-block handoff
+follow-up is sealed at mobile commit
+`5ff66008f6bd083147637ed4962db91f6ecf3f66`: regular months hand the banner to
+their successor after the outgoing third-decan label, and Heriu uses its sole
+day block. The prior Phase 4 staging artifact remains deployed to the canonical
+RC origin until this follow-up completes native and CanvasKit verification. It
+is recorded in
 [Phase 4 RC source and artifact authority](phase_4_rc_source_authority.md).
 
 ## Authority rule
@@ -94,5 +102,7 @@ Protected tests for those systems remain mandatory.
 Source authority, product policy, test governance, and performance-comparison
 requirements are frozen on the dedicated RC branch. The product owner granted
 a fixed-identity exception for the six deterministic inherited failures in the
-mobile baseline. Phase 1 may proceed against exactly that baseline; any change
-to the count or identities remains a stop condition.
+mobile baseline. The original error/stack fingerprint was explicitly waived on
+2026-08-13 because its serializer and payload were not reproducible. The
+checked-in sorted `path :: test name` verifier is now the gate; any change to
+the count or identities remains a stop condition.

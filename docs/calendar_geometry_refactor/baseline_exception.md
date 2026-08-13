@@ -29,10 +29,37 @@ The following are all stop-and-report conditions:
 - a seventh failure;
 - one of the six disappearing or turning green;
 - a failure moving to a different path or test name;
-- a change in the diagnostic identity of an allowed failure; or
 - any edit on this branch to its assertion, fixture, allowlist, or underlying
   unrelated product behavior.
 
 The 21 analyzer `info` findings recorded in `test_baseline.md` are not an
 analyzer gate. Validation must distinguish their fixed baseline identities from
 new warnings, errors, or infos introduced by the geometry branch.
+
+## Reproducible identity gate
+
+On 2026-08-13 the product owner explicitly waived the old byte-level
+path/name/error/stack-trace fingerprint. Its original serialization procedure
+and payload were not checked into the repository, the recorded hash could not
+be independently regenerated, and continuing to target it would reward tuning
+a serialization to an expected answer.
+
+The replacement gate is the newline-terminated, UTF-8, lexicographically sorted
+list of `relative test path :: full test name` in
+`allowed_failure_identities.txt`. It deliberately excludes error bodies and
+stack traces, whose runner formatting is not the failure identity. The current
+canonical file contains six identities and has SHA-256
+`e751c750a5765817307b4801473d24eaae0d7fdbcb72651c406aa51c1fdd19e6`.
+
+The checked-in verifier is run from the parent repository with:
+
+```sh
+python3 tools/verify_flutter_failure_identities.py \
+  --report /path/to/flutter-test.jsonl \
+  --root mobile \
+  --expected docs/calendar_geometry_refactor/allowed_failure_identities.txt
+```
+
+Any count or identity mismatch returns a nonzero exit status. Changes to an
+allowed test's assertion, fixture, allowlist, or underlying product source
+remain separately forbidden and must be checked by source diff.

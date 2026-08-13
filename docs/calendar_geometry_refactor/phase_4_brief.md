@@ -4,6 +4,12 @@ Status: **Implemented, verified, and simulator-approved**
 
 Date: 2026-08-13
 
+> Historical boundary note: this brief records the first RC cutover, whose
+> banner handoff was the incoming section edge. After phone review, the product
+> owner amended only the banner handoff to the measured edge after the outgoing
+> third-decan label. The current binding decision is in
+> `product_contract.md`; physical section ownership described here is unchanged.
+
 ## Objective
 
 Make the fixed 58 px scrolling month banner read the coordinator's ratified
@@ -172,3 +178,29 @@ No inherited failure turned green and no seventh failure appeared.
 - no converter unification;
 - no PWA delivery-weight work; and
 - no RC or production deployment.
+
+## Final-day-block banner-policy follow-up
+
+Phone review of the first CanvasKit RC refined the banner-only boundary. Mobile
+commit `5ff66008f6bd083147637ed4962db91f6ecf3f66` publishes a measured handoff edge
+immediately after each regular month's third-decan label and at Heriu Renpet's
+sole weekday/day block. `CalendarBannerResolver` maps that outgoing edge to the
+logical successor while retaining the existing symmetric 8 px deadband.
+
+Physical section ownership is unchanged. Gold dividers and season headers
+still belong to the following month, and restoration, hydration, pinch,
+rotation, landscape, and distant navigation continue to use their existing
+writers.
+
+Focused static analysis reported no issue. The protected calendar, hydration,
+ANR, and covered-route paint gate passed 76 tests. The full analyzer retained
+only the 21 inherited `unnecessary_string_escapes` infos. The exact serial full
+suite observed 2,181 passes, 2 skips, and the fixed 6 failures, for 2,189
+completed tests in 1,039.385 seconds.
+
+The product owner explicitly waived the historical byte-level diagnostic
+fingerprint after this run because neither its original serialized artifact nor
+its generating procedure exists in the repository. The six paths/names matched
+the frozen set and no allowed failure source or assertion changed. The
+replacement reproducible identity gate is documented in
+`baseline_exception.md`.
