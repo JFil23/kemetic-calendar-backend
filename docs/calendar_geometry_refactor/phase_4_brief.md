@@ -19,7 +19,9 @@ is now:
 - the activation line is the top edge of the scroll viewport directly below
   the fixed banner;
 - a gold divider or season header belongs to the month after it;
-- the switch uses an 8 px direction-aware deadband; and
+- the switch uses an 8 px direction-aware deadband;
+- the banner text changes immediately, without a fade, slide, or other visual
+  transition; and
 - Heriu Renpet is an ordinary selectable month between Mesut-Ra and next-year
   Thoth.
 
@@ -27,8 +29,11 @@ No other locked assertion was replaced.
 
 ## Implementation
 
-Mobile commit:
+Authority-cutover mobile commit:
 `73765b96ef106ba33fc32637d3a52f263d1fb1b3`
+
+No-animation follow-up mobile commit:
+`9c72f2852d35f3bc3911b897267cb9caf2595727`
 
 `CalendarScrollCoordinator` owns a private `ValueNotifier<MonthRef>` seeded
 from today's logical month and exposes it only as
@@ -47,11 +52,15 @@ restoration, hydration, pinch, rotation, landscape handoff, and distant
 navigation still consume their state. Their writes no longer control the
 banner. Shadow comparison remains diagnostic and is not an authority oracle.
 
+The follow-up removes the header's 160 ms `AnimatedSwitcher` and its outgoing
+child stack. The coordinator boundary and deadband are unchanged; each new
+month row replaces the previous row in the first rebuilt frame.
+
 ## Tests
 
 The authorized header tests now describe the active leading month while
-preserving text, transliteration, season/year, semantics, animation, height,
-and narrow-viewport behavior.
+preserving text, transliteration, season/year, semantics, height, and
+narrow-viewport behavior.
 
 New tests prove:
 
@@ -66,7 +75,9 @@ New tests prove:
 - coordinator banner authority contains no page, restoration, hydration,
   navigation, or console writer; and
 - a real production-calendar traversal renders the same month text published
-  by the coordinator, including during `AnimatedSwitcher` transitions.
+  by the coordinator; and
+- an active-month update removes the old month immediately and the header
+  contains no `AnimatedSwitcher`.
 
 Focused analysis of the seven changed/tested files reported no issues. The
 full analyzer reported exactly the inherited 21
@@ -75,11 +86,13 @@ full analyzer reported exactly the inherited 21
 The focused Phase 4 gate passed 48 tests across resolver, coordinator, header
 presentation, production-calendar smoke, uniform Heriu structure, hydration
 architecture, day-view rotation ANR protection, and detail-sheet paint
-protection.
+protection. The same 48-test gate passed again after the no-animation
+follow-up. Focused analysis of the changed header and test also reported no
+issues.
 
 ## Exact full-suite gate
 
-The full suite ran serially against the exact mobile commit with:
+The full suite ran serially against the exact no-animation mobile commit with:
 
 | Result | Count |
 |---|---:|
@@ -88,7 +101,7 @@ The full suite ran serially against the exact mobile commit with:
 | Failed | 6 |
 | Completed | 2,183 |
 
-Elapsed time was 1,126.913 seconds. The six failures have exactly the frozen
+Elapsed time was 1,142.789 seconds. The six failures have exactly the frozen
 paths and names in `baseline_exception.md`. Their sorted
 path/name/error/stack-trace payload has SHA-256
 `36ca4dd662f8bb8903efa477f0c9f4fbce63d0e278e1657081a77ab2d6577a54`
@@ -113,6 +126,12 @@ directions. No calendar layout, geometry, focus, or disposal exception was
 observed during the transition. The simulator did emit its existing missing
 Firebase initialization configuration warning at startup; that warning is
 unrelated to this branch and did not block the calendar run.
+
+The exact no-animation follow-up was then run on the same simulator. Forward
+and reverse passes across Heriu Renpet and Thoth showed only the active banner
+label after each crossing, with no visible overlap or cross-dissolve. The
+widget test separately proves that the old label is absent in the first rebuilt
+frame.
 
 ## Non-goals preserved
 

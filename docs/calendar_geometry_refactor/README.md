@@ -49,7 +49,9 @@ Phase 4 is complete and verified at mobile commit
 `73765b96ef106ba33fc32637d3a52f263d1fb1b3`: the banner alone now reads the
 coordinator's leading-edge month through an isolated listenable. Restoration,
 hydration, pinch, rotation, and distant navigation remain on their existing
-writers pending their later phases.
+writers pending their later phases. The visual follow-up at mobile commit
+`9c72f2852d35f3bc3911b897267cb9caf2595727` removes the month-label
+cross-dissolve so the banner changes immediately at the same boundary.
 
 ## Authority rule
 
