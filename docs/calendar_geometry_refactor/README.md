@@ -44,7 +44,12 @@ passive mounted-geometry snapshots, while every existing consumer remains on
 its old authoritative path pending later cutover phases. Phase 3 is complete
 and verified at mobile commit `7db9048fa5827517ce5b35c15501b9b833999135`:
 the new coordinator resolves the mounted snapshots in passive shadow mode,
-while the old selector remains the only banner writer. Phase 4 has not begun.
+while the old selector remains available for legacy consumers and diagnostics.
+Phase 4 is complete and verified at mobile commit
+`73765b96ef106ba33fc32637d3a52f263d1fb1b3`: the banner alone now reads the
+coordinator's leading-edge month through an isolated listenable. Restoration,
+hydration, pinch, rotation, and distant navigation remain on their existing
+writers pending their later phases.
 
 ## Authority rule
 
@@ -75,6 +80,7 @@ Protected tests for those systems remain mandatory.
 - [Phase 1 brief](phase_1_brief.md)
 - [Phase 2 brief](phase_2_brief.md)
 - [Phase 3 brief](phase_3_brief.md)
+- [Phase 4 brief](phase_4_brief.md)
 
 ## Phase 0 gate status
 
