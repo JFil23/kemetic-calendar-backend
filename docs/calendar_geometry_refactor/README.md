@@ -15,23 +15,25 @@ hydration, pinch, and rotation.
 0. Establish source authority, baselines, product policy, and test governance.
 1. Add pure calendar identity, validation, section ownership, and resolver
    policy types.
-2. Prove a lazy, sliver-aware, atomic geometry publication mechanism.
-3. Route months 1–13 through one structural section path.
-4. Publish full geometry snapshots and run the new coordinator in passive
-   shadow mode.
-5. Cut the banner over to the ratified leading-edge contract.
-6. Migrate restoration to logical anchors and reject legacy pixel geometry.
-7. Cut hydration over to snapshot-derived visible ranges.
-8. Cut pinch targeting over to section geometry.
-9. Cut rotation, landscape handoff, and distant navigation over to logical
+2. Prove a lazy, sliver-aware, atomic geometry publication mechanism while
+   routing months 1–13 through one structural section path. Publication is
+   passive and no consumer authority changes.
+3. Run the new coordinator in instrumented passive shadow mode.
+4. Cut the banner over to the ratified leading-edge contract.
+5. Migrate restoration to logical anchors and reject legacy pixel geometry.
+6. Cut hydration over to snapshot-derived visible ranges.
+7. Cut pinch targeting over to section geometry.
+8. Cut rotation, landscape handoff, and distant navigation over to logical
    anchors.
-10. Delete the old GlobalKey geometry database and competing selectors.
-11. Verify and deploy an RC artifact. Production remains untouched.
+9. Delete the old GlobalKey geometry database and competing selectors.
+10. Verify and deploy an RC artifact. Production remains untouched.
 
 Phase 1 is complete in the mobile repository. It adds only pure domain and
 policy files plus 33 passing unit tests; no widget or existing application
-behavior file changed. Phase 2 remains the first running-app fork and requires
-the separate priority decision described by the program.
+behavior file changed. Phase 2 is implemented on the RC branch as the first
+running-app fork: all 13 months share one structural section path and publish
+passive mounted-geometry snapshots, while every existing consumer remains on
+its old authoritative path pending later cutover phases.
 
 ## Authority rule
 
@@ -60,6 +62,7 @@ Protected tests for those systems remain mandatory.
 - [Fixed six-red exception](baseline_exception.md)
 - [Performance baseline](performance_baseline.md)
 - [Phase 1 brief](phase_1_brief.md)
+- [Phase 2 brief](phase_2_brief.md)
 
 ## Phase 0 gate status
 
