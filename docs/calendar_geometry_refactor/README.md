@@ -28,12 +28,23 @@ hydration, pinch, and rotation.
 9. Delete the old GlobalKey geometry database and competing selectors.
 10. Verify and deploy an RC artifact. Production remains untouched.
 
+## Priority decision
+
+The product owner explicitly chose calendar work before delivery-weight work
+on 2026-08-13. Phases 3 and 4 of this program land and receive their separate
+verification checkpoints before PWA artifact-weight reduction resumes. This is
+a priority decision only; it does not pull delivery-weight changes into the
+calendar branch.
+
 Phase 1 is complete in the mobile repository. It adds only pure domain and
 policy files plus 33 passing unit tests; no widget or existing application
 behavior file changed. Phase 2 is implemented on the RC branch as the first
 running-app fork: all 13 months share one structural section path and publish
 passive mounted-geometry snapshots, while every existing consumer remains on
-its old authoritative path pending later cutover phases.
+its old authoritative path pending later cutover phases. Phase 3 is complete
+and verified at mobile commit `7db9048fa5827517ce5b35c15501b9b833999135`:
+the new coordinator resolves the mounted snapshots in passive shadow mode,
+while the old selector remains the only banner writer. Phase 4 has not begun.
 
 ## Authority rule
 
@@ -63,6 +74,7 @@ Protected tests for those systems remain mandatory.
 - [Performance baseline](performance_baseline.md)
 - [Phase 1 brief](phase_1_brief.md)
 - [Phase 2 brief](phase_2_brief.md)
+- [Phase 3 brief](phase_3_brief.md)
 
 ## Phase 0 gate status
 
