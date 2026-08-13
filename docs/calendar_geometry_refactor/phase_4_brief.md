@@ -133,13 +133,39 @@ label after each crossing, with no visible overlap or cross-dissolve. The
 widget test separately proves that the old label is absent in the first rebuilt
 frame.
 
+## Narrow-phone Heriu follow-up
+
+Before producing an RC web artifact, the separately tracked Heriu header
+overflow was reproduced against the untouched Phase 4 candidate through the
+real production `CalendarPage` at a 390×844 logical viewport. Both a five-day
+Heriu year and a six-day Heriu year overflowed by exactly 201 pixels.
+
+The render tree identified the same cause in every mounted Heriu section: its
+531-pixel month title received unconstrained width inside a 330-pixel header
+row. Regular months already bounded the title with a 3:1
+`Expanded`/`Flexible` header. Mobile commit
+`fd1d6ed493a1aa689b58510dcb859c62a0889222` gives Heriu that same structural
+contract; it does not hide or clip a still-overflowing row.
+
+A production-page regression test now mounts both five- and six-day Heriu
+years at exactly 390×844 and requires a mounted month-header anchor with no
+Flutter exception. Focused analysis reported no issues. The protected gate
+passed 49 tests: the prior 48 plus the new narrow-layout regression.
+
+The full suite then ran serially against that exact commit. It observed 2,176
+passes, 2 skips, and the fixed 6 failures, for 2,184 completed tests in
+1,118.583 seconds. The sorted failure diagnostic payload is 362,648 bytes,
+remains byte-for-byte equal to the Phase 4 no-animation baseline, and retains
+SHA-256
+`36ca4dd662f8bb8903efa477f0c9f4fbce63d0e278e1657081a77ab2d6577a54`.
+No inherited failure turned green and no seventh failure appeared.
+
 ## Non-goals preserved
 
 - no restoration, hydration, pinch, rotation, landscape, or distant-navigation
   cutover;
 - no edit to the fixed six failures;
 - no profile-rig revival;
-- no repair of the separately tracked 390×844 Heriu header overflow;
 - no repair of the separately tracked `_KemeticKeyboardHostState` focus
   exception;
 - no compositor/covered-route paint work;
