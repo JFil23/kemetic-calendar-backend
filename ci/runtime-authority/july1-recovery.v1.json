@@ -6,12 +6,12 @@
     "parentAuthorityBaseCommit": "7c270354a9c03310339820c1f5dfb7b101f26bec",
     "currentMobileBaseCommit": "eb2dc9e794ff0d9770d4f05da95dea66fe8f6cf4",
     "historicalMobileCommit": "86c4c28aeb5e81b69b89e0d644aa1b26e48837e3",
-    "authorizedForwardCommit": "5dee3f1b8c85f0c65a809945a0ddf2842d20a958",
-    "mergedMobileCommit": "5dee3f1b8c85f0c65a809945a0ddf2842d20a958",
-    "mobileTree": "ecbc2a356498769384d4f68c684891bc6344d30b",
-    "libTree": "aa1edbcb881ee2aff378669b3b9cf005830e39db",
-    "testTree": "0111d89d53dd5d8e9e225989bee20128e99b8b8f",
-    "pubspecLockSha256": "e366b4717d33df04c32c011d29877b133c2fb7941319f6b4ddf2b0650af8153c",
+    "authorizedForwardCommit": "0b617612ba6ac3669686aac85456897a53c60ca1",
+    "mergedMobileCommit": "0b617612ba6ac3669686aac85456897a53c60ca1",
+    "mobileTree": "266bda4145357db58cdf8288a4db437fe61ad039",
+    "libTree": "3dbad6781166df0b1116b0452f2a0ceeb57a0208",
+    "testTree": "de25e2e561934ff693db576ec30bcfe872d09501",
+    "pubspecLockSha256": "5ddc5cfcfacf0d9bb7f0c9522efa05ce9363dc1f7f82dac63b168b785c4b1981",
     "flutterVersion": "3.35.3",
     "dartVersion": "3.9.2"
   },
@@ -81,7 +81,7 @@
       {
         "path": "scripts/build_web_release.sh",
         "class": "deterministic-builder",
-        "sha256": "8b64f06b1cb01a2cb274f03f8eef6d4e0b7441e1c67fe01ad12800f882693672"
+        "sha256": "a9afa76ad49cc57c9ece2fa2418828205919e391c33d4228f61a7758676681e4"
       },
       {
         "path": "scripts/deploy_cloudflare_pages.sh",
@@ -111,10 +111,10 @@
       {
         "path": "test/core/web_runtime_config_guard_test.dart",
         "class": "runtime-config-test-control",
-        "sha256": "7b36c0a7e703ec4ec8676aa867a5f7a684c2bc30a57b58e6ad20a177fb979178"
+        "sha256": "371dbe18a41a9a76f6aa79fc55cc84a1707faec9424ada5068fcba816a62d46e"
       }
     ],
-    "sortedPathSha256Digest": "afcacb5fbccfa742493adde4e4acce18d8231586bac2fd8743a21188c7c1fcfc",
+    "sortedPathSha256Digest": "44245c133dc7862f6d6b77a67da8276e9a7738253d5b77cc84981fed7a0eb83b",
     "digestAlgorithm": "SHA-256 over sorted UTF-8 lines: <path> TAB <sha256> LF"
   },
   "parentDelta": {
@@ -129,6 +129,7 @@
       "ci/superseded/locked-contracts.post-july1.242.json",
       "ci/superseded/quarantine-registry.post-july1.7.json",
       "mobile",
+      "supabase/dev/calendar_hydration_v2_equivalence.sql",
       "supabase/migrations/20260628113000_bound_filing_startup_queries.sql",
       "supabase/migrations/20260628123000_optimize_filing_event_counts.sql",
       "supabase/migrations/20260628130000_short_circuit_event_delete_checks.sql",
@@ -140,9 +141,11 @@
       "supabase/migrations/20260628160000_bound_shared_tombstone_helper_access.sql",
       "supabase/migrations/20260708120000_admin_activity_ledger.sql",
       "supabase/migrations/20260811143000_calendar_hydration_rpc_v1.sql",
+      "supabase/migrations/20260811180000_calendar_hydration_rpc_v2.sql",
       "supabase/migrations/20260811160000_flow_accounting_rpc_v1.sql",
       "supabase/migrations/20260811161500_fix_flow_accounting_null_start.sql",
       "supabase/migrations/20260811163000_flow_accounting_consumers_v1.sql",
+      "supabase/migrations/20260812150000_optimize_flow_catalog_view.sql",
       "tool/ci/july1_runtime_gate.py",
       "tool/ci/test_july1_runtime_gate.py"
     ],
@@ -172,6 +175,10 @@
       {
         "path": "ci/superseded/quarantine-registry.post-july1.7.json",
         "sha256": "30237a32f8c77a46e8520b5eba1ad527ac3afaf1d7f827c6919eb9bc49e27121"
+      },
+      {
+        "path": "supabase/dev/calendar_hydration_v2_equivalence.sql",
+        "sha256": "aeb3f48580e6bc56efadaa2e77aa1c41f042c11ef2ba4a3d78957230a5d9ed17"
       },
       {
         "path": "supabase/migrations/20260628113000_bound_filing_startup_queries.sql",
@@ -218,6 +225,10 @@
         "sha256": "0c6cccbb1362c348ce46c79e7e7feea69cc9657cded7130b216f134d4ce88e33"
       },
       {
+        "path": "supabase/migrations/20260811180000_calendar_hydration_rpc_v2.sql",
+        "sha256": "77148854a353df9f9c953c90a8afb589331ab5fb9910f17f9a3d3674a468635f"
+      },
+      {
         "path": "supabase/migrations/20260811160000_flow_accounting_rpc_v1.sql",
         "sha256": "a24e5ee9147a136cca2156c4ba67ca448585ec73828696b34e9f44bfd84475e5"
       },
@@ -230,15 +241,19 @@
         "sha256": "5e7e08735e524ae6d31ec6d999ffc411d1c4ed12d0e06be67ea322017834b610"
       },
       {
+        "path": "supabase/migrations/20260812150000_optimize_flow_catalog_view.sql",
+        "sha256": "f46138083581d7021c56d3b2ab3f52c342f3ddc1b1e9b80e0556fc40cb870cda"
+      },
+      {
         "path": "tool/ci/july1_runtime_gate.py",
-        "sha256": "f0630eebf6c48fffd67a7514c6f5bbdd68003b4296e1ffe7feb598c2580c8fb1"
+        "sha256": "21225fde6cd2eb0f571cd3767ccc26e79f9636e0b9d7275d5c9196219837341f"
       },
       {
         "path": "tool/ci/test_july1_runtime_gate.py",
         "sha256": "61ad7099293996e91ab3043edcfe6cf6561c876d88a273e1be091d3271bd6b61"
       }
     ],
-    "sortedPathSha256Digest": "00667d5c15fb1e57ef911fd2f1016a2c53a6ab768b6f8487c4f4a41204df918e"
+    "sortedPathSha256Digest": "3fc14d5ca2bf73cbe362036fd1506472879e6f4a502a218956a210cb2ec3faaf"
   },
   "generatedMetadata": {
     "path": ".flutter-plugins-dependencies",
@@ -258,12 +273,12 @@
     "policy": "This reproduces the accepted July 1 test environment only. It is not product timezone policy, PASS, LOCKED behavior, quarantine, or accepted baseline debt."
   },
   "testInventory": {
-    "suiteFileCount": 236,
-    "suiteFilesSha256": "dade4900a10ba45ef7c0f3520b9700cd3035cbb4bb6e7ce79c12955f8724704d",
-    "substantiveCount": 2071,
-    "stableIdsSha256": "cfd67483c6af33ab041e09b975599acd50df95ac15488cd19be5d3951fbe5c0e",
-    "expectedPassCount": 2063,
-    "passingIdsSha256": "354501ccf6db5d89b7964298e134729d6131f783ad1f5dad07264028b5d4361b",
+    "suiteFileCount": 242,
+    "suiteFilesSha256": "932042802953e32cce616453f5598cb0c53d446b66f609ca01f9ab7e3c3b2d1f",
+    "substantiveCount": 2110,
+    "stableIdsSha256": "ec534640d7cb8fcf0b55720cec1836c808b7f13fd7c31c335d4421d4798860dc",
+    "expectedPassCount": 2102,
+    "passingIdsSha256": "f36aec36131e15367342d174c388660526382938d06b84a885c8af1961c08a24",
     "expectedAcceptedDebtCount": 6,
     "acceptedDebtIdsSha256": "5c7e30e1b555760fbc86aec616d06f2c003e2e22ab95bd9c14e0f7e5e2ea1ad4",
     "expectedOwnedSkipCount": 2,
@@ -445,7 +460,6 @@
     "controlMachineLogSha256": "3e9e4c677ed64ee5fa108136d1b5edf95a4f33d604f59dc710551ba121dfd9d1",
     "recoveryArchiveSha256": "7a89a67aff1674bcdc29fd8446521fc5b4dbbff28ee5ca882350d11613a66092",
     "recoveryPayloadManifestSha256": "ec3d50e37d24ba39d9bb28d65f29c40be8fca6f5fac1b8116d57417521e82993",
-    "physicalAcceptance": "PENDING_RC",
-    "productionStatus": "NOT_STARTED"
+    "physicalAcceptance": "PENDING_RC_CALENDAR_HYDRATION_ENGINE_PROOF"
   }
 }
