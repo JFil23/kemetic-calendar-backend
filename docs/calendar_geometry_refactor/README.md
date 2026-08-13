@@ -60,9 +60,11 @@ narrow-phone Heriu follow-up is complete at mobile commit
 follow-up is sealed at mobile commit
 `5ff66008f6bd083147637ed4962db91f6ecf3f66`: regular months hand the banner to
 their successor after the outgoing third-decan label, and Heriu uses its sole
-day block. The prior Phase 4 staging artifact remains deployed to the canonical
-RC origin until this follow-up completes native and CanvasKit verification. It
-is recorded in
+day block. That follow-up is now deployed to the canonical RC origin after
+native and CanvasKit verification. Its exact source, artifact, initial alias
+mismatch, and successful served-payload verification are recorded in
+[Phase 4 final-day handoff RC source and artifact authority](phase_4_final_day_handoff_rc_source_authority.md).
+The preceding candidate remains recorded separately in
 [Phase 4 RC source and artifact authority](phase_4_rc_source_authority.md).
 
 ## Authority rule
@@ -96,6 +98,7 @@ Protected tests for those systems remain mandatory.
 - [Phase 3 brief](phase_3_brief.md)
 - [Phase 4 brief](phase_4_brief.md)
 - [Phase 4 RC source and artifact authority](phase_4_rc_source_authority.md)
+- [Phase 4 final-day handoff RC source and artifact authority](phase_4_final_day_handoff_rc_source_authority.md)
 
 ## Phase 0 gate status
 
