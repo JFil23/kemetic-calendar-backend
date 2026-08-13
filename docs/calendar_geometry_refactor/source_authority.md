@@ -1,5 +1,9 @@
 # Phase 0 Source and Artifact Authority
 
+This file is the immutable historical Phase 0 authority. The canonical RC
+origin has since been replaced by the verified Phase 4 candidate recorded in
+[Phase 4 RC source and artifact authority](phase_4_rc_source_authority.md).
+
 Verification date: 2026-08-13
 
 Verification lane: Cloudflare Pages project `kemet-rc`, branch `main`

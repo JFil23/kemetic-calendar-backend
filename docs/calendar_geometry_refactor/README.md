@@ -51,7 +51,11 @@ coordinator's leading-edge month through an isolated listenable. Restoration,
 hydration, pinch, rotation, and distant navigation remain on their existing
 writers pending their later phases. The visual follow-up at mobile commit
 `9c72f2852d35f3bc3911b897267cb9caf2595727` removes the month-label
-cross-dissolve so the banner changes immediately at the same boundary.
+cross-dissolve so the banner changes immediately at the same boundary. The
+narrow-phone Heriu follow-up is complete at mobile commit
+`fd1d6ed493a1aa689b58510dcb859c62a0889222`. The sealed Phase 4 staging
+artifact is deployed to the canonical RC origin and recorded in
+[Phase 4 RC source and artifact authority](phase_4_rc_source_authority.md).
 
 ## Authority rule
 
@@ -83,6 +87,7 @@ Protected tests for those systems remain mandatory.
 - [Phase 2 brief](phase_2_brief.md)
 - [Phase 3 brief](phase_3_brief.md)
 - [Phase 4 brief](phase_4_brief.md)
+- [Phase 4 RC source and artifact authority](phase_4_rc_source_authority.md)
 
 ## Phase 0 gate status
 
