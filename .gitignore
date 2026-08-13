@@ -13,7 +13,9 @@ repo_audit_tmp/
 __pycache__/
 
 # Local audit/development notes
-docs/
+docs/*
+!docs/calendar_geometry_refactor/
+!docs/calendar_geometry_refactor/**
 scripts/*
 !scripts/test-maat-output-pipeline.sh
 !scripts/generate_all_maat_flows_full_text.py
