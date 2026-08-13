@@ -33,8 +33,9 @@ Applies to: main portrait scrolling calendar in the RC geometry refactor
 - The deadband is one policy value owned by the calendar scroll coordinator.
   It must not be duplicated in widgets or consumers.
 - When layout changes while no user, ballistic, or programmatic scroll is
-  active, the incumbent month remains active while it still owns the activation
-  line. Direction must not be inferred from floating-point layout corrections.
+  active, a mounted incumbent month remains active until a real scroll sample
+  arrives. Direction must not be inferred from floating-point layout
+  corrections, and geometry-only samples do not apply directional deadband.
 - Slow or settled scrolling inside Heriu must resolve to Heriu. A fling may
   cross a short month between rendered frames, but the final resolved month
   must be correct and scroll end may not rewrite it differently.

@@ -28,6 +28,11 @@ hydration, pinch, and rotation.
 10. Delete the old GlobalKey geometry database and competing selectors.
 11. Verify and deploy an RC artifact. Production remains untouched.
 
+Phase 1 is complete in the mobile repository. It adds only pure domain and
+policy files plus 33 passing unit tests; no widget or existing application
+behavior file changed. Phase 2 remains the first running-app fork and requires
+the separate priority decision described by the program.
+
 ## Authority rule
 
 At every phase, each consumer has exactly one writer. Shadow code may observe
@@ -52,13 +57,14 @@ Protected tests for those systems remain mandatory.
 - [Source and artifact authority](source_authority.md)
 - [Test migration manifest](test_migration_manifest.md)
 - [Test baseline](test_baseline.md)
+- [Fixed six-red exception](baseline_exception.md)
 - [Performance baseline](performance_baseline.md)
+- [Phase 1 brief](phase_1_brief.md)
 
 ## Phase 0 gate status
 
 Source authority, product policy, test governance, and performance-comparison
-requirements are frozen on the dedicated RC branch. The inherited mobile test
-baseline is deterministically red in six tests unrelated to the calendar
-banner contract. Under the stop-and-report rule, Phase 1 implementation must
-not begin until those reds are dispositioned explicitly; Phase 0 did not edit
-application code or test assertions to manufacture a green baseline.
+requirements are frozen on the dedicated RC branch. The product owner granted
+a fixed-identity exception for the six deterministic inherited failures in the
+mobile baseline. Phase 1 may proceed against exactly that baseline; any change
+to the count or identities remains a stop condition.

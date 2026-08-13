@@ -74,10 +74,9 @@ All six failures reproduced, so they are not full-suite ordering noise.
 
 These failures are outside the authorized centered-to-leading-edge banner test
 migration. They must not be "fixed" by weakening assertions as part of the
-calendar geometry work. Phase 1 is blocked by the agreed stop-and-report rule
-until their owner either restores the protected behavior, records an explicit
-independent contract change, or authorizes a documented pre-existing-red
-exception for this branch.
+calendar geometry work. The product owner granted the documented fixed-identity
+exception in [baseline_exception.md](baseline_exception.md), allowing Phase 1
+to proceed while preserving these exact six reds.
 
 The calendar-specific protected and migratable tests remain classified in
 [test_migration_manifest.md](test_migration_manifest.md).
