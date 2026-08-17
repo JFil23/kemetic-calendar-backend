@@ -30,7 +30,9 @@ Applies to: main portrait scrolling calendar in the RC geometry refactor
   recently crossed the activation line. Its handoff coordinates are measured
   from rendered labels and published in the same atomic geometry snapshot as
   month and Gregorian boundaries; it does not estimate row heights.
-- Heriu Renpet publishes its sole weekday row as the equivalent activation
+- Weekday letters are not repeated above day tiles inside the scrolling month
+  bodies; the fixed strip is the main calendar's sole weekday display.
+- Heriu Renpet publishes its sole day row as the equivalent activation
   boundary so the fixed strip remains valid across the short month and year
   boundary.
 - The divider between month A and month B belongs to month B.
