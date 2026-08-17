@@ -1,10 +1,10 @@
 # Calendar Banner Product Contract
 
-Status: **Ratified, amended after RC visual verification**
+Status: **Ratified, amended after RC visual verification and weekday-strip follow-up**
 
 Ratified by: product owner
 
-Date: 2026-08-13
+Date: 2026-08-13; weekday-strip amendment 2026-08-16
 
 Applies to: main portrait scrolling calendar in the RC geometry refactor
 
@@ -22,9 +22,17 @@ Applies to: main portrait scrolling calendar in the RC geometry refactor
 
 ## Operational interpretation
 
-- The fixed 58 px banner sits outside the `CustomScrollView`. The activation
-  line is therefore scroll-viewport local `y = 0`, immediately below the fixed
-  banner; the 58 px height must not be counted a second time.
+- The fixed calendar header sits outside the `CustomScrollView`. Its month band
+  remains 58 px and a 24 px weekday strip sits beneath it. The activation line
+  is therefore scroll-viewport local `y = 0`, immediately below the combined
+  fixed header; neither fixed band is counted a second time.
+- The weekday strip follows the weekday sequence of the decan label that most
+  recently crossed the activation line. Its handoff coordinates are measured
+  from rendered labels and published in the same atomic geometry snapshot as
+  month and Gregorian boundaries; it does not estimate row heights.
+- Heriu Renpet publishes its sole weekday row as the equivalent activation
+  boundary so the fixed strip remains valid across the short month and year
+  boundary.
 - The divider between month A and month B belongs to month B.
 - A season heading belongs to the first month in that season.
 - The divider after Heriu Renpet and the following Akhet heading belong to
