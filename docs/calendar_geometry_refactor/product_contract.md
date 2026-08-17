@@ -32,6 +32,8 @@ Applies to: main portrait scrolling calendar in the RC geometry refactor
   month and Gregorian boundaries; it does not estimate row heights.
 - Weekday letters are not repeated above day tiles inside the scrolling month
   bodies; the fixed strip is the main calendar's sole weekday display.
+- Scrolling-calendar day tiles use twice their prior vertical height at every
+  expansion level; focused month and day-detail layouts retain their own sizing.
 - Heriu Renpet publishes its sole day row as the equivalent activation
   boundary so the fixed strip remains valid across the short month and year
   boundary.
