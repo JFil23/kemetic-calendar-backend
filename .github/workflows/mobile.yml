@@ -11,11 +11,40 @@ on:
       - "codex/**"
 
 jobs:
-  mobile-fast-suite:
-    name: LOCK-GATE July 1 source integrity
+  resolve-historical-pair:
+    name: LOCK-GATE resolve frozen July 1 pair
     runs-on: ubuntu-latest
     env:
       PYTHONDONTWRITEBYTECODE: "1"
+    outputs:
+      parent: ${{ steps.resolve.outputs.parent }}
+    steps:
+      - name: Checkout candidate history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Resolve and verify the frozen July 1 recovery pair
+        id: resolve
+        run: |
+          set -euo pipefail
+          python3 tool/ci/forward_candidate_gate.py resolve-historical \
+            --profile ci/runtime-authority/july1-recovery.v1.json \
+            --parent-root . \
+            --historical-root "$RUNNER_TEMP/july1-historical" \
+            --output "$RUNNER_TEMP/historical-pair.json"
+          parent="$(python3 -c 'import json,pathlib; print(json.loads(pathlib.Path("'"$RUNNER_TEMP"'/historical-pair.json").read_text())["historicalParent"])')"
+          echo "parent=$parent" >> "$GITHUB_OUTPUT"
+
+  mobile-fast-suite:
+    name: LOCK-GATE July 1 source integrity
+    needs:
+      - resolve-historical-pair
+    runs-on: ubuntu-latest
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      HISTORICAL_PARENT: ${{ needs.resolve-historical-pair.outputs.parent }}
     steps:
       - name: Establish source-integrity evidence paths
         id: results
@@ -29,9 +58,10 @@ jobs:
           echo "dir=$results_dir" >> "$GITHUB_OUTPUT"
           echo "manifest=$evidence_manifest" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout exact parent and mobile gitlink
+      - name: Checkout frozen July 1 recovery pair
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.resolve-historical-pair.outputs.parent }}
           submodules: recursive
           fetch-depth: 0
 
@@ -48,7 +78,7 @@ jobs:
             --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
-            --expected-parent "$GITHUB_SHA" \
+            --expected-parent "$HISTORICAL_PARENT" \
             --include-toolchain \
             --output "$RESULTS_DIR/identity-pre.json"
 
@@ -84,7 +114,7 @@ jobs:
             --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
-            --expected-parent "$GITHUB_SHA" \
+            --expected-parent "$HISTORICAL_PARENT" \
             --include-toolchain \
             --output "$RESULTS_DIR/identity-post.json"
           git diff --check
@@ -125,10 +155,16 @@ jobs:
           set -euo pipefail
           python3 -m unittest tool.ci.test_lock_gate
           python3 -m unittest tool.ci.test_july1_runtime_gate
+          python3 -m unittest tool.ci.test_forward_candidate_gate
           python3 -m py_compile tool/ci/lock_gate.py tool/ci/test_lock_gate.py
           python3 -m py_compile \
             tool/ci/july1_runtime_gate.py \
             tool/ci/test_july1_runtime_gate.py
+          python3 -m py_compile \
+            tool/ci/forward_candidate_gate.py \
+            tool/ci/test_forward_candidate_gate.py
+          python3 tool/ci/forward_candidate_gate.py validate-workflow \
+            --workflow .github/workflows/mobile.yml
           python3 -m json.tool \
             ci/runtime-authority/july1-recovery.v1.json >/dev/null
           python3 -m json.tool \
@@ -204,10 +240,13 @@ jobs:
 
   locked-contract-vm:
     name: LOCK-GATE deterministic build-control behavior
+    needs:
+      - resolve-historical-pair
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       PYTHONDONTWRITEBYTECODE: "1"
+      HISTORICAL_PARENT: ${{ needs.resolve-historical-pair.outputs.parent }}
     steps:
       - name: Establish VM evidence paths
         id: results
@@ -221,9 +260,10 @@ jobs:
           echo "dir=$results_dir" >> "$GITHUB_OUTPUT"
           echo "manifest=$evidence_manifest" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout exact parent and mobile gitlink
+      - name: Checkout frozen July 1 recovery pair
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.resolve-historical-pair.outputs.parent }}
           submodules: recursive
           fetch-depth: 0
 
@@ -240,7 +280,7 @@ jobs:
             --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
-            --expected-parent "$GITHUB_SHA" \
+            --expected-parent "$HISTORICAL_PARENT" \
             --include-toolchain \
             --output "$RESULTS_DIR/identity-pre.json"
 
@@ -277,7 +317,7 @@ jobs:
             --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
-            --expected-parent "$GITHUB_SHA" \
+            --expected-parent "$HISTORICAL_PARENT" \
             --include-toolchain \
             --output "$RESULTS_DIR/identity-post.json"
           git diff --check
@@ -303,9 +343,12 @@ jobs:
 
   locked-contract-process:
     name: LOCK-GATE superseded authority accounting
+    needs:
+      - resolve-historical-pair
     runs-on: ubuntu-latest
     env:
       PYTHONDONTWRITEBYTECODE: "1"
+      HISTORICAL_PARENT: ${{ needs.resolve-historical-pair.outputs.parent }}
     steps:
       - name: Establish process evidence paths
         id: results
@@ -319,9 +362,10 @@ jobs:
           echo "dir=$results_dir" >> "$GITHUB_OUTPUT"
           echo "manifest=$evidence_manifest" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout exact parent and mobile gitlink
+      - name: Checkout frozen July 1 recovery pair
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.resolve-historical-pair.outputs.parent }}
           submodules: recursive
           fetch-depth: 0
 
@@ -331,7 +375,7 @@ jobs:
             --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
-            --expected-parent "$GITHUB_SHA" \
+            --expected-parent "$HISTORICAL_PARENT" \
             --output "$RESULTS_DIR/authority-accounting.json"
           cp ci/runtime-authority/july1-recovery.v1.json "$RESULTS_DIR/"
           cp ci/superseded/locked-contracts.post-july1.242.json "$RESULTS_DIR/"
@@ -344,7 +388,7 @@ jobs:
             --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
-            --expected-parent "$GITHUB_SHA" \
+            --expected-parent "$HISTORICAL_PARENT" \
             --output "$RESULTS_DIR/identity-post.json"
           git diff --check
           git -C mobile diff --check
@@ -368,11 +412,14 @@ jobs:
 
   full-suite-quarantine-monitor:
     name: LOCK-GATE full July 1 runtime authority
+    needs:
+      - resolve-historical-pair
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
       PYTHONDONTWRITEBYTECODE: "1"
       TZ: America/Los_Angeles
+      HISTORICAL_PARENT: ${{ needs.resolve-historical-pair.outputs.parent }}
     steps:
       - name: Establish full-suite evidence paths
         id: results
@@ -386,9 +433,10 @@ jobs:
           echo "dir=$results_dir" >> "$GITHUB_OUTPUT"
           echo "manifest=$evidence_manifest" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout exact parent and mobile gitlink
+      - name: Checkout frozen July 1 recovery pair
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.resolve-historical-pair.outputs.parent }}
           submodules: recursive
           fetch-depth: 0
 
@@ -405,7 +453,7 @@ jobs:
             --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
-            --expected-parent "$GITHUB_SHA" \
+            --expected-parent "$HISTORICAL_PARENT" \
             --include-toolchain \
             --output "$RESULTS_DIR/identity-pre.json"
 
@@ -451,7 +499,7 @@ jobs:
             --profile ci/runtime-authority/july1-recovery.v1.json \
             --parent-root . \
             --mobile-root mobile \
-            --expected-parent "$GITHUB_SHA" \
+            --expected-parent "$HISTORICAL_PARENT" \
             --include-toolchain \
             --output "$RESULTS_DIR/identity-post.json"
           git diff --check
@@ -475,23 +523,180 @@ jobs:
             ${{ steps.results.outputs.dir }}
             ${{ steps.results.outputs.manifest }}
 
+  forward-candidate-runtime:
+    name: LOCK-GATE forward candidate runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Establish forward-runtime evidence paths
+        id: results
+        run: |
+          set -euo pipefail
+          results_dir="$RUNNER_TEMP/forward-candidate-runtime"
+          evidence_manifest="$RUNNER_TEMP/forward-candidate-runtime.sha256"
+          mkdir -p "$results_dir"
+          echo "RESULTS_DIR=$results_dir" >> "$GITHUB_ENV"
+          echo "EVIDENCE_MANIFEST=$evidence_manifest" >> "$GITHUB_ENV"
+          echo "dir=$results_dir" >> "$GITHUB_OUTPUT"
+          echo "manifest=$evidence_manifest" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout current candidate pair
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Resolve declared base
+        id: base
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            declared="${{ github.event.pull_request.base.sha }}"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            declared="${{ github.event.before }}"
+          else
+            git fetch origin main
+            declared="$(git rev-parse origin/main)"
+          fi
+          if [[ ! "$declared" =~ ^[0-9a-f]{40}$ ]] || [[ "$declared" = "0000000000000000000000000000000000000000" ]]; then
+            echo "declared_base is not a nonzero 40-hex SHA: ${declared:-empty}" >&2
+            exit 1
+          fi
+          echo "sha=$declared" >> "$GITHUB_OUTPUT"
+
+      - name: Verify declared-base forward provenance
+        run: |
+          python3 tool/ci/forward_candidate_gate.py verify-forward \
+            --parent-root . \
+            --mobile-root mobile \
+            --declared-base "${{ steps.base.outputs.sha }}" \
+            --output "$RESULTS_DIR/forward-pre.json"
+
+      - name: Set up pinned Flutter and Dart
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.35.3"
+          channel: stable
+          cache: true
+
+      - name: Install locked current-candidate dependencies
+        working-directory: mobile
+        run: flutter pub get --enforce-lockfile
+
+      - name: Materialize declared base pair
+        run: |
+          set -euo pipefail
+          git worktree add --detach "$RUNNER_TEMP/declared-base" \
+            "${{ steps.base.outputs.sha }}"
+          git -C "$RUNNER_TEMP/declared-base" submodule update --init --recursive
+
+      - name: Install locked declared-base dependencies
+        working-directory: ${{ runner.temp }}/declared-base/mobile
+        run: flutter pub get --enforce-lockfile
+
+      - name: Analyze declared base and current candidate
+        run: |
+          set -euo pipefail
+          set +e
+          (
+            cd "$RUNNER_TEMP/declared-base/mobile"
+            flutter analyze --no-fatal-infos --machine
+          ) > "$RESULTS_DIR/analyzer-base.json" 2>"$RESULTS_DIR/analyzer-base.stderr"
+          base_status=$?
+          (
+            cd mobile
+            flutter analyze --no-fatal-infos --machine
+          ) > "$RESULTS_DIR/analyzer-candidate.json" 2>"$RESULTS_DIR/analyzer-candidate.stderr"
+          candidate_status=$?
+          set -e
+          python3 tool/ci/forward_candidate_gate.py compare-analyze \
+            --base-log "$RESULTS_DIR/analyzer-base.json" \
+            --candidate-log "$RESULTS_DIR/analyzer-candidate.json" \
+            --base-mobile-root "$RUNNER_TEMP/declared-base/mobile" \
+            --candidate-mobile-root mobile \
+            --base-status "$base_status" \
+            --candidate-status "$candidate_status" \
+            --output "$RESULTS_DIR/analyzer-compare.json"
+
+      - name: Test declared base and current candidate
+        run: |
+          set +e
+          (
+            cd "$RUNNER_TEMP/declared-base/mobile"
+            flutter test --no-pub --machine --concurrency=1
+          ) > "$RESULTS_DIR/tests-base.jsonl" 2>"$RESULTS_DIR/tests-base.stderr"
+          base_status=$?
+          (
+            cd mobile
+            flutter test --no-pub --machine --concurrency=1
+          ) > "$RESULTS_DIR/tests-candidate.jsonl" 2>"$RESULTS_DIR/tests-candidate.stderr"
+          candidate_status=$?
+          set -e
+          python3 tool/ci/forward_candidate_gate.py compare-test \
+            --base-log "$RESULTS_DIR/tests-base.jsonl" \
+            --candidate-log "$RESULTS_DIR/tests-candidate.jsonl" \
+            --base-mobile-root "$RUNNER_TEMP/declared-base/mobile" \
+            --candidate-mobile-root mobile \
+            --base-parent-root "$RUNNER_TEMP/declared-base" \
+            --candidate-parent-root . \
+            --base-status "$base_status" \
+            --candidate-status "$candidate_status" \
+            --output "$RESULTS_DIR/tests-compare.json"
+
+      - name: Restore generated metadata and verify clean post-test identity
+        if: always()
+        run: |
+          if [ -d "$RUNNER_TEMP/declared-base/mobile" ]; then
+            git -C "$RUNNER_TEMP/declared-base/mobile" restore --worktree -- .flutter-plugins-dependencies
+          fi
+          git -C mobile restore --worktree -- .flutter-plugins-dependencies
+          python3 tool/ci/forward_candidate_gate.py verify-worktree-clean \
+            --parent-root . \
+            --mobile-root mobile \
+            --output "$RESULTS_DIR/identity-post.json"
+          git diff --check
+          git -C mobile diff --check
+
+      - name: Hash forward-runtime evidence
+        if: always()
+        run: |
+          python3 tool/ci/lock_gate.py hash-results \
+            --root "$RESULTS_DIR" \
+            --output "$EVIDENCE_MANIFEST"
+
+      - name: Archive forward-runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lock-gate-forward-runtime-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          path: |
+            ${{ steps.results.outputs.dir }}
+            ${{ steps.results.outputs.manifest }}
+
   lock-gate-required:
     name: LOCK-GATE required
     if: always()
     needs:
+      - resolve-historical-pair
       - mobile-fast-suite
       - lock-gate-evaluator
       - release-pipeline-contracts
       - locked-contract-vm
       - locked-contract-process
       - full-suite-quarantine-monitor
+      - forward-candidate-runtime
     runs-on: ubuntu-latest
     steps:
-      - name: Require every July 1 runtime and build-control gate
+      - name: Require historical, forward-runtime, and release-pipeline gates
         run: |
+          test "${{ needs.resolve-historical-pair.result }}" = "success"
           test "${{ needs.mobile-fast-suite.result }}" = "success"
           test "${{ needs.lock-gate-evaluator.result }}" = "success"
           test "${{ needs.release-pipeline-contracts.result }}" = "success"
           test "${{ needs.locked-contract-vm.result }}" = "success"
           test "${{ needs.locked-contract-process.result }}" = "success"
           test "${{ needs.full-suite-quarantine-monitor.result }}" = "success"
+          test "${{ needs.forward-candidate-runtime.result }}" = "success"
