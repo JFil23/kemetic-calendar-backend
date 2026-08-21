@@ -4,7 +4,8 @@ Status: **Ratified, amended after RC visual verification and weekday-strip follo
 
 Ratified by: product owner
 
-Date: 2026-08-13; weekday-strip amendment 2026-08-16
+Date: 2026-08-13; weekday-strip amendment 2026-08-16; trailing-row
+handoff amendment 2026-08-19
 
 Applies to: main portrait scrolling calendar in the RC geometry refactor
 
@@ -26,17 +27,19 @@ Applies to: main portrait scrolling calendar in the RC geometry refactor
   remains 58 px and a 24 px weekday strip sits beneath it. The activation line
   is therefore scroll-viewport local `y = 0`, immediately below the combined
   fixed header; neither fixed band is counted a second time.
-- The weekday strip follows the weekday sequence of the decan label that most
-  recently crossed the activation line. Its handoff coordinates are measured
-  from rendered labels and published in the same atomic geometry snapshot as
-  month and Gregorian boundaries; it does not estimate row heights.
+- The weekday strip belongs to the day-number row currently entering the
+  viewport. It changes at the measured trailing edge — the bottom — of the
+  preceding day-number row. Handoff coordinates are measured from rendered
+  day rows and published in the same atomic geometry snapshot as month and
+  Gregorian boundaries; it does not estimate row heights or spacing
+  constants.
 - Weekday letters are not repeated above day tiles inside the scrolling month
   bodies; the fixed strip is the main calendar's sole weekday display.
 - Scrolling-calendar day tiles and their 12.4 px day-number typography retain
   their original sizing; focused month and day-detail layouts are unchanged.
-- Heriu Renpet publishes its sole day row as the equivalent activation
-  boundary so the fixed strip remains valid across the short month and year
-  boundary.
+- Heriu Renpet publishes the trailing edge of its sole day row as the
+  equivalent activation boundary so the fixed strip remains valid across the
+  short month and year boundary.
 - The divider between month A and month B belongs to month B.
 - A season heading belongs to the first month in that season.
 - The divider after Heriu Renpet and the following Akhet heading belong to
