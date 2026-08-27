@@ -1,0 +1,16 @@
+{
+  "version": "5",
+  "specifiers": {
+    "npm:astronomy-engine@2.1.19": "2.1.19"
+  },
+  "npm": {
+    "astronomy-engine@2.1.19": {
+      "integrity": "sha512-8yWKNf7UeNbH458h3sAJ6ZgAjE5jTXp/mNNRFoC20j2SHwZIjAQeEsBB2Q3uCFRaTCCJRv33K2XhkhZQMXoX6w=="
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:astronomy-engine@2.1.19"
+    ]
+  }
+}
