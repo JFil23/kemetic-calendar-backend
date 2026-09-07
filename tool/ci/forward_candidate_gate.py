@@ -37,6 +37,9 @@ READING_HOUSE_RELEASE_DECLARED_BASE = (
 READING_HOUSE_RELEASE_PRODUCT_PARENT = (
     "2cea8d3ae711c8b91e9c1f7e0f52d33407f49211"
 )
+READING_HOUSE_RELEASE_AUTHORITY_PARENT = (
+    "74dc57f804b01db366d03f285e8b530c92546a5a"
+)
 READING_HOUSE_RELEASE_MOBILE = "0c424c10954208924b1c0abc9eea118191c72cee"
 READING_HOUSE_RELEASE_MIGRATION_PATH = (
     "supabase/migrations/"
@@ -45,11 +48,20 @@ READING_HOUSE_RELEASE_MIGRATION_PATH = (
 READING_HOUSE_RELEASE_MIGRATION_BLOB = (
     "2ca4ee63640b6eca6bf3d255d36a295d6f7a0eb0"
 )
+READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH = Path(
+    "ci/runtime-authority/reading-house-four-flow-missing-tests.v1.json"
+)
+READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB = (
+    "7dfb6324a576cb4260c76cdc1f03f09f4073be83"
+)
+READING_HOUSE_RELEASE_MISSING_TEST_COUNT = 202
+WILDCARD_CHARS = re.compile(r"[*?\[\]]")
 
 ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
     {
         ".github/workflows/mobile.yml",
         "ci/LOCK_GATE.md",
+        READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix(),
         "tool/ci/forward_candidate_gate.py",
         "tool/ci/test_forward_candidate_gate.py",
     }
@@ -348,15 +360,17 @@ def _validate_reading_house_release_identity(
     parent_line: Sequence[str],
     migration_records: Sequence[dict[str, str]],
     migration_blob: str | None,
+    audit_records: Sequence[dict[str, str]],
+    audit_blob: str | None,
 ) -> list[str]:
     errors: list[str] = []
     if (
         len(parent_line) != 2
-        or parent_line[1] != READING_HOUSE_RELEASE_PRODUCT_PARENT
+        or parent_line[1] != READING_HOUSE_RELEASE_AUTHORITY_PARENT
     ):
         errors.append(
             "Reading House release reconciliation must be one commit directly "
-            f"on top of {READING_HOUSE_RELEASE_PRODUCT_PARENT}"
+            f"on top of {READING_HOUSE_RELEASE_AUTHORITY_PARENT}"
         )
     if list(migration_records) != [
         {"status": "A", "path": READING_HOUSE_RELEASE_MIGRATION_PATH}
@@ -366,6 +380,18 @@ def _validate_reading_house_release_identity(
         errors.append(
             "Reading House release migration blob must remain "
             f"{READING_HOUSE_RELEASE_MIGRATION_BLOB}, got {migration_blob}"
+        )
+    if list(audit_records) != [
+        {
+            "status": "A",
+            "path": READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix(),
+        }
+    ]:
+        errors.append("Reading House missing-test audit must be exactly one added path")
+    if audit_blob != READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB:
+        errors.append(
+            "Reading House missing-test audit blob must remain "
+            f"{READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB}, got {audit_blob}"
         )
     return errors
 
@@ -454,26 +480,44 @@ def verify_forward(
                     "rev-parse",
                     f"{candidate_parent}:{READING_HOUSE_RELEASE_MIGRATION_PATH}",
                 )
+                audit_blob = _git_text(
+                    parent_root,
+                    "rev-parse",
+                    (
+                        f"{candidate_parent}:"
+                        f"{READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix()}"
+                    ),
+                )
             except (OSError, subprocess.CalledProcessError) as error:
                 receipt["errors"].append(
                     f"Reading House release identity inspection failed: {error}"
                 )
                 parent_line = []
                 migration_blob = None
-            receipt["readingHouseReleaseProductParent"] = (
+                audit_blob = None
+            receipt["readingHouseReleaseDirectParent"] = (
                 parent_line[1] if len(parent_line) == 2 else None
             )
             receipt["readingHouseReleaseMigrationBlob"] = migration_blob
+            receipt["readingHouseReleaseMissingTestAuditBlob"] = audit_blob
             migration_records = [
                 record
                 for record in parent_delta
                 if record["path"] == READING_HOUSE_RELEASE_MIGRATION_PATH
+            ]
+            audit_records = [
+                record
+                for record in parent_delta
+                if record["path"]
+                == READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix()
             ]
             receipt["errors"].extend(
                 _validate_reading_house_release_identity(
                     parent_line=parent_line,
                     migration_records=migration_records,
                     migration_blob=migration_blob,
+                    audit_records=audit_records,
+                    audit_blob=audit_blob,
                 )
             )
         try:
@@ -690,6 +734,187 @@ class ForwardTestResult:
     skip_reason: str
 
 
+@dataclass(frozen=True)
+class MissingTestAuditEntry:
+    identity: str
+    disposition: str
+    replacement_identity: str | None
+
+
+def load_missing_test_audit(
+    path: Path,
+) -> dict[str, MissingTestAuditEntry]:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ForwardCandidateError(
+            f"missing-test audit cannot be read: {error}"
+        ) from error
+    if not isinstance(raw, dict) or raw.get("schemaVersion") != 1:
+        raise ForwardCandidateError("missing-test audit schemaVersion must be 1")
+    authority = raw.get("authority")
+    expected_authority = {
+        "declaredBase": READING_HOUSE_RELEASE_DECLARED_BASE,
+        "candidateMobile": READING_HOUSE_RELEASE_MOBILE,
+        "candidateDirectParent": READING_HOUSE_RELEASE_AUTHORITY_PARENT,
+        "expectedMissingCount": READING_HOUSE_RELEASE_MISSING_TEST_COUNT,
+    }
+    if authority != expected_authority:
+        raise ForwardCandidateError(
+            "missing-test audit authority must match the exact Reading House "
+            f"release pin: expected={expected_authority}, got={authority}"
+        )
+    entries = raw.get("entries")
+    if (
+        not isinstance(entries, list)
+        or len(entries) != READING_HOUSE_RELEASE_MISSING_TEST_COUNT
+    ):
+        observed = len(entries) if isinstance(entries, list) else None
+        raise ForwardCandidateError(
+            "missing-test audit must contain exactly "
+            f"{READING_HOUSE_RELEASE_MISSING_TEST_COUNT} entries, got {observed}"
+        )
+
+    audit: dict[str, MissingTestAuditEntry] = {}
+    observed_order: list[str] = []
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise ForwardCandidateError(
+                f"missing-test audit entry {index} must be an object"
+            )
+        identity = entry.get("identity")
+        disposition = entry.get("disposition")
+        replacement = entry.get("replacementIdentity")
+        if (
+            not isinstance(identity, str)
+            or not identity.startswith("test/")
+            or " :: " not in identity
+        ):
+            raise ForwardCandidateError(
+                f"missing-test audit entry {index} has invalid identity"
+            )
+        if WILDCARD_CHARS.search(identity):
+            raise ForwardCandidateError(
+                f"missing-test audit identity may not contain wildcards: {identity}"
+            )
+        if identity in audit:
+            raise ForwardCandidateError(
+                f"missing-test audit contains duplicate identity: {identity}"
+            )
+        if disposition not in {"retired", "replaced"}:
+            raise ForwardCandidateError(
+                f"missing-test audit entry {identity} must be retired or replaced"
+            )
+        if disposition == "retired":
+            if replacement is not None:
+                raise ForwardCandidateError(
+                    f"retired audit entry may not name a replacement: {identity}"
+                )
+        elif (
+            not isinstance(replacement, str)
+            or not replacement.startswith("test/")
+            or " :: " not in replacement
+            or replacement == identity
+        ):
+            raise ForwardCandidateError(
+                f"replaced audit entry must name a distinct test identity: {identity}"
+            )
+        elif WILDCARD_CHARS.search(replacement):
+            raise ForwardCandidateError(
+                f"replacement identity may not contain wildcards: {replacement}"
+            )
+        observed_order.append(identity)
+        audit[identity] = MissingTestAuditEntry(
+            identity=identity,
+            disposition=disposition,
+            replacement_identity=replacement,
+        )
+    if observed_order != sorted(observed_order):
+        raise ForwardCandidateError(
+            "missing-test audit identities must be sorted lexicographically"
+        )
+    return audit
+
+
+def resolve_pinned_missing_test_audit(
+    *,
+    base_parent_root: Path,
+    candidate_parent_root: Path,
+    candidate_mobile_root: Path,
+) -> tuple[
+    dict[str, MissingTestAuditEntry] | None,
+    dict[str, Any],
+    list[str],
+]:
+    metadata: dict[str, Any] = {
+        "path": READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix(),
+        "applied": False,
+    }
+    try:
+        base_parent = _git_text(base_parent_root, "rev-parse", "HEAD")
+        candidate_parent = _git_text(candidate_parent_root, "rev-parse", "HEAD")
+        candidate_mobile = _git_text(candidate_mobile_root, "rev-parse", "HEAD")
+        candidate_gitlink = _mobile_gitlink(candidate_parent_root, candidate_parent)
+        parent_line = _git_text(
+            candidate_parent_root,
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+            candidate_parent,
+        ).split()
+    except (OSError, subprocess.CalledProcessError) as error:
+        return None, metadata, [
+            f"missing-test audit identity inspection failed: {error}"
+        ]
+
+    direct_parent = parent_line[1] if len(parent_line) == 2 else None
+    metadata.update(
+        {
+            "declaredBase": base_parent,
+            "candidateParent": candidate_parent,
+            "candidateDirectParent": direct_parent,
+            "candidateMobile": candidate_mobile,
+            "candidateGitlink": candidate_gitlink,
+        }
+    )
+    exact_cut = (
+        base_parent == READING_HOUSE_RELEASE_DECLARED_BASE
+        and direct_parent == READING_HOUSE_RELEASE_AUTHORITY_PARENT
+        and candidate_mobile == READING_HOUSE_RELEASE_MOBILE
+        and candidate_gitlink == READING_HOUSE_RELEASE_MOBILE
+    )
+    if not exact_cut:
+        return None, metadata, []
+
+    metadata["applied"] = True
+    try:
+        audit_blob = _git_text(
+            candidate_parent_root,
+            "rev-parse",
+            (
+                f"{candidate_parent}:"
+                f"{READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix()}"
+            ),
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        return None, metadata, [f"missing-test audit blob inspection failed: {error}"]
+    metadata["blob"] = audit_blob
+    if audit_blob != READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB:
+        return None, metadata, [
+            "missing-test audit blob must remain "
+            f"{READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB}, got {audit_blob}"
+        ]
+    try:
+        audit = load_missing_test_audit(
+            candidate_parent_root / READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH
+        )
+    except ForwardCandidateError as error:
+        return None, metadata, [str(error)]
+    metadata["entryCount"] = len(audit)
+    return audit, metadata, []
+
+
 def require_parent_pair_layout(parent_root: Path) -> list[str]:
     errors: list[str] = []
     mobile = parent_root / MOBILE_GITLINK_PATH
@@ -854,16 +1079,29 @@ def _result_payload(result: ForwardTestResult) -> dict[str, str]:
 def compare_test_inventories(
     base: dict[str, ForwardTestResult],
     candidate: dict[str, ForwardTestResult],
+    *,
+    missing_test_audit: dict[str, MissingTestAuditEntry] | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     persisting: list[dict[str, str]] = []
     improvements: list[str] = []
     new_passing: list[str] = []
     regressions: list[dict[str, Any]] = []
+    audited_missing: list[dict[str, str]] = []
 
     def reject(identity: str, reason: str, **extra: Any) -> None:
         errors.append(f"{identity}: {reason}")
         regressions.append({"id": identity, "reason": reason, **extra})
+
+    actual_missing = set(base) - set(candidate)
+    if missing_test_audit is not None:
+        audited_identities = set(missing_test_audit)
+        if actual_missing != audited_identities:
+            errors.append(
+                "pinned missing-test audit does not exactly match this cut: "
+                f"unapproved={sorted(actual_missing - audited_identities)}, "
+                f"notMissing={sorted(audited_identities - actual_missing)}"
+            )
 
     for identity in sorted(set(base) | set(candidate)):
         base_result = base.get(identity)
@@ -880,6 +1118,30 @@ def compare_test_inventories(
                 )
             continue
         if candidate_result is None:
+            audit_entry = (
+                missing_test_audit.get(identity)
+                if missing_test_audit is not None
+                else None
+            )
+            if audit_entry is not None:
+                audited_payload = {
+                    "id": identity,
+                    "disposition": audit_entry.disposition,
+                }
+                if audit_entry.replacement_identity is not None:
+                    replacement = candidate.get(audit_entry.replacement_identity)
+                    audited_payload["replacementIdentity"] = (
+                        audit_entry.replacement_identity
+                    )
+                    if replacement is None or replacement.status != FORWARD_PASS:
+                        reject(
+                            identity,
+                            "audited replacement is not a passing candidate test",
+                            replacementIdentity=audit_entry.replacement_identity,
+                        )
+                        continue
+                audited_missing.append(audited_payload)
+                continue
             reject(
                 identity,
                 "test missing from candidate",
@@ -942,6 +1204,7 @@ def compare_test_inventories(
         "persistingBaselineFailures": persisting,
         "improvements": improvements,
         "newPassingTests": new_passing,
+        "auditedMissingTests": audited_missing,
         "regressions": regressions,
     }
 
@@ -967,6 +1230,11 @@ def compare_test(
         "persistingBaselineFailures": [],
         "improvements": [],
         "newPassingTests": [],
+        "auditedMissingTests": [],
+        "missingTestAudit": {
+            "path": READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix(),
+            "applied": False,
+        },
         "regressions": [],
     }
     receipt["errors"].extend(require_parent_pair_layout(base_parent_root))
@@ -993,8 +1261,24 @@ def compare_test(
     receipt["errors"].extend(base_errors)
     receipt["errors"].extend(candidate_errors)
 
-    def _status_conflicts(label: str, status: int | None, inventory: dict[str, ForwardTestResult]) -> None:
-        has_failures = any(item.status in FAILURE_STATUSES for item in inventory.values())
+    missing_test_audit, audit_metadata, audit_errors = (
+        resolve_pinned_missing_test_audit(
+            base_parent_root=base_parent_root,
+            candidate_parent_root=candidate_parent_root,
+            candidate_mobile_root=candidate_mobile_root,
+        )
+    )
+    receipt["missingTestAudit"] = audit_metadata
+    receipt["errors"].extend(audit_errors)
+
+    def _status_conflicts(
+        label: str,
+        status: int | None,
+        inventory: dict[str, ForwardTestResult],
+    ) -> None:
+        has_failures = any(
+            item.status in FAILURE_STATUSES for item in inventory.values()
+        )
         if status == 0 and has_failures:
             receipt["errors"].append(
                 f"{label} flutter test exited 0 but inventory contains failures"
@@ -1011,10 +1295,15 @@ def compare_test(
     if receipt["errors"]:
         return receipt
 
-    compared = compare_test_inventories(base_inventory, candidate_inventory)
+    compared = compare_test_inventories(
+        base_inventory,
+        candidate_inventory,
+        missing_test_audit=missing_test_audit,
+    )
     receipt["persistingBaselineFailures"] = compared["persistingBaselineFailures"]
     receipt["improvements"] = compared["improvements"]
     receipt["newPassingTests"] = compared["newPassingTests"]
+    receipt["auditedMissingTests"] = compared["auditedMissingTests"]
     receipt["regressions"] = compared["regressions"]
     receipt["errors"].extend(compared["errors"])
     receipt["baseCount"] = len(base_inventory)

@@ -1,0 +1,881 @@
+{
+  "schemaVersion": 1,
+  "authority": {
+    "declaredBase": "addeec5e196e8282f97d58e9cc857e11d99f2d4b",
+    "candidateMobile": "0c424c10954208924b1c0abc9eea118191c72cee",
+    "candidateDirectParent": "74dc57f804b01db366d03f285e8b530c92546a5a",
+    "expectedMissingCount": 202
+  },
+  "policy": {
+    "retired": "The missing identity asserted an active implementation or UI contract removed by the approved four-flow contraction.",
+    "replaced": "The missing identity is superseded by the named passing candidate identity."
+  },
+  "entries": [
+    {
+      "identity": "test/core/composition/composition_engine_test.dart :: steady and broad observed decans recommend Ma_at Flow continuation",
+      "disposition": "replaced",
+      "replacementIdentity": "test/core/composition/composition_engine_test.dart :: steady observations continue active flows while breadth uses the library"
+    },
+    {
+      "identity": "test/features/calendar/calendar_event_visual_style_test.dart :: CalendarEventVisualStyle :: The Weighing detail surface preserves the event block palette",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/calendar_event_visual_style_test.dart :: CalendarEventVisualStyle :: archived flows use the generic historical event palette"
+    },
+    {
+      "identity": "test/features/calendar/dawn_house_rite_flow_test.dart :: builds thirty JSON-safe dawn event payloads",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/dawn_house_rite_flow_test.dart :: canonical detail rebuilds stale dawn events without cycle status",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/dawn_house_rite_flow_test.dart :: copy guards keep Dawn action fields required and clear",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/dawn_house_rite_flow_test.dart :: default start date advances after the current dawn has passed",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/dawn_house_rite_flow_test.dart :: detail text keeps only readable rite sections",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/dawn_house_rite_flow_test.dart :: discreet detail removes visible ritual language",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/dawn_house_rite_flow_test.dart :: maat template join does not pop a root list route into blank space",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/dawn_house_rite_flow_test.dart :: payload keeps dawn scheduler and transform keys stable",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/dawn_house_rite_flow_test.dart :: purpose copy checkpoints match the upgraded thirty-day rite",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/dawn_house_rite_flow_test.dart :: schedules a three minute Pacific dawn occurrence",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/dawn_house_rite_flow_test.dart :: shared headless join stages Dawn events before persistence",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/day_view_test.dart :: DayViewGrid detail sheet refresh :: Ma_at flow detail sheet uses gold section headers without duplicate labels",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/evening_threshold_rite_flow_test.dart :: builds thirty JSON-safe evening event payloads",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/evening_threshold_rite_flow_test.dart :: copy guards keep Evening safety gates and quiet lines clear",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/evening_threshold_rite_flow_test.dart :: default start date advances after the current evening has passed",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/evening_threshold_rite_flow_test.dart :: detail text keeps only readable rite sections",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/evening_threshold_rite_flow_test.dart :: discreet detail removes visible ritual language",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/evening_threshold_rite_flow_test.dart :: payload keeps evening scheduler and transform keys stable",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/evening_threshold_rite_flow_test.dart :: purpose copy checkpoints match the upgraded thirty-evening rite",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/evening_threshold_rite_flow_test.dart :: schedules a three minute Pacific sunset occurrence",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/evening_threshold_rite_flow_test.dart :: shared headless join stages Evening events before persistence",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/flow_join_service_test.dart :: headless Dawn House Rite join persists events, intentionally skips delivery without alert, invalidates once, and returns success",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/flow_join_service_test.dart :: headless Days Outside join persists events, files at-time delivery, invalidates once, and returns success",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/flow_join_service_test.dart :: headless Evening Threshold Rite join persists events, intentionally skips delivery without alert, invalidates once, and returns success",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/flow_join_service_test.dart :: headless Kept Word join persists events, files at-time delivery, invalidates once, and returns success",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/flow_join_service_test.dart :: headless Living Text join persists library CTA payloads for Events 4 and 7",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/flow_join_service_test.dart :: headless Ma’at decan join persists events, files at-time delivery, invalidates once, and returns success",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/flow_join_service_test.dart :: headless The Tending join persists events, files at-time delivery, invalidates once, and returns success",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/flow_join_service_test.dart :: headless The Weighing join persists events, intentionally skips delivery without alert, invalidates once, and returns success",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/flow_join_service_test.dart :: headless Wag join persists events, files at-time delivery, invalidates once, and returns success",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/flow_studio_helper_lifecycle_test.dart :: route-backed Ma at detail back returns to list before hub",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/flow_studio_helper_lifecycle_test.dart :: route-backed detail returns to four-flow discovery before hub"
+    },
+    {
+      "identity": "test/features/calendar/maat_decan_flow_test.dart :: Clearing copy keeps action gates and optional sharing explicit",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_decan_flow_test.dart :: Clearing optional steps do not duplicate required steps",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_decan_flow_test.dart :: Clearing steps keep source-note phrases out of actions",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_decan_flow_test.dart :: Clearing words fields do not contain stage-direction wrappers",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_decan_flow_test.dart :: First Arrangement copy keeps removal guardrails and actions explicit",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_decan_flow_test.dart :: First Arrangement optional steps do not duplicate required steps",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_decan_flow_test.dart :: First Arrangement steps keep rationale out without losing guardrails",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_decan_flow_test.dart :: First Arrangement words fields do not contain stage-direction wrappers",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: Ma’at cleanup is bounded to an idle opening tap",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: Ma’at rows and expanded cards use My Flows geometry",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: a partially visible expanded block remains open on the next opening tap",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: a tap begun during scroll opens without cleanup until a later idle tap",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: all 33 Ma’at details use tap-bounded multi-expansion state",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: an off-screen expanded block below collapses without offset correction",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: empty Ma’at event lists keep selection empty and remain safe",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: entering another Ma’at flow selects that flow first event",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: first Ma’at event content is visible immediately without a tap",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: idle opening collapses a fully off-screen block and anchors the tapped row",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: leaving and reopening resets to only the first event",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: long expanded cards remain reachable above Join Flow",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: narrow layouts wrap full event copy and preserve the lead-in",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: rapid multi-expansion persists and manual collapse changes one card",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_catalog_test.dart :: catalog exposes exactly the approved 13 core products",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_catalog_test.dart :: catalog exposes exactly the four active products"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_catalog_test.dart :: catalog status totals are 13 core, 14 absorbed, 5 retired, 1 legacy",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_catalog_test.dart :: catalog separates four core products from nine archived products"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_catalog_test.dart :: core taxonomy verbs are complete and unique",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_catalog_test.dart :: active product taxonomy verbs are complete and unique"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_catalog_test.dart :: new-join gate rejects all 20 non-core kinds before side effects",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_catalog_test.dart :: new-join gate rejects all 29 non-product kinds before side effects"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_completion_test.dart :: Days Outside detail keeps year threshold notes out of shares",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_completion_test.dart :: day view shows tri-state Ma_at completion for every Ma_at flow",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_completion_test.dart :: day view shows tri-state completion for retained Ma_at flows"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_date_mode_test.dart :: Ma_at enrollment preview resolvers catch throwing window APIs",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_date_mode_test.dart :: Ma_at enrollment preview scaffolds use safe window resolvers",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_date_mode_test.dart :: Ma_at flow date references route through the shared date formatter",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_date_mode_test.dart :: Ma_at flow detail pages default to Kemetic date mode",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_date_mode_test.dart :: retained date pickers declare their approved initial modes"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_date_mode_test.dart :: Ma_at preview event cells expand inline with full details",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_date_mode_test.dart :: all Ma_at service joins call the universal staged completion",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_date_mode_test.dart :: four-flow joins cross the universal staging authority"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_date_mode_test.dart :: instrument event sheets keep one shared resize authority",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_date_mode_test.dart :: instrument sheets and flow-owned previews keep distinct authorities"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_date_mode_test.dart :: mounted and detached Ma_at joins stage the same service result",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_date_mode_test.dart :: mounted and detached active joins share staging and policy gates"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_date_picker_migration_test.dart :: Ma_at generic date picker routes only through Stone Register wrapper",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_date_picker_migration_test.dart :: retained authoring date pickers route through the shared wrapper"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_date_picker_migration_test.dart :: Ma_at touched flags and join state remain caller-owned",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_date_picker_migration_test.dart :: retained picker state remains owned by each flow surface"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_date_picker_migration_test.dart :: Ma_at window-only pickers remain outside generic date migration",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_date_picker_migration_test.dart :: retired window-only pickers are absent from active detail authority"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: Ma’at Flow detail primary body omits disclaimer framing",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: four retained detail bodies omit disclaimer framing"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: Ma’at Flow detail uses shared palette and surface contract",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: four retained details use shared palette and surface contracts"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: Ma’at Flow list renders custom glyph rings instead of dots",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: four-flow discovery renders canonical glyphs without dot fallback"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: Ma’at Flow list uses joined-only glow and joined-only progress rings",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: four-flow discovery intentionally omits joined and progress state chrome"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: Ma’at Flow surface bundles and uses Cormorant Garamond",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: four-flow discovery bundles and uses Cormorant Garamond"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: The Weighing detail restructure preserves control handlers",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: The Weighing is archived and routes only to read-only history"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: all Ma’at Flow detail branches use the shared detail scaffold",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: all four active branches route to dedicated detail authorities"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: privacy footer is low-emphasis and follows event previews",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_hydration_test.dart :: Clearing prompt shares default-off response drafts with Day Sheet",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_hydration_test.dart :: Closing initial prompt draft hydrates Day Sheet response specs",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_hydration_test.dart :: Dawn House Rite initial prompt draft hydrates Day Sheet response specs",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_hydration_test.dart :: Days Outside prompt shares threshold receipt drafts with Day Sheet",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_hydration_test.dart :: First Arrangement prompt shares chip and text drafts with Day Sheet",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_hydration_test.dart :: Kept Word prompt shares default-off agreement drafts with Day Sheet",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_hydration_test.dart :: Tending prompt shares default-off care drafts with Day Sheet",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_hydration_test.dart :: Wag prompt shares default-off memory drafts with Day Sheet",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_hydration_test.dart :: Weighing prompt shares default-off scale drafts with Day Sheet",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: Dawn House detail puts entry field high and removes timezone UI",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: Dawn House discreet explainer opens from info bubble only",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: Dawn House full description is collapsed, shorter, and Kemetic",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: Dawn House practice warning stays after the outline",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: Dawn House practice warning text renders",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: The Closing detail puts entry field high and removes timezone UI",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: The Closing discreet explainer opens from info bubble only",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: The Closing full description is collapsed, shorter, and Kemetic",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: The Closing practice warning stays after the outline",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: The Closing practice warning text renders",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: all discreet mode rows expose the lightweight info affordance",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: archived detail authority owns no active configuration affordance"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: core Ma’at detail footer notes stay below outlines",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: the four product details use dedicated visual authorities"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: core Ma’at details use the simplified high-entry layout",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: the four product details use dedicated visual authorities"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: decan Ma’at detail footer notes stay below nine sittings",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: absorbed decan identities remain historical recognition only"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: decan Ma’at details use the simplified high-entry layout",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: absorbed identities are recognized without an active detail"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: enabled initial prompts render in template details",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: active product details do not use the retired generic prompt"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: initial prompt draft hydrates after closing and reopening detail",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: legacy local state hydrates only through read-only compatibility"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: initial prompt draft wiring stays separate from journal writes",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: compatibility decoder is read-only and isolated from journal writes"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: initial prompt leaves Flow Studio installed and uninstalled states unchanged",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: joined state does not change the four-flow discovery catalog"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: initial prompt remains absent for unsupported Ma’at details",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: active details are absent from the archived compatibility set"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: initial prompt survives rebuild and orientation change",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: dedicated active detail survives rebuild and supported viewport change"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: legacy Evening Threshold remains separate from Closing layout",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: legacy Evening Threshold remains distinct from archived Closing"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_response_infrastructure_test.dart :: Dawn House and Closing journal formatters read naturally",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_response_infrastructure_test.dart :: archived flows have no active response infrastructure"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_response_infrastructure_test.dart :: default resolver exposes all 31 Ma_at response sheet specs",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_response_infrastructure_test.dart :: default resolver exposes the retained response sheet specs"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_response_pilot_sheet_test.dart :: (suite)",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_response_pilot_sheet_test.dart :: archived flows expose no active response or authoring specs"
+    },
+    {
+      "identity": "test/features/calendar/maat_flows_list_preview_test.dart :: Ma’at flows list groups joined flows above waiting flows",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flows_list_preview_test.dart :: discovery remains a four-flow catalog regardless of joined rows"
+    },
+    {
+      "identity": "test/features/calendar/maat_flows_list_preview_test.dart :: Ma’at joined card without counts shows active, not fake progress",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flows_list_preview_test.dart :: joined state does not alter the approved discovery cards"
+    },
+    {
+      "identity": "test/features/calendar/maat_flows_list_preview_test.dart :: Ma’at not-yet-joined category tabs filter and toggle",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flows_list_preview_test.dart :: archived flows and old category tabs stay out of discovery"
+    },
+    {
+      "identity": "test/features/calendar/maat_flows_list_preview_test.dart :: Ma’at product catalog renders exactly the 13 core templates",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flows_list_preview_test.dart :: Ma’at product catalog renders exactly the four active flows"
+    },
+    {
+      "identity": "test/features/calendar/maat_flows_list_preview_test.dart :: The Course ignores a second join tap while the first is pending",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/maat_flows_list_preview_test.dart :: The Weighing detail lays out its overview body",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: The Weighing is archived and routes only to read-only history"
+    },
+    {
+      "identity": "test/features/calendar/maat_flows_list_preview_test.dart :: join result does not impersonate the persisted active instance",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flows_list_preview_test.dart :: discovery opens only the selected active flow"
+    },
+    {
+      "identity": "test/features/calendar/maat_response_phase0_preservation_test.dart :: existing interactive flow stores preserve their local namespaces",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_response_phase0_preservation_test.dart :: archived readers preserve legacy namespaces without new writes"
+    },
+    {
+      "identity": "test/features/calendar/moon_return_flow_test.dart :: calendar UI and join branch enforce designated windows",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/moon_return_flow_test.dart :: Moon Return is absorbed and cannot be newly discovered or joined"
+    },
+    {
+      "identity": "test/features/calendar/my_flows_visual_redesign_test.dart :: ended saved Ma’at flow remains in Saved",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/my_flows_visual_redesign_test.dart :: ended archived Ma’at flow remains in Saved read-only history"
+    },
+    {
+      "identity": "test/features/calendar/offering_table_day_presentation_test.dart :: all thirty days close the shared ritual checklist with water once",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/offering_table_day_presentation_test.dart :: all thirty days preserve their authored mockup steps without additions"
+    },
+    {
+      "identity": "test/features/calendar/offering_table_day_view_event_test.dart :: Day View renders the canonical closing water checkbox",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/offering_table_day_view_event_test.dart :: Day View preserves the exact authored checklist"
+    },
+    {
+      "identity": "test/features/calendar/offering_table_detail_page_test.dart :: calendar, initial entry, and date previews follow the approved order",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/offering_table_detail_page_test.dart :: ritual-first detail follows the supplied v7 order"
+    },
+    {
+      "identity": "test/features/calendar/offering_table_detail_page_test.dart :: default preview begins tomorrow with the approved intro copy",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/offering_table_detail_page_test.dart :: default preview begins tomorrow with the approved first morning"
+    },
+    {
+      "identity": "test/features/calendar/the_days_outside_year_flow_test.dart :: Set solar eclipse copy variant is date flagged",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_days_outside_year_flow_test.dart :: calendar UI and join branch use designated year-closing windows",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_days_outside_year_flow_test.dart :: copy keeps fixed dates and no-replay timing anchors explicit",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_days_outside_year_flow_test.dart :: copy keeps water, birth-day, and Wep Ronpet actions clean",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_days_outside_year_flow_test.dart :: defines seven fixed Kemetic threshold events",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_days_outside_year_flow_test.dart :: detail text names one-word share without disclaimer copy or source",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_days_outside_year_flow_test.dart :: enrollment window is M12 D28 through before M13 D1",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_days_outside_year_flow_test.dart :: maps events through KemeticMath instead of Gregorian offsets",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_days_outside_year_flow_test.dart :: optional detail copy does not duplicate required steps",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_days_outside_year_flow_test.dart :: payloads are JSON-safe and do not carry private reflections",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_days_outside_year_flow_test.dart :: safe enrollment resolver returns null for unavailable selected dates",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_days_outside_year_flow_test.dart :: steps keep source-note and rationale phrases out of actions",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_days_outside_year_flow_test.dart :: words fields do not contain stage-direction wrappers",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_decan_watch_flow_test.dart :: source wires template, window-only picker, and rolling ids",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/the_decan_watch_flow_test.dart :: Decan Watch is absorbed while historical response state stays legible"
+    },
+    {
+      "identity": "test/features/calendar/the_djed_flow_test.dart :: source wires template, picker, local store, and raised completion",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/the_djed_flow_test.dart :: Djed v2 owns new joins while v1 remains readable in Day View"
+    },
+    {
+      "identity": "test/features/calendar/the_kept_word_flow_test.dart :: builds JSON-safe payloads with conversation pending on event five",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_kept_word_flow_test.dart :: canonical detail rebuilds a stored kept word event",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_kept_word_flow_test.dart :: copy keeps conversation guardrails and safety branches clear",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_kept_word_flow_test.dart :: defines nine canonical kept word sittings on the correct days",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_kept_word_flow_test.dart :: detail text stays action-focused without source or private-storage copy",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_kept_word_flow_test.dart :: schedules morning, midday, and evening slots in local time",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_kept_word_flow_test.dart :: shared headless join path stages nine events without placeholders",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_kept_word_flow_test.dart :: steps keep rationale and source-note phrases out of actions",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_kept_word_flow_test.dart :: words fields do not contain stage-direction wrappers",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_kept_word_local_store_test.dart :: agreement inventory round-trips in SharedPreferences only",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_kept_word_local_store_test.dart :: conversation flags are local and deletable per flow",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_kept_word_local_store_test.dart :: prompt text saves locally and parses event-one inventory",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_offering_table_flow_test.dart :: representative source note is preserved",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_offering_table_flow_test.dart :: shared headless join path stages thirty daily events",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/the_offering_table_flow_test.dart :: materialization inputs cover all thirty Offering Table days"
+    },
+    {
+      "identity": "test/features/calendar/the_open_hand_flow_test.dart :: source wires template, window-only picker, join, and local store",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/the_open_hand_flow_test.dart :: Open Hand is absorbed while its historical local state stays legible"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_flow_test.dart :: builds JSON-safe behavior payloads and action ids without care names",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_flow_test.dart :: canonical detail rebuilds a stored tending event",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_flow_test.dart :: defines nine canonical tending sittings on the correct flow days",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_flow_test.dart :: detail text stays action-focused without source or private-storage copy",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_flow_test.dart :: optional steps do not duplicate required steps",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_flow_test.dart :: schedules morning, midday, and evening slots in local time",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_flow_test.dart :: shared headless join stages nine events without placeholders",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_flow_test.dart :: specific tending copy guardrails stay explicit",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_flow_test.dart :: stage directions removed from words are preserved as steps",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_flow_test.dart :: steps avoid source-note explanation phrases",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_flow_test.dart :: timing labels preserve anchors in plain language",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_flow_test.dart :: words fields do not contain stage-direction wrappers",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_local_store_test.dart :: care inventory round-trips in SharedPreferences only",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_local_store_test.dart :: deleteFlowData removes only the selected tending flow keys",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_tending_local_store_test.dart :: prompt text saves locally and parses event-one inventory",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_wag_flow_test.dart :: Wag copy preserves offering, reversion, and truth-check order",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_wag_flow_test.dart :: Wag words and steps keep field-purity guardrails",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_wag_flow_test.dart :: Wep Ronpet picker rows are valid before their 48h window opens",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_wag_flow_test.dart :: calendar UI and join branch use designated Wag windows and M1 dates",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_wag_flow_test.dart :: defines nine annual Wag events on fixed Kemetic Month 1 days",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_wag_flow_test.dart :: detail text names offerings, lens, next Wag, and no disclaimer copy",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_wag_flow_test.dart :: maps M1 D18 through KemeticMath for the enrolled kYear",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_wag_flow_test.dart :: payloads are JSON-safe and Event 6 supports names_spoken",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_wag_flow_test.dart :: safe enrollment resolver returns null for unavailable selected dates",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_wag_flow_test.dart :: schedules D17 vigil at dusk and D18 feast in the morning",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_wag_flow_test.dart :: table water instruction is primary and source note is upgraded",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: builds JSON-safe behavior payloads and action ids",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: canonical detail rebuilds a stored weighing event",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: conditional guardrails stay before risky actions",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: defines nine canonical sittings on the correct flow days",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: detail text contains spoken line, steps, optional, and no source",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: optional steps do not duplicate required steps",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: representative source note upgrade is stored",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: schedules morning, midday, and evening slots in local time",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: shared headless join stages nine events without placeholders",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: stage directions removed from words are preserved as steps",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: steps avoid source-note explanation phrases",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: timing labels preserve anchors in plain language",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: water promotion is primary for the specified reckoning events",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/calendar/the_weighing_flow_test.dart :: words fields do not contain stage-direction wrappers",
+      "disposition": "retired"
+    },
+    {
+      "identity": "test/features/inbox/shared_flow_details_import_status_test.dart :: Ma’at payload renders canonical Ma’at detail before custom policy",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/inbox/shared_flow_details_import_status_test.dart :: archived Ma’at payload renders read-only history before custom policy"
+    },
+    {
+      "identity": "test/features/onboarding/starter_maat_flow_recommendation_test.dart :: care for the body recommends Offering Table and Tending",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/onboarding/starter_maat_flow_recommendation_test.dart :: care for the body recommends Offering Table and Follow the Sky"
+    },
+    {
+      "identity": "test/features/onboarding/starter_maat_flow_recommendation_test.dart :: dawn daily discipline makes Dawn House Rite prominent",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/onboarding/starter_maat_flow_recommendation_test.dart :: daily discipline makes The Djed prominent"
+    },
+    {
+      "identity": "test/features/onboarding/starter_maat_flow_recommendation_test.dart :: study and remember recommends Reading House and Kept Word",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/onboarding/starter_maat_flow_recommendation_test.dart :: study and remember recommends Reading House and The Djed"
+    }
+  ]
+}

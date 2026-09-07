@@ -8,7 +8,12 @@ from pathlib import Path
 from tool.ci.forward_candidate_gate import (
     ALLOWED_AUTHORITY_PARENT_PATHS,
     CUT_CLASS_READING_HOUSE_RELEASE,
+    MissingTestAuditEntry,
+    READING_HOUSE_RELEASE_AUTHORITY_PARENT,
     READING_HOUSE_RELEASE_DECLARED_BASE,
+    READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB,
+    READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH,
+    READING_HOUSE_RELEASE_MISSING_TEST_COUNT,
     READING_HOUSE_RELEASE_MIGRATION_BLOB,
     READING_HOUSE_RELEASE_MIGRATION_PATH,
     READING_HOUSE_RELEASE_MOBILE,
@@ -23,6 +28,7 @@ from tool.ci.forward_candidate_gate import (
     compare_analyze,
     compare_test,
     compare_test_inventories,
+    load_missing_test_audit,
     normalize_failure_signature,
     resolve_historical_parent,
     validate_forward_workflow,
@@ -49,6 +55,7 @@ class ForwardWorkflowContractTest(unittest.TestCase):
         self.assertIn("      - production", source)
         self.assertIn(READING_HOUSE_RELEASE_DECLARED_BASE, runtime)
         self.assertIn(READING_HOUSE_RELEASE_PRODUCT_PARENT, runtime)
+        self.assertIn(READING_HOUSE_RELEASE_AUTHORITY_PARENT, runtime)
 
     def test_missing_forward_runtime_need_fails(self) -> None:
         source = WORKFLOW.read_text(encoding="utf-8").replace(
@@ -254,6 +261,7 @@ class ForwardCandidateGateTest(unittest.TestCase):
                 READING_HOUSE_RELEASE_MIGRATION_PATH,
                 ".github/workflows/mobile.yml",
                 "ci/LOCK_GATE.md",
+                READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix(),
                 "tool/ci/forward_candidate_gate.py",
                 "tool/ci/test_forward_candidate_gate.py",
             },
@@ -292,11 +300,18 @@ class ForwardCandidateGateTest(unittest.TestCase):
 
     def test_reading_house_release_rejects_changed_migration_blob(self) -> None:
         errors = _validate_reading_house_release_identity(
-            parent_line=["candidate", READING_HOUSE_RELEASE_PRODUCT_PARENT],
+            parent_line=["candidate", READING_HOUSE_RELEASE_AUTHORITY_PARENT],
             migration_records=[
                 {"status": "A", "path": READING_HOUSE_RELEASE_MIGRATION_PATH}
             ],
             migration_blob="0" * 40,
+            audit_records=[
+                {
+                    "status": "A",
+                    "path": READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix(),
+                }
+            ],
+            audit_blob=READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB,
         )
         self.assertEqual(len(errors), 1)
         self.assertIn("migration blob", errors[0])
@@ -308,6 +323,13 @@ class ForwardCandidateGateTest(unittest.TestCase):
                 {"status": "A", "path": READING_HOUSE_RELEASE_MIGRATION_PATH}
             ],
             migration_blob=READING_HOUSE_RELEASE_MIGRATION_BLOB,
+            audit_records=[
+                {
+                    "status": "A",
+                    "path": READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix(),
+                }
+            ],
+            audit_blob=READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB,
         )
         self.assertEqual(len(errors), 1)
         self.assertIn("one commit directly", errors[0])
@@ -530,6 +552,142 @@ class ForwardTestComparisonTest(unittest.TestCase):
         )
         self.assertTrue(receipt["errors"])
         self.assertIn("missing from candidate", receipt["errors"][0])
+
+    def test_versioned_missing_test_audit_is_exact_and_wildcard_free(self) -> None:
+        path = ROOT / READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH
+        audit = load_missing_test_audit(path)
+        self.assertEqual(len(audit), READING_HOUSE_RELEASE_MISSING_TEST_COUNT)
+        retired = [entry for entry in audit.values() if entry.disposition == "retired"]
+        replaced = [
+            entry for entry in audit.values() if entry.disposition == "replaced"
+        ]
+        self.assertEqual(len(retired), 144)
+        self.assertEqual(len(replaced), 58)
+        self.assertTrue(all(entry.replacement_identity for entry in replaced))
+        observed_blob = subprocess.run(
+            ["git", "hash-object", path.as_posix()],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        self.assertEqual(
+            observed_blob,
+            READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB,
+        )
+        self.assertTrue(
+            READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix()
+            in ALLOWED_AUTHORITY_PARENT_PATHS
+        )
+
+    def test_missing_test_audit_rejects_wildcards(self) -> None:
+        source = (
+            ROOT / READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH
+        ).read_text(encoding="utf-8")
+        source = source.replace("test/core/", "test/*/", 1)
+        path = Path(
+            tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", suffix=".json", delete=False
+            ).name
+        )
+        path.write_text(source, encoding="utf-8")
+        self.addCleanup(path.unlink)
+        with self.assertRaisesRegex(ForwardCandidateError, "wildcards"):
+            load_missing_test_audit(path)
+
+    def test_exact_audited_replacement_may_cover_one_missing_identity(self) -> None:
+        replacement = "test/foo_test.dart :: Foo :: replacement"
+        audit = {
+            self.FOO: MissingTestAuditEntry(
+                identity=self.FOO,
+                disposition="replaced",
+                replacement_identity=replacement,
+            )
+        }
+        receipt = compare_test_inventories(
+            {self.FOO: _fwd(self.FOO, "PASS")},
+            {replacement: _fwd(replacement, "PASS")},
+            missing_test_audit=audit,
+        )
+        self.assertEqual(receipt["errors"], [])
+        self.assertEqual(receipt["auditedMissingTests"][0]["id"], self.FOO)
+        self.assertEqual(
+            receipt["auditedMissingTests"][0]["replacementIdentity"],
+            replacement,
+        )
+
+    def test_audit_does_not_allow_an_unlisted_missing_identity(self) -> None:
+        second = "test/foo_test.dart :: Foo :: second"
+        audit = {
+            self.FOO: MissingTestAuditEntry(
+                identity=self.FOO,
+                disposition="retired",
+                replacement_identity=None,
+            )
+        }
+        receipt = compare_test_inventories(
+            {
+                self.FOO: _fwd(self.FOO, "PASS"),
+                second: _fwd(second, "PASS"),
+            },
+            {},
+            missing_test_audit=audit,
+        )
+        self.assertTrue(receipt["errors"])
+        self.assertTrue(
+            any("does not exactly match" in error for error in receipt["errors"])
+        )
+        self.assertTrue(
+            any("missing from candidate" in error for error in receipt["errors"])
+        )
+
+    def test_audited_replacement_must_be_a_passing_candidate_test(self) -> None:
+        replacement = "test/foo_test.dart :: Foo :: replacement"
+        audit = {
+            self.FOO: MissingTestAuditEntry(
+                identity=self.FOO,
+                disposition="replaced",
+                replacement_identity=replacement,
+            )
+        }
+        receipt = compare_test_inventories(
+            {self.FOO: _fwd(self.FOO, "PASS")},
+            {replacement: _fwd(replacement, "FAIL", signature="boom")},
+            missing_test_audit=audit,
+        )
+        self.assertTrue(receipt["errors"])
+        self.assertTrue(
+            any("replacement is not a passing" in error for error in receipt["errors"])
+        )
+        self.assertTrue(any("new test is FAIL" in error for error in receipt["errors"]))
+
+    def test_audit_keeps_persisting_baseline_failures_recorded(self) -> None:
+        existing_failure = "test/foo_test.dart :: Foo :: existing failure"
+        failed = _fwd(
+            existing_failure,
+            "FAIL",
+            signature="Expected false Actual true",
+        )
+        audit = {
+            self.FOO: MissingTestAuditEntry(
+                identity=self.FOO,
+                disposition="retired",
+                replacement_identity=None,
+            )
+        }
+        receipt = compare_test_inventories(
+            {
+                self.FOO: _fwd(self.FOO, "PASS"),
+                existing_failure: failed,
+            },
+            {existing_failure: failed},
+            missing_test_audit=audit,
+        )
+        self.assertEqual(receipt["errors"], [])
+        self.assertEqual(
+            receipt["persistingBaselineFailures"][0]["id"],
+            existing_failure,
+        )
 
     def test_new_passing_test_is_allowed(self) -> None:
         new_id = "test/foo_test.dart :: Foo :: new case"

@@ -119,10 +119,19 @@ the frozen mobile gitlink
 only `mobile`,
 `supabase/migrations/20260905152737_reading_house_rooms_realtime_and_read_state.sql`,
 and the existing authority-rollover files. The migration must remain the exact
-added blob pinned by the evaluator, and the reconciliation must be one commit
-directly on top of parent product commit
-`2cea8d3ae711c8b91e9c1f7e0f52d33407f49211`. No other mixed gitlink/parent
-cut is accepted.
+added blob pinned by the evaluator. The provenance reconciliation landed at
+`74dc57f804b01db366d03f285e8b530c92546a5a`; the only permitted continuation
+is one direct child that adds the exact versioned missing-test audit at
+`ci/runtime-authority/reading-house-four-flow-missing-tests.v1.json`. That
+audit is valid only for declared base
+`addeec5e196e8282f97d58e9cc857e11d99f2d4b` and frozen mobile gitlink
+`0c424c10954208924b1c0abc9eea118191c72cee`. It enumerates exactly 202 stable
+test identities without wildcards: retired entries record obsolete active-flow
+contracts, and replaced entries name a passing candidate identity. Any missing
+identity outside that exact manifest still fails closed, as does any changed or
+non-passing replacement. New tests must still pass, and the three persisting
+baseline failures remain recorded rather than becoming accepted debt. No other
+mixed gitlink/parent cut or missing-test exception is accepted.
 
 Unrelated parent paths fail closed. Authority-rollover mixed with a gitlink
 change fails closed.
