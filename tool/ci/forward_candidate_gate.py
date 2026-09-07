@@ -31,6 +31,21 @@ MOBILE_GITLINK_PATH = "mobile"
 JULY1_PROFILE_PATH = Path("ci/runtime-authority/july1-recovery.v1.json")
 WORKFLOW_PATH = Path(".github/workflows/mobile.yml")
 
+READING_HOUSE_RELEASE_DECLARED_BASE = (
+    "addeec5e196e8282f97d58e9cc857e11d99f2d4b"
+)
+READING_HOUSE_RELEASE_PRODUCT_PARENT = (
+    "2cea8d3ae711c8b91e9c1f7e0f52d33407f49211"
+)
+READING_HOUSE_RELEASE_MOBILE = "0c424c10954208924b1c0abc9eea118191c72cee"
+READING_HOUSE_RELEASE_MIGRATION_PATH = (
+    "supabase/migrations/"
+    "20260905152737_reading_house_rooms_realtime_and_read_state.sql"
+)
+READING_HOUSE_RELEASE_MIGRATION_BLOB = (
+    "2ca4ee63640b6eca6bf3d255d36a295d6f7a0eb0"
+)
+
 ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
     {
         ".github/workflows/mobile.yml",
@@ -42,6 +57,7 @@ ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
 
 CUT_CLASS_AUTHORITY_ROLLOVER = "parent-authority-rollover"
 CUT_CLASS_GITLINK_ONLY = "parent-gitlink-only"
+CUT_CLASS_READING_HOUSE_RELEASE = "reading-house-release-reconciliation"
 CUT_CLASS_EMPTY = "empty"
 
 REQUIRED_AGGREGATE_JOBS = (
@@ -278,13 +294,45 @@ def verify_historical_pair(
     return receipt
 
 
-def _classify_parent_delta(paths: Iterable[str]) -> tuple[str | None, list[str]]:
+def _classify_parent_delta(
+    paths: Iterable[str],
+    *,
+    declared_base: str,
+    candidate_gitlink: str | None,
+) -> tuple[str | None, list[str]]:
     observed = set(paths)
     errors: list[str] = []
     if not observed:
         return CUT_CLASS_EMPTY, errors
     if observed == {MOBILE_GITLINK_PATH}:
         return CUT_CLASS_GITLINK_ONLY, errors
+    if {
+        MOBILE_GITLINK_PATH,
+        READING_HOUSE_RELEASE_MIGRATION_PATH,
+    }.issubset(observed):
+        allowed = ALLOWED_AUTHORITY_PARENT_PATHS | {
+            MOBILE_GITLINK_PATH,
+            READING_HOUSE_RELEASE_MIGRATION_PATH,
+        }
+        if declared_base != READING_HOUSE_RELEASE_DECLARED_BASE:
+            errors.append(
+                "Reading House release reconciliation requires declared_base "
+                f"{READING_HOUSE_RELEASE_DECLARED_BASE}, got {declared_base}"
+            )
+        if candidate_gitlink != READING_HOUSE_RELEASE_MOBILE:
+            errors.append(
+                "Reading House release reconciliation requires candidate mobile "
+                f"{READING_HOUSE_RELEASE_MOBILE}, got {candidate_gitlink}"
+            )
+        extra = sorted(observed - allowed)
+        if extra:
+            errors.append(
+                "Reading House release reconciliation contains paths outside its "
+                f"exact allowlist: extra={extra}"
+            )
+        if errors:
+            return None, errors
+        return CUT_CLASS_READING_HOUSE_RELEASE, errors
     extra = sorted(observed - ALLOWED_AUTHORITY_PARENT_PATHS)
     if extra:
         errors.append(
@@ -293,6 +341,33 @@ def _classify_parent_delta(paths: Iterable[str]) -> tuple[str | None, list[str]]
         )
         return None, errors
     return CUT_CLASS_AUTHORITY_ROLLOVER, errors
+
+
+def _validate_reading_house_release_identity(
+    *,
+    parent_line: Sequence[str],
+    migration_records: Sequence[dict[str, str]],
+    migration_blob: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if (
+        len(parent_line) != 2
+        or parent_line[1] != READING_HOUSE_RELEASE_PRODUCT_PARENT
+    ):
+        errors.append(
+            "Reading House release reconciliation must be one commit directly "
+            f"on top of {READING_HOUSE_RELEASE_PRODUCT_PARENT}"
+        )
+    if list(migration_records) != [
+        {"status": "A", "path": READING_HOUSE_RELEASE_MIGRATION_PATH}
+    ]:
+        errors.append("Reading House release migration must be exactly one added path")
+    if migration_blob != READING_HOUSE_RELEASE_MIGRATION_BLOB:
+        errors.append(
+            "Reading House release migration blob must remain "
+            f"{READING_HOUSE_RELEASE_MIGRATION_BLOB}, got {migration_blob}"
+        )
+    return errors
 
 
 def verify_forward(
@@ -350,15 +425,14 @@ def verify_forward(
         receipt["errors"].append(f"mobile worktree/index is dirty: {mobile_status}")
 
     cut_class, class_errors = _classify_parent_delta(
-        record["path"] for record in parent_delta
+        (record["path"] for record in parent_delta),
+        declared_base=declared_base,
+        candidate_gitlink=candidate_gitlink,
     )
     receipt["cutClass"] = cut_class
     receipt["errors"].extend(class_errors)
 
-    if (
-        cut_class == CUT_CLASS_AUTHORITY_ROLLOVER
-        or cut_class == CUT_CLASS_EMPTY
-    ):
+    if cut_class in {CUT_CLASS_AUTHORITY_ROLLOVER, CUT_CLASS_EMPTY}:
         if base_gitlink != candidate_gitlink:
             receipt["errors"].append(
                 "authority-rollover/empty cuts require base mobile gitlink "
@@ -366,7 +440,42 @@ def verify_forward(
             )
         else:
             receipt["mobileDelta"] = []
-    elif cut_class == CUT_CLASS_GITLINK_ONLY and base_gitlink and candidate_gitlink:
+    elif cut_class in {
+        CUT_CLASS_GITLINK_ONLY,
+        CUT_CLASS_READING_HOUSE_RELEASE,
+    } and base_gitlink and candidate_gitlink:
+        if cut_class == CUT_CLASS_READING_HOUSE_RELEASE:
+            try:
+                parent_line = _git_text(
+                    parent_root, "rev-list", "--parents", "-n", "1", candidate_parent
+                ).split()
+                migration_blob = _git_text(
+                    parent_root,
+                    "rev-parse",
+                    f"{candidate_parent}:{READING_HOUSE_RELEASE_MIGRATION_PATH}",
+                )
+            except (OSError, subprocess.CalledProcessError) as error:
+                receipt["errors"].append(
+                    f"Reading House release identity inspection failed: {error}"
+                )
+                parent_line = []
+                migration_blob = None
+            receipt["readingHouseReleaseProductParent"] = (
+                parent_line[1] if len(parent_line) == 2 else None
+            )
+            receipt["readingHouseReleaseMigrationBlob"] = migration_blob
+            migration_records = [
+                record
+                for record in parent_delta
+                if record["path"] == READING_HOUSE_RELEASE_MIGRATION_PATH
+            ]
+            receipt["errors"].extend(
+                _validate_reading_house_release_identity(
+                    parent_line=parent_line,
+                    migration_records=migration_records,
+                    migration_blob=migration_blob,
+                )
+            )
         try:
             mobile_delta = _parse_name_status(
                 mobile_root, base_gitlink, candidate_gitlink

@@ -7,11 +7,19 @@ from pathlib import Path
 
 from tool.ci.forward_candidate_gate import (
     ALLOWED_AUTHORITY_PARENT_PATHS,
+    CUT_CLASS_READING_HOUSE_RELEASE,
+    READING_HOUSE_RELEASE_DECLARED_BASE,
+    READING_HOUSE_RELEASE_MIGRATION_BLOB,
+    READING_HOUSE_RELEASE_MIGRATION_PATH,
+    READING_HOUSE_RELEASE_MOBILE,
+    READING_HOUSE_RELEASE_PRODUCT_PARENT,
     REQUIRED_AGGREGATE_JOBS,
     REQUIRED_FORWARD_RUNTIME_COMMANDS,
     ZERO_SHA,
     ForwardCandidateError,
     ForwardTestResult,
+    _classify_parent_delta,
+    _validate_reading_house_release_identity,
     compare_analyze,
     compare_test,
     compare_test_inventories,
@@ -38,6 +46,9 @@ class ForwardWorkflowContractTest(unittest.TestCase):
             self.assertIn(command, runtime)
         self.assertNotIn("july1_runtime_gate.py evaluate-full", runtime)
         self.assertNotIn("july1_runtime_gate.py verify-checkout", runtime)
+        self.assertIn("      - production", source)
+        self.assertIn(READING_HOUSE_RELEASE_DECLARED_BASE, runtime)
+        self.assertIn(READING_HOUSE_RELEASE_PRODUCT_PARENT, runtime)
 
     def test_missing_forward_runtime_need_fails(self) -> None:
         source = WORKFLOW.read_text(encoding="utf-8").replace(
@@ -235,6 +246,71 @@ class ForwardCandidateGateTest(unittest.TestCase):
             any("extra=" in error or "gitlink" in error for error in receipt["errors"]),
             receipt["errors"],
         )
+
+    def test_exact_reading_house_release_mixed_cut_is_classified(self) -> None:
+        cut_class, errors = _classify_parent_delta(
+            {
+                "mobile",
+                READING_HOUSE_RELEASE_MIGRATION_PATH,
+                ".github/workflows/mobile.yml",
+                "ci/LOCK_GATE.md",
+                "tool/ci/forward_candidate_gate.py",
+                "tool/ci/test_forward_candidate_gate.py",
+            },
+            declared_base=READING_HOUSE_RELEASE_DECLARED_BASE,
+            candidate_gitlink=READING_HOUSE_RELEASE_MOBILE,
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(cut_class, CUT_CLASS_READING_HOUSE_RELEASE)
+
+    def test_reading_house_release_mixed_cut_rejects_any_other_base(self) -> None:
+        cut_class, errors = _classify_parent_delta(
+            {"mobile", READING_HOUSE_RELEASE_MIGRATION_PATH},
+            declared_base=self.parent_head,
+            candidate_gitlink=READING_HOUSE_RELEASE_MOBILE,
+        )
+        self.assertIsNone(cut_class)
+        self.assertTrue(any("declared_base" in error for error in errors), errors)
+
+    def test_reading_house_release_mixed_cut_rejects_any_other_mobile(self) -> None:
+        cut_class, errors = _classify_parent_delta(
+            {"mobile", READING_HOUSE_RELEASE_MIGRATION_PATH},
+            declared_base=READING_HOUSE_RELEASE_DECLARED_BASE,
+            candidate_gitlink=self.mobile_head,
+        )
+        self.assertIsNone(cut_class)
+        self.assertTrue(any("candidate mobile" in error for error in errors), errors)
+
+    def test_reading_house_release_mixed_cut_rejects_any_other_parent_path(self) -> None:
+        cut_class, errors = _classify_parent_delta(
+            {"mobile", READING_HOUSE_RELEASE_MIGRATION_PATH, "README.md"},
+            declared_base=READING_HOUSE_RELEASE_DECLARED_BASE,
+            candidate_gitlink=READING_HOUSE_RELEASE_MOBILE,
+        )
+        self.assertIsNone(cut_class)
+        self.assertTrue(any("README.md" in error for error in errors), errors)
+
+    def test_reading_house_release_rejects_changed_migration_blob(self) -> None:
+        errors = _validate_reading_house_release_identity(
+            parent_line=["candidate", READING_HOUSE_RELEASE_PRODUCT_PARENT],
+            migration_records=[
+                {"status": "A", "path": READING_HOUSE_RELEASE_MIGRATION_PATH}
+            ],
+            migration_blob="0" * 40,
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("migration blob", errors[0])
+
+    def test_reading_house_release_rejects_non_direct_product_parent(self) -> None:
+        errors = _validate_reading_house_release_identity(
+            parent_line=["candidate", self.parent_head],
+            migration_records=[
+                {"status": "A", "path": READING_HOUSE_RELEASE_MIGRATION_PATH}
+            ],
+            migration_blob=READING_HOUSE_RELEASE_MIGRATION_BLOB,
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("one commit directly", errors[0])
 
     def test_verify_forward_gitlink_only_may_change_mobile(self) -> None:
         declared = self.parent_head

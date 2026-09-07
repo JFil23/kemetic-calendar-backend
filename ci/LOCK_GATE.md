@@ -112,6 +112,18 @@ Parent deltas are either:
 - a subset of the authority-rollover allowlist, in which case the mobile
   gitlink must remain identical to the declared base.
 
+One exact, temporary Reading House release reconciliation is also recognized.
+It requires declared base `addeec5e196e8282f97d58e9cc857e11d99f2d4b`,
+the frozen mobile gitlink
+`0c424c10954208924b1c0abc9eea118191c72cee`, and a parent delta containing
+only `mobile`,
+`supabase/migrations/20260905152737_reading_house_rooms_realtime_and_read_state.sql`,
+and the existing authority-rollover files. The migration must remain the exact
+added blob pinned by the evaluator, and the reconciliation must be one commit
+directly on top of parent product commit
+`2cea8d3ae711c8b91e9c1f7e0f52d33407f49211`. No other mixed gitlink/parent
+cut is accepted.
+
 Unrelated parent paths fail closed. Authority-rollover mixed with a gitlink
 change fails closed.
 
