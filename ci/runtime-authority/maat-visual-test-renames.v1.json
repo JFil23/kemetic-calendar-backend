@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "authority": {
+    "declaredBase": "020f9808fbcd4a03df42009fd2f5a7f4a83d94b5",
+    "candidateMobile": "a75e9ec88870db799cad64cacf63d77b1ce3f373",
+    "candidateDirectParent": "4f37d1213ecdefc115a509d0fde0a4f5e5eb776b",
+    "expectedMissingCount": 16
+  },
+  "entries": [
+    {
+      "identity": "test/features/calendar/follow_the_sky/maat_list_to_detail_transition_test.dart :: list shell reveals a stationary detail with exact V11 geometry and timing",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/follow_the_sky/maat_list_to_detail_transition_test.dart :: restored detail route preserves a discoverable list route beneath it"
+    },
+    {
+      "identity": "test/features/calendar/follow_the_sky/maat_list_to_detail_transition_test.dart :: list shell shifts on secondary animation",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/follow_the_sky/maat_list_to_detail_transition_test.dart :: discovery opens its authored inline detail on the same route"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: the-offering-table visible back dismisses detail but keeps Ma’at Flows open",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: the-offering-table discovery Back dismisses its inline detail but keeps Ma’at Flows open"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: the-reading-house visible back dismisses detail but keeps Ma’at Flows open",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: the-reading-house discovery Back dismisses its inline detail but keeps Ma’at Flows open"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: track-the-sky visible back dismisses detail but keeps Ma’at Flows open",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: track-the-sky discovery Back dismisses its inline detail but keeps Ma’at Flows open"
+    },
+    {
+      "identity": "test/features/calendar/offering_table_detail_page_test.dart :: captures the flow-detail preview sheet visual checkpoint",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/offering_table_detail_page_test.dart :: matches the locked Offering Table detail and ritual sheet"
+    },
+    {
+      "identity": "test/features/calendar/offering_table_detail_page_test.dart :: captures the static Offering Table visual checkpoint",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/offering_table_detail_page_test.dart :: matches the locked Offering Table Day View and layered sheet"
+    },
+    {
+      "identity": "test/features/calendar/reading_house_detail_page_test.dart :: captures Reading House visual checkpoints",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/reading_house_detail_page_test.dart :: matches the locked Reading House detail checkpoints"
+    },
+    {
+      "identity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: Reading House Inbox visual accessible",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: actual Reading House Inbox visual accessible"
+    },
+    {
+      "identity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: Reading House Inbox visual large",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: actual Reading House Inbox visual large"
+    },
+    {
+      "identity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: Reading House Inbox visual minimum",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: actual Reading House Inbox visual minimum"
+    },
+    {
+      "identity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: Reading House Inbox visual mockup",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: actual Reading House Inbox visual mockup"
+    },
+    {
+      "identity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: Reading House Inbox visual multiple",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: actual Reading House Inbox visual multiple"
+    },
+    {
+      "identity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: Reading House Inbox visual pending-invite",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: actual Reading House Inbox visual pending-invite"
+    },
+    {
+      "identity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: accepted room sits directly below Invites and before Messages",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: actual Inbox route places each House above Messages"
+    },
+    {
+      "identity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: loading and error are dedicated Reading House section states",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/inbox/reading_house_inbox_section_visual_test.dart :: loading and error remain dedicated room-section states"
+    }
+  ]
+}

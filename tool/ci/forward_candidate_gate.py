@@ -55,6 +55,23 @@ READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB = (
     "7dfb6324a576cb4260c76cdc1f03f09f4073be83"
 )
 READING_HOUSE_RELEASE_MISSING_TEST_COUNT = 202
+MAAT_VISUAL_TEST_RENAME_DECLARED_BASE = (
+    "020f9808fbcd4a03df42009fd2f5a7f4a83d94b5"
+)
+MAAT_VISUAL_TEST_RENAME_DIRECT_PARENT = (
+    "4f37d1213ecdefc115a509d0fde0a4f5e5eb776b"
+)
+MAAT_VISUAL_TEST_RENAME_BASE_MOBILE = (
+    "ddc78e8b48779454bf1b20ff4cc88671af99fcb1"
+)
+MAAT_VISUAL_TEST_RENAME_MOBILE = "a75e9ec88870db799cad64cacf63d77b1ce3f373"
+MAAT_VISUAL_TEST_RENAME_AUDIT_PATH = Path(
+    "ci/runtime-authority/maat-visual-test-renames.v1.json"
+)
+MAAT_VISUAL_TEST_RENAME_AUDIT_BLOB = (
+    "035c6867672bc2a7aa0d647fc0f0233f18af3e1d"
+)
+MAAT_VISUAL_TEST_RENAME_COUNT = 16
 WILDCARD_CHARS = re.compile(r"[*?\[\]]")
 
 ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
@@ -62,6 +79,7 @@ ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
         ".github/workflows/mobile.yml",
         "ci/LOCK_GATE.md",
         READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix(),
+        MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix(),
         "tool/ci/forward_candidate_gate.py",
         "tool/ci/test_forward_candidate_gate.py",
     }
@@ -70,6 +88,7 @@ ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
 CUT_CLASS_AUTHORITY_ROLLOVER = "parent-authority-rollover"
 CUT_CLASS_GITLINK_ONLY = "parent-gitlink-only"
 CUT_CLASS_READING_HOUSE_RELEASE = "reading-house-release-reconciliation"
+CUT_CLASS_MAAT_VISUAL_TEST_RENAME = "maat-visual-test-rename-reconciliation"
 CUT_CLASS_EMPTY = "empty"
 
 REQUIRED_AGGREGATE_JOBS = (
@@ -320,6 +339,30 @@ def _classify_parent_delta(
         return CUT_CLASS_GITLINK_ONLY, errors
     if {
         MOBILE_GITLINK_PATH,
+        MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix(),
+    }.issubset(observed):
+        allowed = ALLOWED_AUTHORITY_PARENT_PATHS | {MOBILE_GITLINK_PATH}
+        if declared_base != MAAT_VISUAL_TEST_RENAME_DECLARED_BASE:
+            errors.append(
+                "Ma’at visual test rename reconciliation requires declared_base "
+                f"{MAAT_VISUAL_TEST_RENAME_DECLARED_BASE}, got {declared_base}"
+            )
+        if candidate_gitlink != MAAT_VISUAL_TEST_RENAME_MOBILE:
+            errors.append(
+                "Ma’at visual test rename reconciliation requires candidate mobile "
+                f"{MAAT_VISUAL_TEST_RENAME_MOBILE}, got {candidate_gitlink}"
+            )
+        extra = sorted(observed - allowed)
+        if extra:
+            errors.append(
+                "Ma’at visual test rename reconciliation contains paths outside "
+                f"its exact allowlist: extra={extra}"
+            )
+        if errors:
+            return None, errors
+        return CUT_CLASS_MAAT_VISUAL_TEST_RENAME, errors
+    if {
+        MOBILE_GITLINK_PATH,
         READING_HOUSE_RELEASE_MIGRATION_PATH,
     }.issubset(observed):
         allowed = ALLOWED_AUTHORITY_PARENT_PATHS | {
@@ -392,6 +435,48 @@ def _validate_reading_house_release_identity(
         errors.append(
             "Reading House missing-test audit blob must remain "
             f"{READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB}, got {audit_blob}"
+        )
+    return errors
+
+
+def _validate_maat_visual_test_rename_identity(
+    *,
+    parent_line: Sequence[str],
+    base_gitlink: str | None,
+    candidate_gitlink: str | None,
+    audit_records: Sequence[dict[str, str]],
+    audit_blob: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if (
+        len(parent_line) != 2
+        or parent_line[1] != MAAT_VISUAL_TEST_RENAME_DIRECT_PARENT
+    ):
+        errors.append(
+            "Ma’at visual test rename reconciliation must be one commit directly "
+            f"on top of {MAAT_VISUAL_TEST_RENAME_DIRECT_PARENT}"
+        )
+    if base_gitlink != MAAT_VISUAL_TEST_RENAME_BASE_MOBILE:
+        errors.append(
+            "Ma’at visual test rename reconciliation requires base mobile "
+            f"{MAAT_VISUAL_TEST_RENAME_BASE_MOBILE}, got {base_gitlink}"
+        )
+    if candidate_gitlink != MAAT_VISUAL_TEST_RENAME_MOBILE:
+        errors.append(
+            "Ma’at visual test rename reconciliation requires candidate mobile "
+            f"{MAAT_VISUAL_TEST_RENAME_MOBILE}, got {candidate_gitlink}"
+        )
+    if list(audit_records) != [
+        {
+            "status": "A",
+            "path": MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix(),
+        }
+    ]:
+        errors.append("Ma’at visual test rename audit must be exactly one added path")
+    if audit_blob != MAAT_VISUAL_TEST_RENAME_AUDIT_BLOB:
+        errors.append(
+            "Ma’at visual test rename audit blob must remain "
+            f"{MAAT_VISUAL_TEST_RENAME_AUDIT_BLOB}, got {audit_blob}"
         )
     return errors
 
@@ -469,6 +554,7 @@ def verify_forward(
     elif cut_class in {
         CUT_CLASS_GITLINK_ONLY,
         CUT_CLASS_READING_HOUSE_RELEASE,
+        CUT_CLASS_MAAT_VISUAL_TEST_RENAME,
     } and base_gitlink and candidate_gitlink:
         if cut_class == CUT_CLASS_READING_HOUSE_RELEASE:
             try:
@@ -516,6 +602,43 @@ def verify_forward(
                     parent_line=parent_line,
                     migration_records=migration_records,
                     migration_blob=migration_blob,
+                    audit_records=audit_records,
+                    audit_blob=audit_blob,
+                )
+            )
+        elif cut_class == CUT_CLASS_MAAT_VISUAL_TEST_RENAME:
+            try:
+                parent_line = _git_text(
+                    parent_root, "rev-list", "--parents", "-n", "1", candidate_parent
+                ).split()
+                audit_blob = _git_text(
+                    parent_root,
+                    "rev-parse",
+                    (
+                        f"{candidate_parent}:"
+                        f"{MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix()}"
+                    ),
+                )
+            except (OSError, subprocess.CalledProcessError) as error:
+                receipt["errors"].append(
+                    f"Ma’at visual test rename identity inspection failed: {error}"
+                )
+                parent_line = []
+                audit_blob = None
+            receipt["maatVisualTestRenameDirectParent"] = (
+                parent_line[1] if len(parent_line) == 2 else None
+            )
+            receipt["maatVisualTestRenameAuditBlob"] = audit_blob
+            audit_records = [
+                record
+                for record in parent_delta
+                if record["path"] == MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix()
+            ]
+            receipt["errors"].extend(
+                _validate_maat_visual_test_rename_identity(
+                    parent_line=parent_line,
+                    base_gitlink=base_gitlink,
+                    candidate_gitlink=candidate_gitlink,
                     audit_records=audit_records,
                     audit_blob=audit_blob,
                 )
@@ -743,6 +866,10 @@ class MissingTestAuditEntry:
 
 def load_missing_test_audit(
     path: Path,
+    *,
+    expected_authority: dict[str, Any] | None = None,
+    expected_count: int | None = None,
+    authority_label: str = "Reading House release",
 ) -> dict[str, MissingTestAuditEntry]:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -753,26 +880,26 @@ def load_missing_test_audit(
     if not isinstance(raw, dict) or raw.get("schemaVersion") != 1:
         raise ForwardCandidateError("missing-test audit schemaVersion must be 1")
     authority = raw.get("authority")
-    expected_authority = {
-        "declaredBase": READING_HOUSE_RELEASE_DECLARED_BASE,
-        "candidateMobile": READING_HOUSE_RELEASE_MOBILE,
-        "candidateDirectParent": READING_HOUSE_RELEASE_AUTHORITY_PARENT,
-        "expectedMissingCount": READING_HOUSE_RELEASE_MISSING_TEST_COUNT,
-    }
+    if expected_authority is None:
+        expected_authority = {
+            "declaredBase": READING_HOUSE_RELEASE_DECLARED_BASE,
+            "candidateMobile": READING_HOUSE_RELEASE_MOBILE,
+            "candidateDirectParent": READING_HOUSE_RELEASE_AUTHORITY_PARENT,
+            "expectedMissingCount": READING_HOUSE_RELEASE_MISSING_TEST_COUNT,
+        }
+    if expected_count is None:
+        expected_count = READING_HOUSE_RELEASE_MISSING_TEST_COUNT
     if authority != expected_authority:
         raise ForwardCandidateError(
-            "missing-test audit authority must match the exact Reading House "
-            f"release pin: expected={expected_authority}, got={authority}"
+            "missing-test audit authority must match the exact "
+            f"{authority_label} pin: expected={expected_authority}, got={authority}"
         )
     entries = raw.get("entries")
-    if (
-        not isinstance(entries, list)
-        or len(entries) != READING_HOUSE_RELEASE_MISSING_TEST_COUNT
-    ):
+    if not isinstance(entries, list) or len(entries) != expected_count:
         observed = len(entries) if isinstance(entries, list) else None
         raise ForwardCandidateError(
             "missing-test audit must contain exactly "
-            f"{READING_HOUSE_RELEASE_MISSING_TEST_COUNT} entries, got {observed}"
+            f"{expected_count} entries, got {observed}"
         )
 
     audit: dict[str, MissingTestAuditEntry] = {}
@@ -846,15 +973,13 @@ def resolve_pinned_missing_test_audit(
     dict[str, Any],
     list[str],
 ]:
-    metadata: dict[str, Any] = {
-        "path": READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix(),
-        "applied": False,
-    }
+    metadata: dict[str, Any] = {"path": None, "applied": False}
     try:
         base_parent = _git_text(base_parent_root, "rev-parse", "HEAD")
         candidate_parent = _git_text(candidate_parent_root, "rev-parse", "HEAD")
         candidate_mobile = _git_text(candidate_mobile_root, "rev-parse", "HEAD")
         candidate_gitlink = _mobile_gitlink(candidate_parent_root, candidate_parent)
+        base_gitlink = _mobile_gitlink(base_parent_root, base_parent)
         parent_line = _git_text(
             candidate_parent_root,
             "rev-list",
@@ -876,38 +1001,82 @@ def resolve_pinned_missing_test_audit(
             "candidateDirectParent": direct_parent,
             "candidateMobile": candidate_mobile,
             "candidateGitlink": candidate_gitlink,
+            "baseGitlink": base_gitlink,
         }
     )
-    exact_cut = (
-        base_parent == READING_HOUSE_RELEASE_DECLARED_BASE
-        and direct_parent == READING_HOUSE_RELEASE_AUTHORITY_PARENT
-        and candidate_mobile == READING_HOUSE_RELEASE_MOBILE
-        and candidate_gitlink == READING_HOUSE_RELEASE_MOBILE
+    pins = (
+        {
+            "label": "Reading House release",
+            "declaredBase": READING_HOUSE_RELEASE_DECLARED_BASE,
+            "baseMobile": None,
+            "directParent": READING_HOUSE_RELEASE_AUTHORITY_PARENT,
+            "candidateMobile": READING_HOUSE_RELEASE_MOBILE,
+            "path": READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH,
+            "blob": READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB,
+            "count": READING_HOUSE_RELEASE_MISSING_TEST_COUNT,
+        },
+        {
+            "label": "Ma’at visual test rename reconciliation",
+            "declaredBase": MAAT_VISUAL_TEST_RENAME_DECLARED_BASE,
+            "baseMobile": MAAT_VISUAL_TEST_RENAME_BASE_MOBILE,
+            "directParent": MAAT_VISUAL_TEST_RENAME_DIRECT_PARENT,
+            "candidateMobile": MAAT_VISUAL_TEST_RENAME_MOBILE,
+            "path": MAAT_VISUAL_TEST_RENAME_AUDIT_PATH,
+            "blob": MAAT_VISUAL_TEST_RENAME_AUDIT_BLOB,
+            "count": MAAT_VISUAL_TEST_RENAME_COUNT,
+        },
     )
-    if not exact_cut:
+    matching_pins = [
+        pin
+        for pin in pins
+        if base_parent == pin["declaredBase"]
+        and direct_parent == pin["directParent"]
+        and candidate_mobile == pin["candidateMobile"]
+        and candidate_gitlink == pin["candidateMobile"]
+        and (pin["baseMobile"] is None or base_gitlink == pin["baseMobile"])
+    ]
+    if not matching_pins:
         return None, metadata, []
+    if len(matching_pins) != 1:
+        return None, metadata, ["multiple missing-test audit pins match this cut"]
+
+    pin = matching_pins[0]
+    audit_path = pin["path"]
+    assert isinstance(audit_path, Path)
+    audit_blob_pin = pin["blob"]
+    expected_count = pin["count"]
+    assert isinstance(audit_blob_pin, str)
+    assert isinstance(expected_count, int)
+    expected_authority = {
+        "declaredBase": pin["declaredBase"],
+        "candidateMobile": pin["candidateMobile"],
+        "candidateDirectParent": pin["directParent"],
+        "expectedMissingCount": expected_count,
+    }
 
     metadata["applied"] = True
+    metadata["path"] = audit_path.as_posix()
+    metadata["pin"] = pin["label"]
     try:
         audit_blob = _git_text(
             candidate_parent_root,
             "rev-parse",
-            (
-                f"{candidate_parent}:"
-                f"{READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix()}"
-            ),
+            f"{candidate_parent}:{audit_path.as_posix()}",
         )
     except (OSError, subprocess.CalledProcessError) as error:
         return None, metadata, [f"missing-test audit blob inspection failed: {error}"]
     metadata["blob"] = audit_blob
-    if audit_blob != READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB:
+    if audit_blob != audit_blob_pin:
         return None, metadata, [
             "missing-test audit blob must remain "
-            f"{READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_BLOB}, got {audit_blob}"
+            f"{audit_blob_pin}, got {audit_blob}"
         ]
     try:
         audit = load_missing_test_audit(
-            candidate_parent_root / READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH
+            candidate_parent_root / audit_path,
+            expected_authority=expected_authority,
+            expected_count=expected_count,
+            authority_label=str(pin["label"]),
         )
     except ForwardCandidateError as error:
         return None, metadata, [str(error)]
@@ -1231,10 +1400,7 @@ def compare_test(
         "improvements": [],
         "newPassingTests": [],
         "auditedMissingTests": [],
-        "missingTestAudit": {
-            "path": READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix(),
-            "applied": False,
-        },
+        "missingTestAudit": {"path": None, "applied": False},
         "regressions": [],
     }
     receipt["errors"].extend(require_parent_pair_layout(base_parent_root))

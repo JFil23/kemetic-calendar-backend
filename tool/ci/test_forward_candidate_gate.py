@@ -4,10 +4,19 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tool.ci.forward_candidate_gate import (
     ALLOWED_AUTHORITY_PARENT_PATHS,
+    CUT_CLASS_MAAT_VISUAL_TEST_RENAME,
     CUT_CLASS_READING_HOUSE_RELEASE,
+    MAAT_VISUAL_TEST_RENAME_AUDIT_BLOB,
+    MAAT_VISUAL_TEST_RENAME_AUDIT_PATH,
+    MAAT_VISUAL_TEST_RENAME_BASE_MOBILE,
+    MAAT_VISUAL_TEST_RENAME_COUNT,
+    MAAT_VISUAL_TEST_RENAME_DECLARED_BASE,
+    MAAT_VISUAL_TEST_RENAME_DIRECT_PARENT,
+    MAAT_VISUAL_TEST_RENAME_MOBILE,
     MissingTestAuditEntry,
     READING_HOUSE_RELEASE_AUTHORITY_PARENT,
     READING_HOUSE_RELEASE_DECLARED_BASE,
@@ -24,6 +33,7 @@ from tool.ci.forward_candidate_gate import (
     ForwardCandidateError,
     ForwardTestResult,
     _classify_parent_delta,
+    _validate_maat_visual_test_rename_identity,
     _validate_reading_house_release_identity,
     compare_analyze,
     compare_test,
@@ -31,6 +41,7 @@ from tool.ci.forward_candidate_gate import (
     load_missing_test_audit,
     normalize_failure_signature,
     resolve_historical_parent,
+    resolve_pinned_missing_test_audit,
     validate_forward_workflow,
     verify_forward,
 )
@@ -56,6 +67,8 @@ class ForwardWorkflowContractTest(unittest.TestCase):
         self.assertIn(READING_HOUSE_RELEASE_DECLARED_BASE, runtime)
         self.assertIn(READING_HOUSE_RELEASE_PRODUCT_PARENT, runtime)
         self.assertIn(READING_HOUSE_RELEASE_AUTHORITY_PARENT, runtime)
+        self.assertIn(MAAT_VISUAL_TEST_RENAME_DECLARED_BASE, runtime)
+        self.assertIn(MAAT_VISUAL_TEST_RENAME_DIRECT_PARENT, runtime)
 
     def test_missing_forward_runtime_need_fails(self) -> None:
         source = WORKFLOW.read_text(encoding="utf-8").replace(
@@ -334,6 +347,79 @@ class ForwardCandidateGateTest(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("one commit directly", errors[0])
 
+    def test_exact_maat_visual_test_rename_cut_is_classified(self) -> None:
+        cut_class, errors = _classify_parent_delta(
+            {
+                "mobile",
+                ".github/workflows/mobile.yml",
+                "ci/LOCK_GATE.md",
+                MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix(),
+                "tool/ci/forward_candidate_gate.py",
+                "tool/ci/test_forward_candidate_gate.py",
+            },
+            declared_base=MAAT_VISUAL_TEST_RENAME_DECLARED_BASE,
+            candidate_gitlink=MAAT_VISUAL_TEST_RENAME_MOBILE,
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(cut_class, CUT_CLASS_MAAT_VISUAL_TEST_RENAME)
+
+    def test_maat_visual_test_rename_cut_rejects_wrong_base(self) -> None:
+        cut_class, errors = _classify_parent_delta(
+            {"mobile", MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix()},
+            declared_base=self.parent_head,
+            candidate_gitlink=MAAT_VISUAL_TEST_RENAME_MOBILE,
+        )
+        self.assertIsNone(cut_class)
+        self.assertTrue(any("declared_base" in error for error in errors), errors)
+
+    def test_maat_visual_test_rename_cut_rejects_wrong_mobile(self) -> None:
+        cut_class, errors = _classify_parent_delta(
+            {"mobile", MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix()},
+            declared_base=MAAT_VISUAL_TEST_RENAME_DECLARED_BASE,
+            candidate_gitlink=self.mobile_head,
+        )
+        self.assertIsNone(cut_class)
+        self.assertTrue(any("candidate mobile" in error for error in errors), errors)
+
+    def test_maat_visual_test_rename_cut_rejects_extra_path(self) -> None:
+        cut_class, errors = _classify_parent_delta(
+            {
+                "mobile",
+                MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix(),
+                "README.md",
+            },
+            declared_base=MAAT_VISUAL_TEST_RENAME_DECLARED_BASE,
+            candidate_gitlink=MAAT_VISUAL_TEST_RENAME_MOBILE,
+        )
+        self.assertIsNone(cut_class)
+        self.assertTrue(any("README.md" in error for error in errors), errors)
+
+    def test_maat_visual_test_rename_identity_is_fully_pinned(self) -> None:
+        records = [
+            {
+                "status": "A",
+                "path": MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix(),
+            }
+        ]
+        self.assertEqual(
+            _validate_maat_visual_test_rename_identity(
+                parent_line=["candidate", MAAT_VISUAL_TEST_RENAME_DIRECT_PARENT],
+                base_gitlink=MAAT_VISUAL_TEST_RENAME_BASE_MOBILE,
+                candidate_gitlink=MAAT_VISUAL_TEST_RENAME_MOBILE,
+                audit_records=records,
+                audit_blob=MAAT_VISUAL_TEST_RENAME_AUDIT_BLOB,
+            ),
+            [],
+        )
+        errors = _validate_maat_visual_test_rename_identity(
+            parent_line=["candidate", self.parent_head],
+            base_gitlink=self.mobile_head,
+            candidate_gitlink=self.mobile_head,
+            audit_records=[],
+            audit_blob="0" * 40,
+        )
+        self.assertEqual(len(errors), 5)
+
     def test_verify_forward_gitlink_only_may_change_mobile(self) -> None:
         declared = self.parent_head
         self._git(
@@ -578,6 +664,119 @@ class ForwardTestComparisonTest(unittest.TestCase):
         self.assertTrue(
             READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix()
             in ALLOWED_AUTHORITY_PARENT_PATHS
+        )
+
+    def test_maat_visual_rename_audit_is_exact_and_requires_replacements(self) -> None:
+        path = ROOT / MAAT_VISUAL_TEST_RENAME_AUDIT_PATH
+        authority = {
+            "declaredBase": MAAT_VISUAL_TEST_RENAME_DECLARED_BASE,
+            "candidateMobile": MAAT_VISUAL_TEST_RENAME_MOBILE,
+            "candidateDirectParent": MAAT_VISUAL_TEST_RENAME_DIRECT_PARENT,
+            "expectedMissingCount": MAAT_VISUAL_TEST_RENAME_COUNT,
+        }
+        audit = load_missing_test_audit(
+            path,
+            expected_authority=authority,
+            expected_count=MAAT_VISUAL_TEST_RENAME_COUNT,
+            authority_label="Ma’at visual test rename reconciliation",
+        )
+        self.assertEqual(len(audit), MAAT_VISUAL_TEST_RENAME_COUNT)
+        self.assertTrue(
+            all(
+                entry.disposition == "replaced" and entry.replacement_identity
+                for entry in audit.values()
+            )
+        )
+        observed_blob = subprocess.run(
+            ["git", "hash-object", path.as_posix()],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        self.assertEqual(observed_blob, MAAT_VISUAL_TEST_RENAME_AUDIT_BLOB)
+        self.assertIn(
+            MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix(),
+            ALLOWED_AUTHORITY_PARENT_PATHS,
+        )
+
+        base = {identity: _fwd(identity, "PASS") for identity in audit}
+        candidate = {
+            entry.replacement_identity: _fwd(entry.replacement_identity, "PASS")
+            for entry in audit.values()
+            if entry.replacement_identity is not None
+        }
+        receipt = compare_test_inventories(
+            base,
+            candidate,
+            missing_test_audit=audit,
+        )
+        self.assertEqual(receipt["errors"], [])
+        self.assertEqual(
+            len(receipt["auditedMissingTests"]),
+            MAAT_VISUAL_TEST_RENAME_COUNT,
+        )
+
+    def test_maat_visual_rename_audit_resolves_only_for_exact_pin(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            base_parent = root / "base"
+            candidate_parent = root / "candidate"
+            candidate_mobile = candidate_parent / "mobile"
+            candidate_mobile.mkdir(parents=True)
+            destination = candidate_parent / MAAT_VISUAL_TEST_RENAME_AUDIT_PATH
+            destination.parent.mkdir(parents=True)
+            destination.write_text(
+                (ROOT / MAAT_VISUAL_TEST_RENAME_AUDIT_PATH).read_text(
+                    encoding="utf-8"
+                ),
+                encoding="utf-8",
+            )
+            candidate_sha = "1" * 40
+
+            def git_text(cwd: Path, *args: str) -> str:
+                if cwd == base_parent and args == ("rev-parse", "HEAD"):
+                    return MAAT_VISUAL_TEST_RENAME_DECLARED_BASE
+                if cwd == candidate_parent and args == ("rev-parse", "HEAD"):
+                    return candidate_sha
+                if cwd == candidate_mobile and args == ("rev-parse", "HEAD"):
+                    return MAAT_VISUAL_TEST_RENAME_MOBILE
+                if cwd == candidate_parent and args[:4] == (
+                    "rev-list",
+                    "--parents",
+                    "-n",
+                    "1",
+                ):
+                    return f"{candidate_sha} {MAAT_VISUAL_TEST_RENAME_DIRECT_PARENT}"
+                if cwd == candidate_parent and args[0] == "rev-parse":
+                    return MAAT_VISUAL_TEST_RENAME_AUDIT_BLOB
+                raise AssertionError((cwd, args))
+
+            def mobile_gitlink(cwd: Path, revision: str) -> str:
+                if cwd == base_parent:
+                    return MAAT_VISUAL_TEST_RENAME_BASE_MOBILE
+                if cwd == candidate_parent:
+                    return MAAT_VISUAL_TEST_RENAME_MOBILE
+                raise AssertionError((cwd, revision))
+
+            with mock.patch(
+                "tool.ci.forward_candidate_gate._git_text", side_effect=git_text
+            ), mock.patch(
+                "tool.ci.forward_candidate_gate._mobile_gitlink",
+                side_effect=mobile_gitlink,
+            ):
+                audit, metadata, errors = resolve_pinned_missing_test_audit(
+                    base_parent_root=base_parent,
+                    candidate_parent_root=candidate_parent,
+                    candidate_mobile_root=candidate_mobile,
+                )
+
+        self.assertEqual(errors, [])
+        self.assertIsNotNone(audit)
+        self.assertEqual(len(audit or {}), MAAT_VISUAL_TEST_RENAME_COUNT)
+        self.assertTrue(metadata["applied"])
+        self.assertEqual(
+            metadata["path"], MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix()
         )
 
     def test_missing_test_audit_rejects_wildcards(self) -> None:

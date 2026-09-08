@@ -561,6 +561,9 @@ jobs:
           elif [ "${{ github.ref }}" = "refs/heads/production" ] && \
             [ "${{ github.event.before }}" = "74dc57f804b01db366d03f285e8b530c92546a5a" ]; then
             declared="addeec5e196e8282f97d58e9cc857e11d99f2d4b"
+          elif [ "${{ github.ref }}" = "refs/heads/production" ] && \
+            [ "${{ github.event.before }}" = "4f37d1213ecdefc115a509d0fde0a4f5e5eb776b" ]; then
+            declared="020f9808fbcd4a03df42009fd2f5a7f4a83d94b5"
           elif [ "${{ github.ref }}" = "refs/heads/main" ] || \
             [ "${{ github.ref }}" = "refs/heads/production" ]; then
             declared="${{ github.event.before }}"

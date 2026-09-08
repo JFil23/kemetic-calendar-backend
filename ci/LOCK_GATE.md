@@ -133,6 +133,19 @@ non-passing replacement. New tests must still pass, and the three persisting
 baseline failures remain recorded rather than becoming accepted debt. No other
 mixed gitlink/parent cut or missing-test exception is accepted.
 
+One exact follow-up reconciles 16 renamed Ma’at visual-test identities without
+weakening the generic missing-test rule. It is valid only for declared base
+`020f9808fbcd4a03df42009fd2f5a7f4a83d94b5`, base mobile
+`ddc78e8b48779454bf1b20ff4cc88671af99fcb1`, candidate mobile
+`a75e9ec88870db799cad64cacf63d77b1ce3f373`, and one candidate commit directly
+on `4f37d1213ecdefc115a509d0fde0a4f5e5eb776b`. The candidate may add only the
+exact, blob-pinned
+`ci/runtime-authority/maat-visual-test-renames.v1.json` manifest alongside the
+existing authority-rollover files, with no wildcard entries. Every named
+replacement must execute and pass; any other missing identity or any missing,
+skipped, or failing replacement still fails closed. This pin creates no generic
+permission for renamed or missing tests.
+
 Unrelated parent paths fail closed. Authority-rollover mixed with a gitlink
 change fails closed.
 
