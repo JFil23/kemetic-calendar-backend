@@ -40,8 +40,10 @@ def validate_workflow(path: Path) -> dict[str, object]:
     source = path.read_text(encoding="utf-8")
     if not re.search(r"(?m)^  pull_request:\s*$", source):
         raise WorkflowContractError("workflow does not run on pull requests")
-    if not re.search(r'(?m)^      - main\s*$', source):
-        raise WorkflowContractError("workflow does not run on protected main pushes")
+    if not re.search(r"(?m)^      - production\s*$", source):
+        raise WorkflowContractError(
+            "workflow does not run on canonical production pushes"
+        )
 
     pipeline = _job_block(source, "release-pipeline-contracts")
     aggregate = _job_block(source, "lock-gate-required")

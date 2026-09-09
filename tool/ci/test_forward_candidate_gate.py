@@ -78,6 +78,14 @@ class ForwardWorkflowContractTest(unittest.TestCase):
         self.assertNotIn("origin/main", runtime)
         self.assertIn('refs/heads/production', runtime)
         self.assertIn('${{ github.event.before }}', runtime)
+        self.assertIn(
+            "tool/ci/release_pipeline_gate.py",
+            ALLOWED_AUTHORITY_PARENT_PATHS,
+        )
+        self.assertIn(
+            "tool/ci/test_release_pipeline_gate.py",
+            ALLOWED_AUTHORITY_PARENT_PATHS,
+        )
         compare_index = runtime.index(
             "python3 tool/ci/forward_candidate_gate.py compare-test"
         )

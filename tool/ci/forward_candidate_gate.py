@@ -103,7 +103,9 @@ ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
         MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix(),
         FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_PATH.as_posix(),
         "tool/ci/forward_candidate_gate.py",
+        "tool/ci/release_pipeline_gate.py",
         "tool/ci/test_forward_candidate_gate.py",
+        "tool/ci/test_release_pipeline_gate.py",
     }
 )
 

@@ -222,7 +222,9 @@ closed, and cleanup cannot change a test result or comparison decision.
 
 The existing `release-pipeline-contracts` job continues to validate sealed
 build, served-artifact, and reconstruction contracts on the current checkout.
-`tool/ci/release_pipeline_gate.py` remains the owner of that wiring only.
+`tool/ci/release_pipeline_gate.py` remains the owner of that wiring only. It
+requires the workflow on pull requests and pushes to the sole canonical
+`production` branch; substituting `main` or another branch fails closed.
 
 ## Required jobs
 

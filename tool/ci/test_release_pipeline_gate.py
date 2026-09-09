@@ -36,6 +36,17 @@ class ReleasePipelineGateTest(unittest.TestCase):
             list(REQUIRED_PIPELINE_COMMANDS),
         )
 
+    def test_noncanonical_push_branch_fails(self) -> None:
+        path = self._mutated(
+            "      - production\n",
+            "      - main\n",
+        )
+        with self.assertRaisesRegex(
+            WorkflowContractError,
+            "canonical production pushes",
+        ):
+            validate_workflow(path)
+
     def test_missing_pipeline_job_fails(self) -> None:
         path = self._mutated(
             "  release-pipeline-contracts:\n",
