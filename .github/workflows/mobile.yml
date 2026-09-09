@@ -663,6 +663,17 @@ jobs:
             git -C "$RUNNER_TEMP/declared-base/mobile" restore --worktree -- .flutter-plugins-dependencies
           fi
           git -C mobile restore --worktree -- .flutter-plugins-dependencies
+          python3 -c 'import json, pathlib, sys; receipt = json.loads(pathlib.Path(sys.argv[1]).read_text()); sys.exit(0 if receipt.get("passed") is True and not receipt.get("regressions") else 1)' \
+            "$RESULTS_DIR/tests-compare.json"
+          golden_failures="mobile/test/features/calendar/failures"
+          if [ -e "$golden_failures" ] || [ -L "$golden_failures" ]; then
+            test -d "$golden_failures"
+            test ! -L "$golden_failures"
+            test "$(git -C mobile status --short)" = "?? test/features/calendar/failures/"
+            tar -czf "$RESULTS_DIR/candidate-golden-failure-output.tar.gz" \
+              -C mobile test/features/calendar/failures
+            rm -rf -- "$golden_failures"
+          fi
           python3 tool/ci/forward_candidate_gate.py verify-worktree-clean \
             --parent-root . \
             --mobile-root mobile \

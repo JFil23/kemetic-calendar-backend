@@ -192,7 +192,13 @@ Analyzer comparison is not a test-failure inventory. Current-candidate test
 failures remain census items, not silent July 1 debt.
 
 Post-test identity must be a clean parent/mobile worktree after restoring
-generated plugin metadata.
+generated plugin metadata. A failing Flutter golden can also create an
+untracked `test/features/calendar/failures/` renderer directory. Only after
+the unchanged-baseline comparison has passed with zero candidate regressions,
+the workflow removes that directory when it is the mobile checkout's sole
+remaining status, rejects a symlink or unexpected path, and archives the PNG
+evidence before removal. Any additional source or index mutation still fails
+closed, and cleanup cannot change a test result or comparison decision.
 
 ## Release pipeline
 

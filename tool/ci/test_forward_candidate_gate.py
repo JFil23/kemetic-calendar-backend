@@ -69,6 +69,30 @@ class ForwardWorkflowContractTest(unittest.TestCase):
         self.assertIn(READING_HOUSE_RELEASE_AUTHORITY_PARENT, runtime)
         self.assertIn(MAAT_VISUAL_TEST_RENAME_DECLARED_BASE, runtime)
         self.assertIn(MAAT_VISUAL_TEST_RENAME_DIRECT_PARENT, runtime)
+        compare_index = runtime.index(
+            "python3 tool/ci/forward_candidate_gate.py compare-test"
+        )
+        archive_index = runtime.index(
+            'tar -czf "$RESULTS_DIR/candidate-golden-failure-output.tar.gz"'
+        )
+        decision_index = runtime.index(
+            'receipt.get("passed") is True and not receipt.get("regressions")'
+        )
+        remove_index = runtime.index('rm -rf -- "$golden_failures"')
+        clean_index = runtime.index(
+            "python3 tool/ci/forward_candidate_gate.py verify-worktree-clean"
+        )
+        self.assertIn(
+            'test "$(git -C mobile status --short)" = '
+            '"?? test/features/calendar/failures/"',
+            runtime,
+        )
+        self.assertIn('test ! -L "$golden_failures"', runtime)
+        self.assertLess(compare_index, archive_index)
+        self.assertLess(compare_index, decision_index)
+        self.assertLess(decision_index, archive_index)
+        self.assertLess(archive_index, remove_index)
+        self.assertLess(remove_index, clean_index)
 
     def test_missing_forward_runtime_need_fails(self) -> None:
         source = WORKFLOW.read_text(encoding="utf-8").replace(
