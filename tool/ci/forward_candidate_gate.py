@@ -72,6 +72,25 @@ MAAT_VISUAL_TEST_RENAME_AUDIT_BLOB = (
     "035c6867672bc2a7aa0d647fc0f0233f18af3e1d"
 )
 MAAT_VISUAL_TEST_RENAME_COUNT = 16
+FLOW_DETAIL_SURFACE_TEST_RENAME_DECLARED_BASE = (
+    "ea0651e3d2d1aa8018dd96f291143ee348e2210a"
+)
+FLOW_DETAIL_SURFACE_TEST_RENAME_DIRECT_PARENT = (
+    "ff0154e37e987f2854bf4e281481f876e6bb1db0"
+)
+FLOW_DETAIL_SURFACE_TEST_RENAME_BASE_MOBILE = (
+    "c620de90057ed1efb65562196a645aac4f0c0eef"
+)
+FLOW_DETAIL_SURFACE_TEST_RENAME_MOBILE = (
+    "5221aa27b14132e8d3bcc700e766ddb8245b3433"
+)
+FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_PATH = Path(
+    "ci/runtime-authority/flow-detail-surface-test-renames.v1.json"
+)
+FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_BLOB = (
+    "5071fdc49b3022b7faefabfd1bbe10064e3d09b7"
+)
+FLOW_DETAIL_SURFACE_TEST_RENAME_COUNT = 9
 WILDCARD_CHARS = re.compile(r"[*?\[\]]")
 
 ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
@@ -80,6 +99,7 @@ ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
         "ci/LOCK_GATE.md",
         READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix(),
         MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix(),
+        FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_PATH.as_posix(),
         "tool/ci/forward_candidate_gate.py",
         "tool/ci/test_forward_candidate_gate.py",
     }
@@ -89,6 +109,9 @@ CUT_CLASS_AUTHORITY_ROLLOVER = "parent-authority-rollover"
 CUT_CLASS_GITLINK_ONLY = "parent-gitlink-only"
 CUT_CLASS_READING_HOUSE_RELEASE = "reading-house-release-reconciliation"
 CUT_CLASS_MAAT_VISUAL_TEST_RENAME = "maat-visual-test-rename-reconciliation"
+CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME = (
+    "flow-detail-surface-test-rename-reconciliation"
+)
 CUT_CLASS_EMPTY = "empty"
 
 REQUIRED_AGGREGATE_JOBS = (
@@ -363,6 +386,34 @@ def _classify_parent_delta(
         return CUT_CLASS_MAAT_VISUAL_TEST_RENAME, errors
     if {
         MOBILE_GITLINK_PATH,
+        FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_PATH.as_posix(),
+    }.issubset(observed):
+        allowed = ALLOWED_AUTHORITY_PARENT_PATHS | {MOBILE_GITLINK_PATH}
+        if declared_base != FLOW_DETAIL_SURFACE_TEST_RENAME_DECLARED_BASE:
+            errors.append(
+                "Flow-detail surface test rename reconciliation requires "
+                "declared_base "
+                f"{FLOW_DETAIL_SURFACE_TEST_RENAME_DECLARED_BASE}, "
+                f"got {declared_base}"
+            )
+        if candidate_gitlink != FLOW_DETAIL_SURFACE_TEST_RENAME_MOBILE:
+            errors.append(
+                "Flow-detail surface test rename reconciliation requires "
+                "candidate mobile "
+                f"{FLOW_DETAIL_SURFACE_TEST_RENAME_MOBILE}, "
+                f"got {candidate_gitlink}"
+            )
+        extra = sorted(observed - allowed)
+        if extra:
+            errors.append(
+                "Flow-detail surface test rename reconciliation contains paths "
+                f"outside its exact allowlist: extra={extra}"
+            )
+        if errors:
+            return None, errors
+        return CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME, errors
+    if {
+        MOBILE_GITLINK_PATH,
         READING_HOUSE_RELEASE_MIGRATION_PATH,
     }.issubset(observed):
         allowed = ALLOWED_AUTHORITY_PARENT_PATHS | {
@@ -481,6 +532,52 @@ def _validate_maat_visual_test_rename_identity(
     return errors
 
 
+def _validate_flow_detail_surface_test_rename_identity(
+    *,
+    parent_line: Sequence[str],
+    base_gitlink: str | None,
+    candidate_gitlink: str | None,
+    audit_records: Sequence[dict[str, str]],
+    audit_blob: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if (
+        len(parent_line) != 2
+        or parent_line[1] != FLOW_DETAIL_SURFACE_TEST_RENAME_DIRECT_PARENT
+    ):
+        errors.append(
+            "Flow-detail surface test rename reconciliation must be one commit "
+            "directly on top of "
+            f"{FLOW_DETAIL_SURFACE_TEST_RENAME_DIRECT_PARENT}"
+        )
+    if base_gitlink != FLOW_DETAIL_SURFACE_TEST_RENAME_BASE_MOBILE:
+        errors.append(
+            "Flow-detail surface test rename reconciliation requires base mobile "
+            f"{FLOW_DETAIL_SURFACE_TEST_RENAME_BASE_MOBILE}, got {base_gitlink}"
+        )
+    if candidate_gitlink != FLOW_DETAIL_SURFACE_TEST_RENAME_MOBILE:
+        errors.append(
+            "Flow-detail surface test rename reconciliation requires candidate "
+            f"mobile {FLOW_DETAIL_SURFACE_TEST_RENAME_MOBILE}, "
+            f"got {candidate_gitlink}"
+        )
+    if list(audit_records) != [
+        {
+            "status": "A",
+            "path": FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_PATH.as_posix(),
+        }
+    ]:
+        errors.append(
+            "Flow-detail surface test rename audit must be exactly one added path"
+        )
+    if audit_blob != FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_BLOB:
+        errors.append(
+            "Flow-detail surface test rename audit blob must remain "
+            f"{FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_BLOB}, got {audit_blob}"
+        )
+    return errors
+
+
 def verify_forward(
     *,
     parent_root: Path,
@@ -555,6 +652,7 @@ def verify_forward(
         CUT_CLASS_GITLINK_ONLY,
         CUT_CLASS_READING_HOUSE_RELEASE,
         CUT_CLASS_MAAT_VISUAL_TEST_RENAME,
+        CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME,
     } and base_gitlink and candidate_gitlink:
         if cut_class == CUT_CLASS_READING_HOUSE_RELEASE:
             try:
@@ -636,6 +734,45 @@ def verify_forward(
             ]
             receipt["errors"].extend(
                 _validate_maat_visual_test_rename_identity(
+                    parent_line=parent_line,
+                    base_gitlink=base_gitlink,
+                    candidate_gitlink=candidate_gitlink,
+                    audit_records=audit_records,
+                    audit_blob=audit_blob,
+                )
+            )
+        elif cut_class == CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME:
+            try:
+                parent_line = _git_text(
+                    parent_root, "rev-list", "--parents", "-n", "1", candidate_parent
+                ).split()
+                audit_blob = _git_text(
+                    parent_root,
+                    "rev-parse",
+                    (
+                        f"{candidate_parent}:"
+                        f"{FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_PATH.as_posix()}"
+                    ),
+                )
+            except (OSError, subprocess.CalledProcessError) as error:
+                receipt["errors"].append(
+                    "Flow-detail surface test rename identity inspection failed: "
+                    f"{error}"
+                )
+                parent_line = []
+                audit_blob = None
+            receipt["flowDetailSurfaceTestRenameDirectParent"] = (
+                parent_line[1] if len(parent_line) == 2 else None
+            )
+            receipt["flowDetailSurfaceTestRenameAuditBlob"] = audit_blob
+            audit_records = [
+                record
+                for record in parent_delta
+                if record["path"]
+                == FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_PATH.as_posix()
+            ]
+            receipt["errors"].extend(
+                _validate_flow_detail_surface_test_rename_identity(
                     parent_line=parent_line,
                     base_gitlink=base_gitlink,
                     candidate_gitlink=candidate_gitlink,
@@ -1024,6 +1161,16 @@ def resolve_pinned_missing_test_audit(
             "path": MAAT_VISUAL_TEST_RENAME_AUDIT_PATH,
             "blob": MAAT_VISUAL_TEST_RENAME_AUDIT_BLOB,
             "count": MAAT_VISUAL_TEST_RENAME_COUNT,
+        },
+        {
+            "label": "Flow-detail surface test rename reconciliation",
+            "declaredBase": FLOW_DETAIL_SURFACE_TEST_RENAME_DECLARED_BASE,
+            "baseMobile": FLOW_DETAIL_SURFACE_TEST_RENAME_BASE_MOBILE,
+            "directParent": FLOW_DETAIL_SURFACE_TEST_RENAME_DIRECT_PARENT,
+            "candidateMobile": FLOW_DETAIL_SURFACE_TEST_RENAME_MOBILE,
+            "path": FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_PATH,
+            "blob": FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_BLOB,
+            "count": FLOW_DETAIL_SURFACE_TEST_RENAME_COUNT,
         },
     )
     matching_pins = [

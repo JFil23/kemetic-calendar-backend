@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "authority": {
+    "declaredBase": "ea0651e3d2d1aa8018dd96f291143ee348e2210a",
+    "candidateMobile": "5221aa27b14132e8d3bcc700e766ddb8245b3433",
+    "candidateDirectParent": "ff0154e37e987f2854bf4e281481f876e6bb1db0",
+    "expectedMissingCount": 9
+  },
+  "entries": [
+    {
+      "identity": "test/features/calendar/flow_studio_close_guard_test.dart :: successful Ma at join cannot persist stale list state after owner closes",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/flow_studio_close_guard_test.dart :: successful Ma at join keeps detail inline and closes only the owner sheet"
+    },
+    {
+      "identity": "test/features/calendar/follow_the_sky/follow_sky_v11_contract_test.dart :: FollowSkyDetailPage renders V11 headings",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/follow_the_sky/follow_sky_v11_contract_test.dart :: FollowSkyDetailSurface renders V11 headings"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: detail sheet dismisses without dismissing Discovery",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: flow detail cannot create or dismiss a second sheet"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: restored detail reconstructs list and detail routes",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: restored detail reconstructs one list route with selected content"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: system Back pops the detail route and leaves Flow Studio open",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: system Back swaps selected content back to Discovery"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: the-djed discovery Back dismisses its inline detail but keeps Ma’at Flows open",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: the-djed discovery Back swaps the shared sheet back to Ma’at Flows"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: the-offering-table discovery Back dismisses its inline detail but keeps Ma’at Flows open",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: the-offering-table discovery Back swaps the shared sheet back to Ma’at Flows"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: the-reading-house discovery Back dismisses its inline detail but keeps Ma’at Flows open",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: the-reading-house discovery Back swaps the shared sheet back to Ma’at Flows"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: track-the-sky discovery Back dismisses its inline detail but keeps Ma’at Flows open",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_visible_back_navigation_test.dart :: track-the-sky discovery Back swaps the shared sheet back to Ma’at Flows"
+    }
+  ]
+}

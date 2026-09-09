@@ -146,6 +146,21 @@ replacement must execute and pass; any other missing identity or any missing,
 skipped, or failing replacement still fails closed. This pin creates no generic
 permission for renamed or missing tests.
 
+One exact follow-up reconciles the nine test identities renamed when the four
+authored flow details stopped owning page/route wrappers and became content in
+the existing Flow Studio sheet. It re-evaluates the original product cut from
+declared base `ea0651e3d2d1aa8018dd96f291143ee348e2210a`, whose mobile
+gitlink is `c620de90057ed1efb65562196a645aac4f0c0eef`, through product
+parent `ff0154e37e987f2854bf4e281481f876e6bb1db0` and frozen candidate
+mobile `5221aa27b14132e8d3bcc700e766ddb8245b3433`. The reconciliation
+must be one direct child of that product parent and may add only the exact,
+blob-pinned `ci/runtime-authority/flow-detail-surface-test-renames.v1.json`
+manifest alongside the existing authority-rollover files. It lists exactly
+nine old identities and nine replacement identities without wildcards. Every
+replacement must execute and pass; all other missing, skipped, failing, and
+new-test checks remain fail-closed. A normal authority-only comparison against
+the already-pushed product parent is not accepted as evidence for this cut.
+
 Unrelated parent paths fail closed. Authority-rollover mixed with a gitlink
 change fails closed.
 
