@@ -73,13 +73,11 @@ class ForwardWorkflowContractTest(unittest.TestCase):
         self.assertNotIn("july1_runtime_gate.py evaluate-full", runtime)
         self.assertNotIn("july1_runtime_gate.py verify-checkout", runtime)
         self.assertIn("      - production", source)
-        self.assertIn(READING_HOUSE_RELEASE_DECLARED_BASE, runtime)
-        self.assertIn(READING_HOUSE_RELEASE_PRODUCT_PARENT, runtime)
-        self.assertIn(READING_HOUSE_RELEASE_AUTHORITY_PARENT, runtime)
-        self.assertIn(MAAT_VISUAL_TEST_RENAME_DECLARED_BASE, runtime)
-        self.assertIn(MAAT_VISUAL_TEST_RENAME_DIRECT_PARENT, runtime)
-        self.assertIn(FLOW_DETAIL_SURFACE_TEST_RENAME_DECLARED_BASE, runtime)
-        self.assertIn(FLOW_DETAIL_SURFACE_TEST_RENAME_DIRECT_PARENT, runtime)
+        self.assertNotIn("      - main", source)
+        self.assertNotIn('      - "codex/**"', source)
+        self.assertNotIn("origin/main", runtime)
+        self.assertIn('refs/heads/production', runtime)
+        self.assertIn('${{ github.event.before }}', runtime)
         compare_index = runtime.index(
             "python3 tool/ci/forward_candidate_gate.py compare-test"
         )

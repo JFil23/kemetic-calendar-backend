@@ -95,7 +95,9 @@ WILDCARD_CHARS = re.compile(r"[*?\[\]]")
 
 ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
     {
+        ".github/workflows/admin.yml",
         ".github/workflows/mobile.yml",
+        ".github/workflows/supabase-functions.yml",
         "ci/LOCK_GATE.md",
         READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix(),
         MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix(),

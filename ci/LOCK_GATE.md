@@ -101,8 +101,11 @@ Declared base is the cut's actual base commit, not a pinned current-production
 file:
 
 - pull request: `github.event.pull_request.base.sha`
-- push to `main`: `github.event.before`
-- `codex/**` branch push: fetched `origin/main`
+- push to the sole active `production` branch: `github.event.before`
+
+Routine CI, tests, builds, and releases use the canonical `production` source
+only. Historical refs live outside the active repositories in the recovery
+archive and are never consulted by this workflow.
 
 Zero SHAs fail closed.
 

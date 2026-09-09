@@ -7,9 +7,7 @@ on:
   pull_request:
   push:
     branches:
-      - main
       - production
-      - "codex/**"
 
 jobs:
   resolve-historical-pair:
@@ -555,24 +553,11 @@ jobs:
           set -euo pipefail
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             declared="${{ github.event.pull_request.base.sha }}"
-          elif [ "${{ github.ref }}" = "refs/heads/production" ] && \
-            [ "${{ github.event.before }}" = "2cea8d3ae711c8b91e9c1f7e0f52d33407f49211" ]; then
-            declared="addeec5e196e8282f97d58e9cc857e11d99f2d4b"
-          elif [ "${{ github.ref }}" = "refs/heads/production" ] && \
-            [ "${{ github.event.before }}" = "74dc57f804b01db366d03f285e8b530c92546a5a" ]; then
-            declared="addeec5e196e8282f97d58e9cc857e11d99f2d4b"
-          elif [ "${{ github.ref }}" = "refs/heads/production" ] && \
-            [ "${{ github.event.before }}" = "4f37d1213ecdefc115a509d0fde0a4f5e5eb776b" ]; then
-            declared="020f9808fbcd4a03df42009fd2f5a7f4a83d94b5"
-          elif [ "${{ github.ref }}" = "refs/heads/production" ] && \
-            [ "${{ github.event.before }}" = "ff0154e37e987f2854bf4e281481f876e6bb1db0" ]; then
-            declared="ea0651e3d2d1aa8018dd96f291143ee348e2210a"
-          elif [ "${{ github.ref }}" = "refs/heads/main" ] || \
-            [ "${{ github.ref }}" = "refs/heads/production" ]; then
+          elif [ "${{ github.ref }}" = "refs/heads/production" ]; then
             declared="${{ github.event.before }}"
           else
-            git fetch origin main
-            declared="$(git rev-parse origin/main)"
+            echo "Unsupported forward-candidate ref: ${{ github.ref }}" >&2
+            exit 1
           fi
           if [[ ! "$declared" =~ ^[0-9a-f]{40}$ ]] || [[ "$declared" = "0000000000000000000000000000000000000000" ]]; then
             echo "declared_base is not a nonzero 40-hex SHA: ${declared:-empty}" >&2
