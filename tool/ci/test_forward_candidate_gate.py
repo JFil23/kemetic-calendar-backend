@@ -9,6 +9,7 @@ from unittest import mock
 from tool.ci.forward_candidate_gate import (
     ALLOWED_AUTHORITY_PARENT_PATHS,
     CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME,
+    CUT_CLASS_KAR_GUARD_REPAIR,
     CUT_CLASS_KAR_RELEASE,
     CUT_CLASS_MAAT_VISUAL_TEST_RENAME,
     CUT_CLASS_READING_HOUSE_RELEASE,
@@ -19,6 +20,11 @@ from tool.ci.forward_candidate_gate import (
     FLOW_DETAIL_SURFACE_TEST_RENAME_DECLARED_BASE,
     FLOW_DETAIL_SURFACE_TEST_RENAME_DIRECT_PARENT,
     FLOW_DETAIL_SURFACE_TEST_RENAME_MOBILE,
+    KAR_GUARD_REPAIR_BASE_MOBILE,
+    KAR_GUARD_REPAIR_DECLARED_BASE,
+    KAR_GUARD_REPAIR_DIRECT_PARENT,
+    KAR_GUARD_REPAIR_MOBILE,
+    KAR_GUARD_REPAIR_PARENT_PATHS,
     KAR_RELEASE_BASE_MOBILE,
     KAR_RELEASE_DECLARED_BASE,
     KAR_RELEASE_MIGRATION_BLOB,
@@ -52,6 +58,7 @@ from tool.ci.forward_candidate_gate import (
     ForwardTestResult,
     _classify_parent_delta,
     _validate_flow_detail_surface_test_rename_identity,
+    _validate_kar_guard_repair_identity,
     _validate_kar_release_identity,
     _validate_maat_visual_test_rename_identity,
     _validate_reading_house_release_identity,
@@ -627,6 +634,31 @@ class ForwardCandidateGateTest(unittest.TestCase):
             audit_blob="0" * 40,
         )
         self.assertEqual(len(errors), 7)
+
+    def test_exact_kar_guard_repair_cut_is_classified(self) -> None:
+        cut_class, errors = _classify_parent_delta(
+            KAR_GUARD_REPAIR_PARENT_PATHS,
+            declared_base=KAR_GUARD_REPAIR_DECLARED_BASE,
+            candidate_gitlink=KAR_GUARD_REPAIR_MOBILE,
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(cut_class, CUT_CLASS_KAR_GUARD_REPAIR)
+
+    def test_kar_guard_repair_identity_is_fully_pinned(self) -> None:
+        self.assertEqual(
+            _validate_kar_guard_repair_identity(
+                parent_line=["candidate", KAR_GUARD_REPAIR_DIRECT_PARENT],
+                base_gitlink=KAR_GUARD_REPAIR_BASE_MOBILE,
+                candidate_gitlink=KAR_GUARD_REPAIR_MOBILE,
+            ),
+            [],
+        )
+        errors = _validate_kar_guard_repair_identity(
+            parent_line=["candidate", self.parent_head],
+            base_gitlink=self.mobile_head,
+            candidate_gitlink=self.mobile_head,
+        )
+        self.assertEqual(len(errors), 3)
 
     def test_verify_forward_gitlink_only_may_change_mobile(self) -> None:
         declared = self.parent_head

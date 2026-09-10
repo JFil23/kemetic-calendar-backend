@@ -92,9 +92,9 @@ FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_BLOB = (
 )
 FLOW_DETAIL_SURFACE_TEST_RENAME_COUNT = 9
 KAR_RELEASE_DECLARED_BASE = "eccd4583aef31aaeba04fcffecd1a781020fccb2"
-KAR_RELEASE_PRODUCT_PARENT = "5616e29846fa4d0b3f31e39dc78e0d7ff97af005"
+KAR_RELEASE_PRODUCT_PARENT = "ea0b1751cbc9fa8a721e10bf6536e9fbee993931"
 KAR_RELEASE_BASE_MOBILE = "2a9b1007f4a47b981bae23fce5064e508c3912ba"
-KAR_RELEASE_MOBILE = "863024f6bc3d976ef2460b8d5131657f989fd2ca"
+KAR_RELEASE_MOBILE = "2900d556203f9b055a75c20d97e53032855e8d15"
 KAR_RELEASE_MIGRATION_PATH = (
     "supabase/migrations/20260910092351_kar_private_versioned_history.sql"
 )
@@ -103,9 +103,21 @@ KAR_RELEASE_TEST_RENAME_AUDIT_PATH = Path(
     "ci/runtime-authority/kar-five-flow-test-renames.v1.json"
 )
 KAR_RELEASE_TEST_RENAME_AUDIT_BLOB = (
-    "3ae71fe455eff81618c0502abda0e00726ddcb9e"
+    "dd178ba7ec7dd5aed2244e5bd972f9e2c7861e18"
 )
 KAR_RELEASE_TEST_RENAME_COUNT = 24
+KAR_GUARD_REPAIR_DECLARED_BASE = "14ed760d6f9094c6a9cb51862b80070dcb4291d9"
+KAR_GUARD_REPAIR_DIRECT_PARENT = "d813ce2d2f55b7eef257daafe448078f7411445e"
+KAR_GUARD_REPAIR_BASE_MOBILE = "2900d556203f9b055a75c20d97e53032855e8d15"
+KAR_GUARD_REPAIR_MOBILE = "863024f6bc3d976ef2460b8d5131657f989fd2ca"
+KAR_GUARD_REPAIR_PARENT_PATHS = frozenset(
+    {
+        MOBILE_GITLINK_PATH,
+        "ci/LOCK_GATE.md",
+        "tool/ci/forward_candidate_gate.py",
+        "tool/ci/test_forward_candidate_gate.py",
+    }
+)
 WILDCARD_CHARS = re.compile(r"[*?\[\]]")
 
 ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
@@ -133,6 +145,7 @@ CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME = (
     "flow-detail-surface-test-rename-reconciliation"
 )
 CUT_CLASS_KAR_RELEASE = "kar-five-flow-release-reconciliation"
+CUT_CLASS_KAR_GUARD_REPAIR = "kar-restoration-guard-reconciliation"
 CUT_CLASS_EMPTY = "empty"
 
 REQUIRED_AGGREGATE_JOBS = (
@@ -488,6 +501,20 @@ def _classify_parent_delta(
         if errors:
             return None, errors
         return CUT_CLASS_READING_HOUSE_RELEASE, errors
+    if observed == KAR_GUARD_REPAIR_PARENT_PATHS:
+        if declared_base != KAR_GUARD_REPAIR_DECLARED_BASE:
+            errors.append(
+                "Kꜣr restoration-guard reconciliation requires declared_base "
+                f"{KAR_GUARD_REPAIR_DECLARED_BASE}, got {declared_base}"
+            )
+        if candidate_gitlink != KAR_GUARD_REPAIR_MOBILE:
+            errors.append(
+                "Kꜣr restoration-guard reconciliation requires candidate mobile "
+                f"{KAR_GUARD_REPAIR_MOBILE}, got {candidate_gitlink}"
+            )
+        if errors:
+            return None, errors
+        return CUT_CLASS_KAR_GUARD_REPAIR, errors
     extra = sorted(observed - ALLOWED_AUTHORITY_PARENT_PATHS)
     if extra:
         errors.append(
@@ -677,6 +704,31 @@ def _validate_kar_release_identity(
     return errors
 
 
+def _validate_kar_guard_repair_identity(
+    *,
+    parent_line: Sequence[str],
+    base_gitlink: str | None,
+    candidate_gitlink: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if len(parent_line) != 2 or parent_line[1] != KAR_GUARD_REPAIR_DIRECT_PARENT:
+        errors.append(
+            "Kꜣr restoration-guard reconciliation must be one commit directly "
+            f"on top of {KAR_GUARD_REPAIR_DIRECT_PARENT}"
+        )
+    if base_gitlink != KAR_GUARD_REPAIR_BASE_MOBILE:
+        errors.append(
+            "Kꜣr restoration-guard reconciliation requires base mobile "
+            f"{KAR_GUARD_REPAIR_BASE_MOBILE}, got {base_gitlink}"
+        )
+    if candidate_gitlink != KAR_GUARD_REPAIR_MOBILE:
+        errors.append(
+            "Kꜣr restoration-guard reconciliation requires candidate mobile "
+            f"{KAR_GUARD_REPAIR_MOBILE}, got {candidate_gitlink}"
+        )
+    return errors
+
+
 def verify_forward(
     *,
     parent_root: Path,
@@ -753,8 +805,29 @@ def verify_forward(
         CUT_CLASS_MAAT_VISUAL_TEST_RENAME,
         CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME,
         CUT_CLASS_KAR_RELEASE,
+        CUT_CLASS_KAR_GUARD_REPAIR,
     } and base_gitlink and candidate_gitlink:
-        if cut_class == CUT_CLASS_KAR_RELEASE:
+        if cut_class == CUT_CLASS_KAR_GUARD_REPAIR:
+            try:
+                parent_line = _git_text(
+                    parent_root, "rev-list", "--parents", "-n", "1", candidate_parent
+                ).split()
+            except (OSError, subprocess.CalledProcessError) as error:
+                receipt["errors"].append(
+                    f"Kꜣr restoration-guard identity inspection failed: {error}"
+                )
+                parent_line = []
+            receipt["karGuardRepairDirectParent"] = (
+                parent_line[1] if len(parent_line) == 2 else None
+            )
+            receipt["errors"].extend(
+                _validate_kar_guard_repair_identity(
+                    parent_line=parent_line,
+                    base_gitlink=base_gitlink,
+                    candidate_gitlink=candidate_gitlink,
+                )
+            )
+        elif cut_class == CUT_CLASS_KAR_RELEASE:
             try:
                 parent_line = _git_text(
                     parent_root, "rev-list", "--parents", "-n", "1", candidate_parent
