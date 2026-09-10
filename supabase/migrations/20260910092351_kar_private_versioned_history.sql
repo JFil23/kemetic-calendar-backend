@@ -1,6 +1,6 @@
 -- One permanent, private Kꜣr per user and netjer. The versioned lifecycle is
--- stored as an opaque document so immutable scene lineage can advance without
--- exposing individual historical versions as independently writable rows.
+-- stored as an opaque document so application-preserved scene lineage can
+-- advance without exposing historical versions as independently writable rows.
 create table public.kar_shrines (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -41,11 +41,14 @@ create policy "kar_shrines_update_own"
 
 revoke all on table public.kar_shrines from anon;
 revoke all on table public.kar_shrines from authenticated;
-grant select, insert, update on table public.kar_shrines to authenticated;
+grant select, insert on table public.kar_shrines to authenticated;
+grant update (state, revision, updated_at)
+  on table public.kar_shrines
+  to authenticated;
 
 comment on table public.kar_shrines is
   'Private Kꜣr lifecycle documents. One permanent shrine per user/netjer; no delete grant.';
 comment on column public.kar_shrines.state is
-  'Versioned cycles, immutable scene versions, drafts, walks, and the active-cycle pointer.';
+  'Application-preserved version history for cycles, scenes, drafts, walks, and the active-cycle pointer.';
 comment on column public.kar_shrines.revision is
   'Optimistic-concurrency revision; clients update only when their loaded revision matches.';
