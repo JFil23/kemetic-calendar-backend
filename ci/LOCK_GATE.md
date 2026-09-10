@@ -166,9 +166,9 @@ the already-pushed product parent is not accepted as evidence for this cut.
 
 One exact Kꜣr reconciliation re-evaluates the five-flow product cut from
 declared base `eccd4583aef31aaeba04fcffecd1a781020fccb2`, whose mobile
-gitlink is `2a9b1007f4a47b981bae23fce5064e508c3912ba`, through product
-parent `79d3c7300d17f77975a9248128637baf939c1a6a` and frozen candidate
-mobile `d94476453eadc94a694f9bd4a69925dcccf0f78e`. The reconciliation
+gitlink is `2a9b1007f4a47b981bae23fce5064e508c3912ba`, through the reviewed
+permissions-correction parent `ea0b1751cbc9fa8a721e10bf6536e9fbee993931`
+and frozen candidate mobile `2900d556203f9b055a75c20d97e53032855e8d15`. The reconciliation
 must be one direct child of that product parent. Its cumulative parent delta
 may contain only `mobile`, the exact added and blob-pinned
 `supabase/migrations/20260910092351_kar_private_versioned_history.sql`, the
