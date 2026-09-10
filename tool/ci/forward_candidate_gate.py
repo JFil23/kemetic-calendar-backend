@@ -91,6 +91,21 @@ FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_BLOB = (
     "5071fdc49b3022b7faefabfd1bbe10064e3d09b7"
 )
 FLOW_DETAIL_SURFACE_TEST_RENAME_COUNT = 9
+KAR_RELEASE_DECLARED_BASE = "eccd4583aef31aaeba04fcffecd1a781020fccb2"
+KAR_RELEASE_PRODUCT_PARENT = "79d3c7300d17f77975a9248128637baf939c1a6a"
+KAR_RELEASE_BASE_MOBILE = "2a9b1007f4a47b981bae23fce5064e508c3912ba"
+KAR_RELEASE_MOBILE = "d94476453eadc94a694f9bd4a69925dcccf0f78e"
+KAR_RELEASE_MIGRATION_PATH = (
+    "supabase/migrations/20260910092351_kar_private_versioned_history.sql"
+)
+KAR_RELEASE_MIGRATION_BLOB = "3f55aeef044c0958e78f96d82c6cac0f9dd27fd6"
+KAR_RELEASE_TEST_RENAME_AUDIT_PATH = Path(
+    "ci/runtime-authority/kar-five-flow-test-renames.v1.json"
+)
+KAR_RELEASE_TEST_RENAME_AUDIT_BLOB = (
+    "599ed15dc02d9d9721e6dd2702d2d44afab1ccd1"
+)
+KAR_RELEASE_TEST_RENAME_COUNT = 24
 WILDCARD_CHARS = re.compile(r"[*?\[\]]")
 
 ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
@@ -102,6 +117,7 @@ ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
         READING_HOUSE_RELEASE_MISSING_TEST_AUDIT_PATH.as_posix(),
         MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix(),
         FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_PATH.as_posix(),
+        KAR_RELEASE_TEST_RENAME_AUDIT_PATH.as_posix(),
         "tool/ci/forward_candidate_gate.py",
         "tool/ci/release_pipeline_gate.py",
         "tool/ci/test_forward_candidate_gate.py",
@@ -116,6 +132,7 @@ CUT_CLASS_MAAT_VISUAL_TEST_RENAME = "maat-visual-test-rename-reconciliation"
 CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME = (
     "flow-detail-surface-test-rename-reconciliation"
 )
+CUT_CLASS_KAR_RELEASE = "kar-five-flow-release-reconciliation"
 CUT_CLASS_EMPTY = "empty"
 
 REQUIRED_AGGREGATE_JOBS = (
@@ -366,6 +383,34 @@ def _classify_parent_delta(
         return CUT_CLASS_GITLINK_ONLY, errors
     if {
         MOBILE_GITLINK_PATH,
+        KAR_RELEASE_MIGRATION_PATH,
+        KAR_RELEASE_TEST_RENAME_AUDIT_PATH.as_posix(),
+    }.issubset(observed):
+        allowed = ALLOWED_AUTHORITY_PARENT_PATHS | {
+            MOBILE_GITLINK_PATH,
+            KAR_RELEASE_MIGRATION_PATH,
+        }
+        if declared_base != KAR_RELEASE_DECLARED_BASE:
+            errors.append(
+                "Kꜣr release reconciliation requires declared_base "
+                f"{KAR_RELEASE_DECLARED_BASE}, got {declared_base}"
+            )
+        if candidate_gitlink != KAR_RELEASE_MOBILE:
+            errors.append(
+                "Kꜣr release reconciliation requires candidate mobile "
+                f"{KAR_RELEASE_MOBILE}, got {candidate_gitlink}"
+            )
+        extra = sorted(observed - allowed)
+        if extra:
+            errors.append(
+                "Kꜣr release reconciliation contains paths outside its exact "
+                f"allowlist: extra={extra}"
+            )
+        if errors:
+            return None, errors
+        return CUT_CLASS_KAR_RELEASE, errors
+    if {
+        MOBILE_GITLINK_PATH,
         MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix(),
     }.issubset(observed):
         allowed = ALLOWED_AUTHORITY_PARENT_PATHS | {MOBILE_GITLINK_PATH}
@@ -582,6 +627,56 @@ def _validate_flow_detail_surface_test_rename_identity(
     return errors
 
 
+def _validate_kar_release_identity(
+    *,
+    parent_line: Sequence[str],
+    base_gitlink: str | None,
+    candidate_gitlink: str | None,
+    migration_records: Sequence[dict[str, str]],
+    migration_blob: str | None,
+    audit_records: Sequence[dict[str, str]],
+    audit_blob: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if len(parent_line) != 2 or parent_line[1] != KAR_RELEASE_PRODUCT_PARENT:
+        errors.append(
+            "Kꜣr release reconciliation must be one commit directly on top of "
+            f"{KAR_RELEASE_PRODUCT_PARENT}"
+        )
+    if base_gitlink != KAR_RELEASE_BASE_MOBILE:
+        errors.append(
+            "Kꜣr release reconciliation requires base mobile "
+            f"{KAR_RELEASE_BASE_MOBILE}, got {base_gitlink}"
+        )
+    if candidate_gitlink != KAR_RELEASE_MOBILE:
+        errors.append(
+            "Kꜣr release reconciliation requires candidate mobile "
+            f"{KAR_RELEASE_MOBILE}, got {candidate_gitlink}"
+        )
+    if list(migration_records) != [
+        {"status": "A", "path": KAR_RELEASE_MIGRATION_PATH}
+    ]:
+        errors.append("Kꜣr release migration must be exactly one added path")
+    if migration_blob != KAR_RELEASE_MIGRATION_BLOB:
+        errors.append(
+            "Kꜣr release migration blob must remain "
+            f"{KAR_RELEASE_MIGRATION_BLOB}, got {migration_blob}"
+        )
+    if list(audit_records) != [
+        {
+            "status": "A",
+            "path": KAR_RELEASE_TEST_RENAME_AUDIT_PATH.as_posix(),
+        }
+    ]:
+        errors.append("Kꜣr test rename audit must be exactly one added path")
+    if audit_blob != KAR_RELEASE_TEST_RENAME_AUDIT_BLOB:
+        errors.append(
+            "Kꜣr test rename audit blob must remain "
+            f"{KAR_RELEASE_TEST_RENAME_AUDIT_BLOB}, got {audit_blob}"
+        )
+    return errors
+
+
 def verify_forward(
     *,
     parent_root: Path,
@@ -657,8 +752,60 @@ def verify_forward(
         CUT_CLASS_READING_HOUSE_RELEASE,
         CUT_CLASS_MAAT_VISUAL_TEST_RENAME,
         CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME,
+        CUT_CLASS_KAR_RELEASE,
     } and base_gitlink and candidate_gitlink:
-        if cut_class == CUT_CLASS_READING_HOUSE_RELEASE:
+        if cut_class == CUT_CLASS_KAR_RELEASE:
+            try:
+                parent_line = _git_text(
+                    parent_root, "rev-list", "--parents", "-n", "1", candidate_parent
+                ).split()
+                migration_blob = _git_text(
+                    parent_root,
+                    "rev-parse",
+                    f"{candidate_parent}:{KAR_RELEASE_MIGRATION_PATH}",
+                )
+                audit_blob = _git_text(
+                    parent_root,
+                    "rev-parse",
+                    (
+                        f"{candidate_parent}:"
+                        f"{KAR_RELEASE_TEST_RENAME_AUDIT_PATH.as_posix()}"
+                    ),
+                )
+            except (OSError, subprocess.CalledProcessError) as error:
+                receipt["errors"].append(
+                    f"Kꜣr release identity inspection failed: {error}"
+                )
+                parent_line = []
+                migration_blob = None
+                audit_blob = None
+            receipt["karReleaseDirectParent"] = (
+                parent_line[1] if len(parent_line) == 2 else None
+            )
+            receipt["karReleaseMigrationBlob"] = migration_blob
+            receipt["karReleaseTestRenameAuditBlob"] = audit_blob
+            migration_records = [
+                record
+                for record in parent_delta
+                if record["path"] == KAR_RELEASE_MIGRATION_PATH
+            ]
+            audit_records = [
+                record
+                for record in parent_delta
+                if record["path"] == KAR_RELEASE_TEST_RENAME_AUDIT_PATH.as_posix()
+            ]
+            receipt["errors"].extend(
+                _validate_kar_release_identity(
+                    parent_line=parent_line,
+                    base_gitlink=base_gitlink,
+                    candidate_gitlink=candidate_gitlink,
+                    migration_records=migration_records,
+                    migration_blob=migration_blob,
+                    audit_records=audit_records,
+                    audit_blob=audit_blob,
+                )
+            )
+        elif cut_class == CUT_CLASS_READING_HOUSE_RELEASE:
             try:
                 parent_line = _git_text(
                     parent_root, "rev-list", "--parents", "-n", "1", candidate_parent
@@ -1175,6 +1322,16 @@ def resolve_pinned_missing_test_audit(
             "path": FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_PATH,
             "blob": FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_BLOB,
             "count": FLOW_DETAIL_SURFACE_TEST_RENAME_COUNT,
+        },
+        {
+            "label": "Kꜣr five-flow release reconciliation",
+            "declaredBase": KAR_RELEASE_DECLARED_BASE,
+            "baseMobile": KAR_RELEASE_BASE_MOBILE,
+            "directParent": KAR_RELEASE_PRODUCT_PARENT,
+            "candidateMobile": KAR_RELEASE_MOBILE,
+            "path": KAR_RELEASE_TEST_RENAME_AUDIT_PATH,
+            "blob": KAR_RELEASE_TEST_RENAME_AUDIT_BLOB,
+            "count": KAR_RELEASE_TEST_RENAME_COUNT,
         },
     )
     matching_pins = [

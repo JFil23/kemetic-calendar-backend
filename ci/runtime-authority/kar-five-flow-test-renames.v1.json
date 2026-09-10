@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "authority": {
+    "declaredBase": "eccd4583aef31aaeba04fcffecd1a781020fccb2",
+    "candidateMobile": "d94476453eadc94a694f9bd4a69925dcccf0f78e",
+    "candidateDirectParent": "79d3c7300d17f77975a9248128637baf939c1a6a",
+    "expectedMissingCount": 24
+  },
+  "entries": [
+    {
+      "identity": "test/features/calendar/flow_studio_helper_lifecycle_test.dart :: route-backed detail returns to four-flow discovery before hub",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/flow_studio_helper_lifecycle_test.dart :: route-backed detail returns to five-flow discovery before hub"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: active detail coordinator has no 33-flow visual dispatcher",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: active detail coordinator has no historical-flow visual dispatcher"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: all identities resolve while only four own active details",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: all identities resolve while only five own active details"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: catalog preserves the explicit four-plus-nine boundary",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: catalog preserves the explicit five-plus-nine boundary"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: leaving and reopening preserves the four-flow catalog",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: leaving and reopening preserves the five-flow catalog"
+    },
+    {
+      "identity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: the four-flow discovery uses the approved card geometry",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_event_list_layout_parity_test.dart :: the five-flow discovery preserves the approved card geometry"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_catalog_test.dart :: all 33 historical identities have exactly one disposition",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_catalog_test.dart :: all 34 historical identities have exactly one disposition"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_catalog_test.dart :: catalog exposes exactly the four active products",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_catalog_test.dart :: catalog exposes exactly the five active products"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_catalog_test.dart :: catalog separates four core products from nine archived products",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_catalog_test.dart :: catalog separates five core products from nine archived products"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_date_mode_test.dart :: active product details delegate to four dedicated surfaces",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_date_mode_test.dart :: active product details delegate to five dedicated surfaces"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_date_mode_test.dart :: four-flow joins cross the universal staging authority",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_date_mode_test.dart :: core-flow joins cross the universal staging authority"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_discovery_view_test.dart :: renders the approved four-flow hierarchy in canonical order",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_discovery_view_test.dart :: renders the approved five-flow hierarchy in canonical order"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_discovery_view_test.dart :: tracks the complete four-card discovery scroll inventory",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_discovery_view_test.dart :: preserves the four-card HTML reference scroll inventory"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: all four active branches route to dedicated detail authorities",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: all five active branches route to dedicated detail authorities"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: four retained detail bodies omit disclaimer framing",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: five active detail bodies omit disclaimer framing"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: four retained details use shared palette and surface contracts",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: five active details use shared palette and surface contracts"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: four-flow discovery bundles and uses Cormorant Garamond",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: core-flow discovery bundles and uses Cormorant Garamond"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: four-flow discovery intentionally omits joined and progress state chrome",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: core-flow discovery intentionally omits joined and progress state chrome"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: four-flow discovery renders canonical glyphs without dot fallback",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_glyph_ui_test.dart :: core-flow discovery renders canonical glyphs without dot fallback"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_identity_test.dart :: resolveMaatFlowKind :: keeps all 33 historical identities recognized",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_identity_test.dart :: resolveMaatFlowKind :: keeps all 34 historical identities recognized"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: joined state does not change the four-flow discovery catalog",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: joined state does not change the five-flow discovery catalog"
+    },
+    {
+      "identity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: the four product details use dedicated visual authorities",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flow_initial_prompt_pilot_detail_test.dart :: the five product details use dedicated visual authorities"
+    },
+    {
+      "identity": "test/features/calendar/maat_flows_list_preview_test.dart :: Ma’at product catalog renders exactly the four active flows",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flows_list_preview_test.dart :: Ma’at product catalog renders exactly the five active flows"
+    },
+    {
+      "identity": "test/features/calendar/maat_flows_list_preview_test.dart :: discovery remains a four-flow catalog regardless of joined rows",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/maat_flows_list_preview_test.dart :: discovery remains a five-flow catalog regardless of joined rows"
+    }
+  ]
+}

@@ -164,6 +164,23 @@ replacement must execute and pass; all other missing, skipped, failing, and
 new-test checks remain fail-closed. A normal authority-only comparison against
 the already-pushed product parent is not accepted as evidence for this cut.
 
+One exact Kꜣr reconciliation re-evaluates the five-flow product cut from
+declared base `eccd4583aef31aaeba04fcffecd1a781020fccb2`, whose mobile
+gitlink is `2a9b1007f4a47b981bae23fce5064e508c3912ba`, through product
+parent `79d3c7300d17f77975a9248128637baf939c1a6a` and frozen candidate
+mobile `d94476453eadc94a694f9bd4a69925dcccf0f78e`. The reconciliation
+must be one direct child of that product parent. Its cumulative parent delta
+may contain only `mobile`, the exact added and blob-pinned
+`supabase/migrations/20260910092351_kar_private_versioned_history.sql`, the
+exact added and blob-pinned
+`ci/runtime-authority/kar-five-flow-test-renames.v1.json`, and the existing
+authority-rollover files. The manifest lists exactly 24 old identities and 24
+replacement identities without wildcards. Every replacement must execute and
+pass; all other missing, skipped, failing, and new-test checks remain
+fail-closed. This allowance proves only the migration file's candidate
+provenance. It does not apply that migration, waive hosted migration checks,
+or establish that an environment can run Kꜣr without the required schema.
+
 Unrelated parent paths fail closed. Authority-rollover mixed with a gitlink
 change fails closed.
 

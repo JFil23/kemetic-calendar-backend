@@ -9,6 +9,7 @@ from unittest import mock
 from tool.ci.forward_candidate_gate import (
     ALLOWED_AUTHORITY_PARENT_PATHS,
     CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME,
+    CUT_CLASS_KAR_RELEASE,
     CUT_CLASS_MAAT_VISUAL_TEST_RENAME,
     CUT_CLASS_READING_HOUSE_RELEASE,
     FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_BLOB,
@@ -18,6 +19,15 @@ from tool.ci.forward_candidate_gate import (
     FLOW_DETAIL_SURFACE_TEST_RENAME_DECLARED_BASE,
     FLOW_DETAIL_SURFACE_TEST_RENAME_DIRECT_PARENT,
     FLOW_DETAIL_SURFACE_TEST_RENAME_MOBILE,
+    KAR_RELEASE_BASE_MOBILE,
+    KAR_RELEASE_DECLARED_BASE,
+    KAR_RELEASE_MIGRATION_BLOB,
+    KAR_RELEASE_MIGRATION_PATH,
+    KAR_RELEASE_MOBILE,
+    KAR_RELEASE_PRODUCT_PARENT,
+    KAR_RELEASE_TEST_RENAME_AUDIT_BLOB,
+    KAR_RELEASE_TEST_RENAME_AUDIT_PATH,
+    KAR_RELEASE_TEST_RENAME_COUNT,
     MAAT_VISUAL_TEST_RENAME_AUDIT_BLOB,
     MAAT_VISUAL_TEST_RENAME_AUDIT_PATH,
     MAAT_VISUAL_TEST_RENAME_BASE_MOBILE,
@@ -42,6 +52,7 @@ from tool.ci.forward_candidate_gate import (
     ForwardTestResult,
     _classify_parent_delta,
     _validate_flow_detail_surface_test_rename_identity,
+    _validate_kar_release_identity,
     _validate_maat_visual_test_rename_identity,
     _validate_reading_house_release_identity,
     compare_analyze,
@@ -538,6 +549,85 @@ class ForwardCandidateGateTest(unittest.TestCase):
         )
         self.assertEqual(len(errors), 5)
 
+    def test_exact_kar_release_cut_is_classified(self) -> None:
+        cut_class, errors = _classify_parent_delta(
+            {
+                "mobile",
+                KAR_RELEASE_MIGRATION_PATH,
+                KAR_RELEASE_TEST_RENAME_AUDIT_PATH.as_posix(),
+                "ci/LOCK_GATE.md",
+                "tool/ci/forward_candidate_gate.py",
+                "tool/ci/test_forward_candidate_gate.py",
+            },
+            declared_base=KAR_RELEASE_DECLARED_BASE,
+            candidate_gitlink=KAR_RELEASE_MOBILE,
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(cut_class, CUT_CLASS_KAR_RELEASE)
+
+    def test_kar_release_cut_fails_closed(self) -> None:
+        paths = {
+            "mobile",
+            KAR_RELEASE_MIGRATION_PATH,
+            KAR_RELEASE_TEST_RENAME_AUDIT_PATH.as_posix(),
+        }
+        wrong_base, base_errors = _classify_parent_delta(
+            paths,
+            declared_base=self.parent_head,
+            candidate_gitlink=KAR_RELEASE_MOBILE,
+        )
+        wrong_mobile, mobile_errors = _classify_parent_delta(
+            paths,
+            declared_base=KAR_RELEASE_DECLARED_BASE,
+            candidate_gitlink=self.mobile_head,
+        )
+        extra_path, path_errors = _classify_parent_delta(
+            paths | {"README.md"},
+            declared_base=KAR_RELEASE_DECLARED_BASE,
+            candidate_gitlink=KAR_RELEASE_MOBILE,
+        )
+        self.assertIsNone(wrong_base)
+        self.assertTrue(any("declared_base" in error for error in base_errors))
+        self.assertIsNone(wrong_mobile)
+        self.assertTrue(
+            any("candidate mobile" in error for error in mobile_errors)
+        )
+        self.assertIsNone(extra_path)
+        self.assertTrue(any("README.md" in error for error in path_errors))
+
+    def test_kar_release_identity_is_fully_pinned(self) -> None:
+        migration_records = [
+            {"status": "A", "path": KAR_RELEASE_MIGRATION_PATH}
+        ]
+        audit_records = [
+            {
+                "status": "A",
+                "path": KAR_RELEASE_TEST_RENAME_AUDIT_PATH.as_posix(),
+            }
+        ]
+        self.assertEqual(
+            _validate_kar_release_identity(
+                parent_line=["candidate", KAR_RELEASE_PRODUCT_PARENT],
+                base_gitlink=KAR_RELEASE_BASE_MOBILE,
+                candidate_gitlink=KAR_RELEASE_MOBILE,
+                migration_records=migration_records,
+                migration_blob=KAR_RELEASE_MIGRATION_BLOB,
+                audit_records=audit_records,
+                audit_blob=KAR_RELEASE_TEST_RENAME_AUDIT_BLOB,
+            ),
+            [],
+        )
+        errors = _validate_kar_release_identity(
+            parent_line=["candidate", self.parent_head],
+            base_gitlink=self.mobile_head,
+            candidate_gitlink=self.mobile_head,
+            migration_records=[],
+            migration_blob="0" * 40,
+            audit_records=[],
+            audit_blob="0" * 40,
+        )
+        self.assertEqual(len(errors), 7)
+
     def test_verify_forward_gitlink_only_may_change_mobile(self) -> None:
         declared = self.parent_head
         self._git(
@@ -1018,6 +1108,129 @@ class ForwardTestComparisonTest(unittest.TestCase):
         self.assertEqual(
             metadata["path"],
             FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_PATH.as_posix(),
+        )
+
+    def test_kar_release_rename_audit_is_exact_and_requires_replacements(self) -> None:
+        path = ROOT / KAR_RELEASE_TEST_RENAME_AUDIT_PATH
+        authority = {
+            "declaredBase": KAR_RELEASE_DECLARED_BASE,
+            "candidateMobile": KAR_RELEASE_MOBILE,
+            "candidateDirectParent": KAR_RELEASE_PRODUCT_PARENT,
+            "expectedMissingCount": KAR_RELEASE_TEST_RENAME_COUNT,
+        }
+        audit = load_missing_test_audit(
+            path,
+            expected_authority=authority,
+            expected_count=KAR_RELEASE_TEST_RENAME_COUNT,
+            authority_label="Kꜣr five-flow release reconciliation",
+        )
+        self.assertEqual(len(audit), KAR_RELEASE_TEST_RENAME_COUNT)
+        self.assertTrue(
+            all(
+                entry.disposition == "replaced" and entry.replacement_identity
+                for entry in audit.values()
+            )
+        )
+        observed_blob = subprocess.run(
+            ["git", "hash-object", path.as_posix()],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        self.assertEqual(observed_blob, KAR_RELEASE_TEST_RENAME_AUDIT_BLOB)
+        self.assertIn(
+            KAR_RELEASE_TEST_RENAME_AUDIT_PATH.as_posix(),
+            ALLOWED_AUTHORITY_PARENT_PATHS,
+        )
+
+        base = {identity: _fwd(identity, "PASS") for identity in audit}
+        candidate = {
+            entry.replacement_identity: _fwd(entry.replacement_identity, "PASS")
+            for entry in audit.values()
+            if entry.replacement_identity is not None
+        }
+        receipt = compare_test_inventories(
+            base,
+            candidate,
+            missing_test_audit=audit,
+        )
+        self.assertEqual(receipt["errors"], [])
+        self.assertEqual(
+            len(receipt["auditedMissingTests"]),
+            KAR_RELEASE_TEST_RENAME_COUNT,
+        )
+
+        replacement = next(iter(candidate))
+        candidate[replacement] = _fwd(replacement, "SKIP", skip_reason="missing")
+        rejected = compare_test_inventories(
+            base,
+            candidate,
+            missing_test_audit=audit,
+        )
+        self.assertTrue(rejected["errors"])
+        self.assertIn("not a passing candidate test", " ".join(rejected["errors"]))
+
+    def test_kar_release_rename_audit_resolves_only_for_exact_pin(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            base_parent = root / "base"
+            candidate_parent = root / "candidate"
+            candidate_mobile = candidate_parent / "mobile"
+            candidate_mobile.mkdir(parents=True)
+            destination = candidate_parent / KAR_RELEASE_TEST_RENAME_AUDIT_PATH
+            destination.parent.mkdir(parents=True)
+            destination.write_text(
+                (ROOT / KAR_RELEASE_TEST_RENAME_AUDIT_PATH).read_text(
+                    encoding="utf-8"
+                ),
+                encoding="utf-8",
+            )
+            candidate_sha = "3" * 40
+
+            def git_text(cwd: Path, *args: str) -> str:
+                if cwd == base_parent and args == ("rev-parse", "HEAD"):
+                    return KAR_RELEASE_DECLARED_BASE
+                if cwd == candidate_parent and args == ("rev-parse", "HEAD"):
+                    return candidate_sha
+                if cwd == candidate_mobile and args == ("rev-parse", "HEAD"):
+                    return KAR_RELEASE_MOBILE
+                if cwd == candidate_parent and args[:4] == (
+                    "rev-list",
+                    "--parents",
+                    "-n",
+                    "1",
+                ):
+                    return f"{candidate_sha} {KAR_RELEASE_PRODUCT_PARENT}"
+                if cwd == candidate_parent and args[0] == "rev-parse":
+                    return KAR_RELEASE_TEST_RENAME_AUDIT_BLOB
+                raise AssertionError((cwd, args))
+
+            def mobile_gitlink(cwd: Path, revision: str) -> str:
+                if cwd == base_parent:
+                    return KAR_RELEASE_BASE_MOBILE
+                if cwd == candidate_parent:
+                    return KAR_RELEASE_MOBILE
+                raise AssertionError((cwd, revision))
+
+            with mock.patch(
+                "tool.ci.forward_candidate_gate._git_text", side_effect=git_text
+            ), mock.patch(
+                "tool.ci.forward_candidate_gate._mobile_gitlink",
+                side_effect=mobile_gitlink,
+            ):
+                audit, metadata, errors = resolve_pinned_missing_test_audit(
+                    base_parent_root=base_parent,
+                    candidate_parent_root=candidate_parent,
+                    candidate_mobile_root=candidate_mobile,
+                )
+
+        self.assertEqual(errors, [])
+        self.assertIsNotNone(audit)
+        self.assertEqual(len(audit or {}), KAR_RELEASE_TEST_RENAME_COUNT)
+        self.assertTrue(metadata["applied"])
+        self.assertEqual(
+            metadata["path"], KAR_RELEASE_TEST_RENAME_AUDIT_PATH.as_posix()
         )
 
     def test_missing_test_audit_rejects_wildcards(self) -> None:
