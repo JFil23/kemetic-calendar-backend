@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "authority": {
+    "declaredBase": "710f2c4b0d5a492e059e4d3203852ff01e5a9ddf",
+    "candidateMobile": "ad50d808d04148ae87c8e11250c1068fff99a30c",
+    "candidateDirectParent": "7bd7c55b3b5194dfc19c8be5b8c96ec36be21eeb",
+    "expectedMissingCount": 1
+  },
+  "entries": [
+    {
+      "identity": "test/features/calendar/the_kar_surface_test.dart :: Save keeps a draft and Place commits it from the detail sheet",
+      "disposition": "replaced",
+      "replacementIdentity": "test/features/calendar/the_kar_surface_test.dart :: detail event sheet saves a draft and places it through shared behavior"
+    }
+  ]
+}

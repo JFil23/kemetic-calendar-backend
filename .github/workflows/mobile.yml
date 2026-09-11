@@ -553,6 +553,9 @@ jobs:
           set -euo pipefail
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             declared="${{ github.event.pull_request.base.sha }}"
+          elif [ "${{ github.ref }}" = "refs/heads/production" ] && \
+            [ "${{ github.event.before }}" = "7bd7c55b3b5194dfc19c8be5b8c96ec36be21eeb" ]; then
+            declared="710f2c4b0d5a492e059e4d3203852ff01e5a9ddf"
           elif [ "${{ github.ref }}" = "refs/heads/production" ]; then
             declared="${{ github.event.before }}"
           else

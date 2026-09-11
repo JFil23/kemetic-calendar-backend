@@ -118,6 +118,25 @@ KAR_GUARD_REPAIR_PARENT_PATHS = frozenset(
         "tool/ci/test_forward_candidate_gate.py",
     }
 )
+KAR_CALENDAR_SHEET_TEST_RENAME_DECLARED_BASE = (
+    "710f2c4b0d5a492e059e4d3203852ff01e5a9ddf"
+)
+KAR_CALENDAR_SHEET_TEST_RENAME_DIRECT_PARENT = (
+    "7bd7c55b3b5194dfc19c8be5b8c96ec36be21eeb"
+)
+KAR_CALENDAR_SHEET_TEST_RENAME_BASE_MOBILE = (
+    "d60361b6118bb54c51278ba3f3324aa7da821452"
+)
+KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE = (
+    "ad50d808d04148ae87c8e11250c1068fff99a30c"
+)
+KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH = Path(
+    "ci/runtime-authority/kar-calendar-sheet-test-renames.v1.json"
+)
+KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_BLOB = (
+    "fe241c5fc2e11431ec0255ccb9d9479a07b774cb"
+)
+KAR_CALENDAR_SHEET_TEST_RENAME_COUNT = 1
 WILDCARD_CHARS = re.compile(r"[*?\[\]]")
 
 ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
@@ -130,6 +149,7 @@ ALLOWED_AUTHORITY_PARENT_PATHS = frozenset(
         MAAT_VISUAL_TEST_RENAME_AUDIT_PATH.as_posix(),
         FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_PATH.as_posix(),
         KAR_RELEASE_TEST_RENAME_AUDIT_PATH.as_posix(),
+        KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH.as_posix(),
         "tool/ci/forward_candidate_gate.py",
         "tool/ci/release_pipeline_gate.py",
         "tool/ci/test_forward_candidate_gate.py",
@@ -146,6 +166,9 @@ CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME = (
 )
 CUT_CLASS_KAR_RELEASE = "kar-five-flow-release-reconciliation"
 CUT_CLASS_KAR_GUARD_REPAIR = "kar-restoration-guard-reconciliation"
+CUT_CLASS_KAR_CALENDAR_SHEET_TEST_RENAME = (
+    "kar-calendar-sheet-test-rename-reconciliation"
+)
 CUT_CLASS_EMPTY = "empty"
 
 REQUIRED_AGGREGATE_JOBS = (
@@ -476,6 +499,34 @@ def _classify_parent_delta(
         return CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME, errors
     if {
         MOBILE_GITLINK_PATH,
+        KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH.as_posix(),
+    }.issubset(observed):
+        allowed = ALLOWED_AUTHORITY_PARENT_PATHS | {MOBILE_GITLINK_PATH}
+        if declared_base != KAR_CALENDAR_SHEET_TEST_RENAME_DECLARED_BASE:
+            errors.append(
+                "Kꜣr calendar-sheet test rename reconciliation requires "
+                "declared_base "
+                f"{KAR_CALENDAR_SHEET_TEST_RENAME_DECLARED_BASE}, "
+                f"got {declared_base}"
+            )
+        if candidate_gitlink != KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE:
+            errors.append(
+                "Kꜣr calendar-sheet test rename reconciliation requires "
+                "candidate mobile "
+                f"{KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE}, "
+                f"got {candidate_gitlink}"
+            )
+        extra = sorted(observed - allowed)
+        if extra:
+            errors.append(
+                "Kꜣr calendar-sheet test rename reconciliation contains paths "
+                f"outside its exact allowlist: extra={extra}"
+            )
+        if errors:
+            return None, errors
+        return CUT_CLASS_KAR_CALENDAR_SHEET_TEST_RENAME, errors
+    if {
+        MOBILE_GITLINK_PATH,
         READING_HOUSE_RELEASE_MIGRATION_PATH,
     }.issubset(observed):
         allowed = ALLOWED_AUTHORITY_PARENT_PATHS | {
@@ -729,6 +780,52 @@ def _validate_kar_guard_repair_identity(
     return errors
 
 
+def _validate_kar_calendar_sheet_test_rename_identity(
+    *,
+    parent_line: Sequence[str],
+    base_gitlink: str | None,
+    candidate_gitlink: str | None,
+    audit_records: Sequence[dict[str, str]],
+    audit_blob: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if (
+        len(parent_line) != 2
+        or parent_line[1] != KAR_CALENDAR_SHEET_TEST_RENAME_DIRECT_PARENT
+    ):
+        errors.append(
+            "Kꜣr calendar-sheet test rename reconciliation must be one commit "
+            "directly on top of "
+            f"{KAR_CALENDAR_SHEET_TEST_RENAME_DIRECT_PARENT}"
+        )
+    if base_gitlink != KAR_CALENDAR_SHEET_TEST_RENAME_BASE_MOBILE:
+        errors.append(
+            "Kꜣr calendar-sheet test rename reconciliation requires base mobile "
+            f"{KAR_CALENDAR_SHEET_TEST_RENAME_BASE_MOBILE}, got {base_gitlink}"
+        )
+    if candidate_gitlink != KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE:
+        errors.append(
+            "Kꜣr calendar-sheet test rename reconciliation requires candidate "
+            f"mobile {KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE}, "
+            f"got {candidate_gitlink}"
+        )
+    if list(audit_records) != [
+        {
+            "status": "A",
+            "path": KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH.as_posix(),
+        }
+    ]:
+        errors.append(
+            "Kꜣr calendar-sheet test rename audit must be exactly one added path"
+        )
+    if audit_blob != KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_BLOB:
+        errors.append(
+            "Kꜣr calendar-sheet test rename audit blob must remain "
+            f"{KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_BLOB}, got {audit_blob}"
+        )
+    return errors
+
+
 def verify_forward(
     *,
     parent_root: Path,
@@ -806,6 +903,7 @@ def verify_forward(
         CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME,
         CUT_CLASS_KAR_RELEASE,
         CUT_CLASS_KAR_GUARD_REPAIR,
+        CUT_CLASS_KAR_CALENDAR_SHEET_TEST_RENAME,
     } and base_gitlink and candidate_gitlink:
         if cut_class == CUT_CLASS_KAR_GUARD_REPAIR:
             try:
@@ -997,6 +1095,45 @@ def verify_forward(
             ]
             receipt["errors"].extend(
                 _validate_flow_detail_surface_test_rename_identity(
+                    parent_line=parent_line,
+                    base_gitlink=base_gitlink,
+                    candidate_gitlink=candidate_gitlink,
+                    audit_records=audit_records,
+                    audit_blob=audit_blob,
+                )
+            )
+        elif cut_class == CUT_CLASS_KAR_CALENDAR_SHEET_TEST_RENAME:
+            try:
+                parent_line = _git_text(
+                    parent_root, "rev-list", "--parents", "-n", "1", candidate_parent
+                ).split()
+                audit_blob = _git_text(
+                    parent_root,
+                    "rev-parse",
+                    (
+                        f"{candidate_parent}:"
+                        f"{KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH.as_posix()}"
+                    ),
+                )
+            except (OSError, subprocess.CalledProcessError) as error:
+                receipt["errors"].append(
+                    "Kꜣr calendar-sheet test rename identity inspection failed: "
+                    f"{error}"
+                )
+                parent_line = []
+                audit_blob = None
+            receipt["karCalendarSheetTestRenameDirectParent"] = (
+                parent_line[1] if len(parent_line) == 2 else None
+            )
+            receipt["karCalendarSheetTestRenameAuditBlob"] = audit_blob
+            audit_records = [
+                record
+                for record in parent_delta
+                if record["path"]
+                == KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH.as_posix()
+            ]
+            receipt["errors"].extend(
+                _validate_kar_calendar_sheet_test_rename_identity(
                     parent_line=parent_line,
                     base_gitlink=base_gitlink,
                     candidate_gitlink=candidate_gitlink,
@@ -1405,6 +1542,16 @@ def resolve_pinned_missing_test_audit(
             "path": KAR_RELEASE_TEST_RENAME_AUDIT_PATH,
             "blob": KAR_RELEASE_TEST_RENAME_AUDIT_BLOB,
             "count": KAR_RELEASE_TEST_RENAME_COUNT,
+        },
+        {
+            "label": "Kꜣr calendar-sheet test rename reconciliation",
+            "declaredBase": KAR_CALENDAR_SHEET_TEST_RENAME_DECLARED_BASE,
+            "baseMobile": KAR_CALENDAR_SHEET_TEST_RENAME_BASE_MOBILE,
+            "directParent": KAR_CALENDAR_SHEET_TEST_RENAME_DIRECT_PARENT,
+            "candidateMobile": KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE,
+            "path": KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH,
+            "blob": KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_BLOB,
+            "count": KAR_CALENDAR_SHEET_TEST_RENAME_COUNT,
         },
     )
     matching_pins = [

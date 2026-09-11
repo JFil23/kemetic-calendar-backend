@@ -193,6 +193,20 @@ unit tests. The generic test comparison remains fail-closed: the formerly
 failing guard must execute and pass, and no missing, skipped, failing, or new
 test may regress.
 
+One exact follow-up reconciles the single Kꜣr test identity renamed when its
+detail event moved from inline expansion to the shared event-sheet host. It
+re-evaluates the original product cut from declared base
+`710f2c4b0d5a492e059e4d3203852ff01e5a9ddf`, whose mobile gitlink is
+`d60361b6118bb54c51278ba3f3324aa7da821452`, through product parent
+`7bd7c55b3b5194dfc19c8be5b8c96ec36be21eeb` and frozen candidate mobile
+`ad50d808d04148ae87c8e11250c1068fff99a30c`. The reconciliation must be one
+direct child of that product parent and may add only the exact, blob-pinned
+`ci/runtime-authority/kar-calendar-sheet-test-renames.v1.json` manifest plus
+the existing authority-rollover files. The manifest maps exactly one old test
+identity to one replacement without wildcards. The replacement must execute
+and pass; every other missing, skipped, failing, and new-test check remains
+fail-closed.
+
 Unrelated parent paths fail closed. Authority-rollover mixed with a gitlink
 change fails closed.
 

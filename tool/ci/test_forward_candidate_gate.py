@@ -9,6 +9,7 @@ from unittest import mock
 from tool.ci.forward_candidate_gate import (
     ALLOWED_AUTHORITY_PARENT_PATHS,
     CUT_CLASS_FLOW_DETAIL_SURFACE_TEST_RENAME,
+    CUT_CLASS_KAR_CALENDAR_SHEET_TEST_RENAME,
     CUT_CLASS_KAR_GUARD_REPAIR,
     CUT_CLASS_KAR_RELEASE,
     CUT_CLASS_MAAT_VISUAL_TEST_RENAME,
@@ -20,6 +21,13 @@ from tool.ci.forward_candidate_gate import (
     FLOW_DETAIL_SURFACE_TEST_RENAME_DECLARED_BASE,
     FLOW_DETAIL_SURFACE_TEST_RENAME_DIRECT_PARENT,
     FLOW_DETAIL_SURFACE_TEST_RENAME_MOBILE,
+    KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_BLOB,
+    KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH,
+    KAR_CALENDAR_SHEET_TEST_RENAME_BASE_MOBILE,
+    KAR_CALENDAR_SHEET_TEST_RENAME_COUNT,
+    KAR_CALENDAR_SHEET_TEST_RENAME_DECLARED_BASE,
+    KAR_CALENDAR_SHEET_TEST_RENAME_DIRECT_PARENT,
+    KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE,
     KAR_GUARD_REPAIR_BASE_MOBILE,
     KAR_GUARD_REPAIR_DECLARED_BASE,
     KAR_GUARD_REPAIR_DIRECT_PARENT,
@@ -58,6 +66,7 @@ from tool.ci.forward_candidate_gate import (
     ForwardTestResult,
     _classify_parent_delta,
     _validate_flow_detail_surface_test_rename_identity,
+    _validate_kar_calendar_sheet_test_rename_identity,
     _validate_kar_guard_repair_identity,
     _validate_kar_release_identity,
     _validate_maat_visual_test_rename_identity,
@@ -96,6 +105,8 @@ class ForwardWorkflowContractTest(unittest.TestCase):
         self.assertNotIn("origin/main", runtime)
         self.assertIn('refs/heads/production', runtime)
         self.assertIn('${{ github.event.before }}', runtime)
+        self.assertIn(KAR_CALENDAR_SHEET_TEST_RENAME_DIRECT_PARENT, runtime)
+        self.assertIn(KAR_CALENDAR_SHEET_TEST_RENAME_DECLARED_BASE, runtime)
         self.assertIn(
             "tool/ci/release_pipeline_gate.py",
             ALLOWED_AUTHORITY_PARENT_PATHS,
@@ -548,6 +559,76 @@ class ForwardCandidateGateTest(unittest.TestCase):
             [],
         )
         errors = _validate_flow_detail_surface_test_rename_identity(
+            parent_line=["candidate", self.parent_head],
+            base_gitlink=self.mobile_head,
+            candidate_gitlink=self.mobile_head,
+            audit_records=[],
+            audit_blob="0" * 40,
+        )
+        self.assertEqual(len(errors), 5)
+
+    def test_exact_kar_calendar_sheet_test_rename_cut_is_classified(self) -> None:
+        paths = {
+            "mobile",
+            ".github/workflows/mobile.yml",
+            "ci/LOCK_GATE.md",
+            KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH.as_posix(),
+            "tool/ci/forward_candidate_gate.py",
+            "tool/ci/test_forward_candidate_gate.py",
+        }
+        cut_class, errors = _classify_parent_delta(
+            paths,
+            declared_base=KAR_CALENDAR_SHEET_TEST_RENAME_DECLARED_BASE,
+            candidate_gitlink=KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE,
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(cut_class, CUT_CLASS_KAR_CALENDAR_SHEET_TEST_RENAME)
+
+        wrong_base, base_errors = _classify_parent_delta(
+            paths,
+            declared_base=self.parent_head,
+            candidate_gitlink=KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE,
+        )
+        wrong_mobile, mobile_errors = _classify_parent_delta(
+            paths,
+            declared_base=KAR_CALENDAR_SHEET_TEST_RENAME_DECLARED_BASE,
+            candidate_gitlink=self.mobile_head,
+        )
+        extra_path, path_errors = _classify_parent_delta(
+            paths | {"README.md"},
+            declared_base=KAR_CALENDAR_SHEET_TEST_RENAME_DECLARED_BASE,
+            candidate_gitlink=KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE,
+        )
+        self.assertIsNone(wrong_base)
+        self.assertTrue(any("declared_base" in error for error in base_errors))
+        self.assertIsNone(wrong_mobile)
+        self.assertTrue(
+            any("candidate mobile" in error for error in mobile_errors)
+        )
+        self.assertIsNone(extra_path)
+        self.assertTrue(any("README.md" in error for error in path_errors))
+
+    def test_kar_calendar_sheet_test_rename_identity_is_fully_pinned(self) -> None:
+        records = [
+            {
+                "status": "A",
+                "path": KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH.as_posix(),
+            }
+        ]
+        self.assertEqual(
+            _validate_kar_calendar_sheet_test_rename_identity(
+                parent_line=[
+                    "candidate",
+                    KAR_CALENDAR_SHEET_TEST_RENAME_DIRECT_PARENT,
+                ],
+                base_gitlink=KAR_CALENDAR_SHEET_TEST_RENAME_BASE_MOBILE,
+                candidate_gitlink=KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE,
+                audit_records=records,
+                audit_blob=KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_BLOB,
+            ),
+            [],
+        )
+        errors = _validate_kar_calendar_sheet_test_rename_identity(
             parent_line=["candidate", self.parent_head],
             base_gitlink=self.mobile_head,
             candidate_gitlink=self.mobile_head,
@@ -1140,6 +1221,130 @@ class ForwardTestComparisonTest(unittest.TestCase):
         self.assertEqual(
             metadata["path"],
             FLOW_DETAIL_SURFACE_TEST_RENAME_AUDIT_PATH.as_posix(),
+        )
+
+    def test_kar_calendar_sheet_rename_audit_requires_passing_replacement(
+        self,
+    ) -> None:
+        path = ROOT / KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH
+        authority = {
+            "declaredBase": KAR_CALENDAR_SHEET_TEST_RENAME_DECLARED_BASE,
+            "candidateMobile": KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE,
+            "candidateDirectParent": KAR_CALENDAR_SHEET_TEST_RENAME_DIRECT_PARENT,
+            "expectedMissingCount": KAR_CALENDAR_SHEET_TEST_RENAME_COUNT,
+        }
+        audit = load_missing_test_audit(
+            path,
+            expected_authority=authority,
+            expected_count=KAR_CALENDAR_SHEET_TEST_RENAME_COUNT,
+            authority_label="Kꜣr calendar-sheet test rename reconciliation",
+        )
+        self.assertEqual(len(audit), 1)
+        entry = next(iter(audit.values()))
+        self.assertEqual(entry.disposition, "replaced")
+        self.assertIsNotNone(entry.replacement_identity)
+        observed_blob = subprocess.run(
+            ["git", "hash-object", path.as_posix()],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        self.assertEqual(
+            observed_blob,
+            KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_BLOB,
+        )
+        self.assertIn(
+            KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH.as_posix(),
+            ALLOWED_AUTHORITY_PARENT_PATHS,
+        )
+
+        base = {entry.identity: _fwd(entry.identity, "PASS")}
+        replacement = entry.replacement_identity
+        assert replacement is not None
+        passed = compare_test_inventories(
+            base,
+            {replacement: _fwd(replacement, "PASS")},
+            missing_test_audit=audit,
+        )
+        self.assertEqual(passed["errors"], [])
+        failed = compare_test_inventories(
+            base,
+            {
+                replacement: _fwd(
+                    replacement,
+                    "FAIL",
+                    signature="replacement failed",
+                )
+            },
+            missing_test_audit=audit,
+        )
+        self.assertTrue(failed["errors"])
+
+    def test_kar_calendar_sheet_rename_audit_resolves_only_for_pin(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            base_parent = root / "base"
+            candidate_parent = root / "candidate"
+            candidate_mobile = candidate_parent / "mobile"
+            candidate_mobile.mkdir(parents=True)
+            destination = candidate_parent / KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH
+            destination.parent.mkdir(parents=True)
+            destination.write_text(
+                (ROOT / KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH).read_text(
+                    encoding="utf-8"
+                ),
+                encoding="utf-8",
+            )
+            candidate_sha = "3" * 40
+
+            def git_text(cwd: Path, *args: str) -> str:
+                if cwd == base_parent and args == ("rev-parse", "HEAD"):
+                    return KAR_CALENDAR_SHEET_TEST_RENAME_DECLARED_BASE
+                if cwd == candidate_parent and args == ("rev-parse", "HEAD"):
+                    return candidate_sha
+                if cwd == candidate_mobile and args == ("rev-parse", "HEAD"):
+                    return KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE
+                if cwd == candidate_parent and args[:4] == (
+                    "rev-list",
+                    "--parents",
+                    "-n",
+                    "1",
+                ):
+                    return (
+                        f"{candidate_sha} "
+                        f"{KAR_CALENDAR_SHEET_TEST_RENAME_DIRECT_PARENT}"
+                    )
+                if cwd == candidate_parent and args[0] == "rev-parse":
+                    return KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_BLOB
+                raise AssertionError((cwd, args))
+
+            def mobile_gitlink(cwd: Path, revision: str) -> str:
+                if cwd == base_parent:
+                    return KAR_CALENDAR_SHEET_TEST_RENAME_BASE_MOBILE
+                if cwd == candidate_parent:
+                    return KAR_CALENDAR_SHEET_TEST_RENAME_MOBILE
+                raise AssertionError((cwd, revision))
+
+            with mock.patch(
+                "tool.ci.forward_candidate_gate._git_text", side_effect=git_text
+            ), mock.patch(
+                "tool.ci.forward_candidate_gate._mobile_gitlink",
+                side_effect=mobile_gitlink,
+            ):
+                audit, metadata, errors = resolve_pinned_missing_test_audit(
+                    base_parent_root=base_parent,
+                    candidate_parent_root=candidate_parent,
+                    candidate_mobile_root=candidate_mobile,
+                )
+
+        self.assertEqual(errors, [])
+        self.assertIsNotNone(audit)
+        self.assertEqual(len(audit or {}), KAR_CALENDAR_SHEET_TEST_RENAME_COUNT)
+        self.assertTrue(metadata["applied"])
+        self.assertEqual(
+            metadata["path"],
+            KAR_CALENDAR_SHEET_TEST_RENAME_AUDIT_PATH.as_posix(),
         )
 
     def test_kar_release_rename_audit_is_exact_and_requires_replacements(self) -> None:
