@@ -86,3 +86,13 @@ jobs:
       - name: Stop Supabase local services
         if: always()
         run: supabase stop --no-backup || true
+
+  lock-gate-required:
+    name: LOCK-GATE required
+    if: always()
+    needs:
+      - edge-functions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the complete backend gate
+        run: test "${{ needs.edge-functions.result }}" = "success"
