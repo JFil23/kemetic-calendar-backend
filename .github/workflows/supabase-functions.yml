@@ -51,6 +51,11 @@ jobs:
       - name: Test Supabase edge functions
         run: deno test --allow-env supabase/functions/
 
+      - name: Verify backend source contracts
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest supabase.tests.test_source_contracts
+
       - name: Migration smoke test
         run: |
           sudo apt-get update
