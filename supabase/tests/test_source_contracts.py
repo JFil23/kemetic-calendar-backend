@@ -427,6 +427,36 @@ class MigrationSourceContractsTest(unittest.TestCase):
             ],
         )
 
+    def test_reading_house_room_lifecycle_keeps_admin_archive(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260918183843_reading_house_room_lifecycle.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "f.active is true",
+                "coalesce(f.is_hidden, false) is false",
+                "with (security_invoker = true)",
+                "self_member.user_id = (select auth.uid())",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "delete from public.reading_house_chat_messages",
+                "delete from public.reading_house_room_read_state",
+                "delete from public.flows",
+                "truncate ",
+                "disable trigger",
+                "session_replication_role",
+                "create trigger trg_delete_reading_house_room_on_flow_end",
+                "security definer",
+            ],
+        )
+
     def test_reading_house_lane_rls_contracts(self) -> None:
         contracts = {
             "20260626170000_reading_house_house_chat.sql": {
