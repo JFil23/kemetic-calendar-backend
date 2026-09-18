@@ -28,6 +28,27 @@ def reject_all(test: unittest.TestCase, body: str, needles: list[str]) -> None:
 
 
 class MigrationSourceContractsTest(unittest.TestCase):
+    def test_reading_house_event_ids_leave_legacy_maat_namespace(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260918143708_reading_house_event_identity.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "^maat:reading-house:",
+                "reading-house:",
+                "the-reading-house-sitting-%",
+                "update public.user_events event",
+                "update public.user_event_completions completion",
+                "update public.scheduled_notifications notification",
+                "update public.event_deletion_trash deletion",
+                "canonical ID collision",
+                "Active Reading House events remain",
+            ],
+        )
+
     def test_shared_calendar_privacy_schema_conventions(self) -> None:
         body = source("db/schema.sql")
         list_start = body.index(
