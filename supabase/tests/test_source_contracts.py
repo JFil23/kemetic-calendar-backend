@@ -28,6 +28,60 @@ def reject_all(test: unittest.TestCase, body: str, needles: list[str]) -> None:
 
 
 class MigrationSourceContractsTest(unittest.TestCase):
+    def test_reading_house_invites_have_one_live_delivery_identity(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260920000953_reading_house_invite_delivery.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "'shared_calendar_members'",
+                "'shared_calendar_notifications'",
+                "alter publication supabase_realtime add table public.%I",
+                "create or replace view "
+                "public.shared_calendar_invite_filing_items_client",
+                "with (security_invoker = true)",
+                "source_flow.source_flow_id",
+                "source_flow.source_flow_key",
+                "source_flow.source_book_title",
+                "flow.calendar_id = sc.id",
+                "flow.ai_metadata ->> 'flow_key' = 'the-reading-house'",
+                "coalesce(flow.notes, '') like '%maat=the-reading-house%'",
+                "scm.user_id = auth.uid()",
+                "grant select on "
+                "public.shared_calendar_invite_filing_items_client",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "sc.name like '%Reading House%'",
+                "sc.name ilike '%Reading House%'",
+                "system_type = 'reading_house'",
+            ],
+        )
+
+        smoke = source(
+            "supabase/dev/reading_house_invite_delivery_smoke.sql"
+        )
+        require_all(
+            self,
+            smoke,
+            [
+                "public.invite_user_to_shared_calendar",
+                "public.shared_calendar_notifications",
+                "public.shared_calendar_invite_filing_items_client",
+                "invite.source_flow_id = 881101",
+                "invite.source_flow_key = 'the-reading-house'",
+                "invite.source_book_title = 'The Odyssey'",
+                "from pg_publication_tables publication_table",
+                "rollback;",
+            ],
+        )
+
     def test_reading_house_event_ids_leave_legacy_maat_namespace(self) -> None:
         body = source(
             "supabase/migrations/"

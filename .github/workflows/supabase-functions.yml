@@ -67,6 +67,7 @@ jobs:
           DB_URL="$(supabase status -o env | sed -n 's/^DB_URL="\(.*\)"$/\1/p')"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/maat_output_truth_loop_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/maat_delivery_push_release_gate_smoke.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/reading_house_invite_delivery_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c "
           do \$\$
           declare
