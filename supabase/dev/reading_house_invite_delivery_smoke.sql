@@ -166,12 +166,16 @@ insert into public.flows (
       active = excluded.active;
 
 select pg_temp.as_user('00000000-0000-4000-8000-00000000a101');
+set local role authenticated;
 
 select public.invite_user_to_shared_calendar(
   '10000000-0000-4000-8000-00000000a101',
   '00000000-0000-4000-8000-00000000a102',
-  'viewer'
+  'viewer',
+  881101
 );
+
+select pg_temp.as_user('00000000-0000-4000-8000-00000000a102');
 
 select pg_temp.assert_true(
   exists (
@@ -186,8 +190,6 @@ select pg_temp.assert_true(
   ),
   'Reading House invitation must create a live recipient notification'
 );
-
-select pg_temp.as_user('00000000-0000-4000-8000-00000000a102');
 
 select pg_temp.assert_true(
   exists (

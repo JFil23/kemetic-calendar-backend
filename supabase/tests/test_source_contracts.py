@@ -31,25 +31,28 @@ class MigrationSourceContractsTest(unittest.TestCase):
     def test_reading_house_invites_have_one_live_delivery_identity(self) -> None:
         body = source(
             "supabase/migrations/"
-            "20260920000953_reading_house_invite_delivery.sql"
+            "20260920014848_reading_house_invite_source_identity.sql"
         )
         require_all(
             self,
             body,
             [
-                "'shared_calendar_members'",
-                "'shared_calendar_notifications'",
-                "alter publication supabase_realtime add table public.%I",
+                "add column if not exists source_flow_id bigint",
+                "add column if not exists source_flow_key text",
+                "add column if not exists source_title text",
                 "create or replace view "
                 "public.shared_calendar_invite_filing_items_client",
                 "with (security_invoker = true)",
-                "source_flow.source_flow_id",
-                "source_flow.source_flow_key",
-                "source_flow.source_book_title",
-                "flow.calendar_id = sc.id",
+                "member.source_flow_id",
+                "member.source_flow_key",
+                "member.source_title as source_book_title",
+                "p_source_flow_id bigint default null",
+                "flow.calendar_id = p_calendar_id",
                 "flow.ai_metadata ->> 'flow_key' = 'the-reading-house'",
                 "coalesce(flow.notes, '') like '%maat=the-reading-house%'",
-                "scm.user_id = auth.uid()",
+                "member.user_id = auth.uid()",
+                "member.source_flow_key = 'the-reading-house'",
+                "jsonb_strip_nulls",
                 "grant select on "
                 "public.shared_calendar_invite_filing_items_client",
             ],
@@ -77,6 +80,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
                 "invite.source_flow_id = 881101",
                 "invite.source_flow_key = 'the-reading-house'",
                 "invite.source_book_title = 'The Odyssey'",
+                "set local role authenticated;",
                 "from pg_publication_tables publication_table",
                 "rollback;",
             ],
