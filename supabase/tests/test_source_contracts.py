@@ -28,6 +28,41 @@ def reject_all(test: unittest.TestCase, body: str, needles: list[str]) -> None:
 
 
 class MigrationSourceContractsTest(unittest.TestCase):
+    def test_user_flow_appearance_has_one_private_storage_contract(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260921001311_user_flow_appearance.sql"
+        )
+        select_start = body.index("select\n")
+        from_start = body.index("from public.flows f", select_start)
+        catalog_select = body[select_start:from_start]
+
+        self.assertGreater(
+            catalog_select.index("f.appearance"),
+            catalog_select.index("f.root_flow_id"),
+            "CREATE OR REPLACE VIEW may only append a new view column",
+        )
+        require_all(
+            self,
+            body,
+            [
+                "add column if not exists appearance jsonb",
+                "jsonb_typeof(appearance) = 'object'",
+                "with (security_invoker = true)",
+                "'flow-appearance-images', false",
+                "(storage.foldername(name))[1]",
+                "to authenticated",
+                "fs.payload_json -> 'appearance'",
+                "fp.ai_metadata -> 'payload' -> 'appearance'",
+                "attach_flow_appearance_to_share_snapshot",
+                "before insert on public.flow_shares",
+                "f.user_id = new.sender_id",
+                "jsonb_build_object('appearance', source_appearance)",
+                "revoke all on function "
+                "public.attach_flow_appearance_to_share_snapshot()",
+            ],
+        )
+
     def test_reading_house_invites_have_one_live_delivery_identity(self) -> None:
         body = source(
             "supabase/migrations/"
