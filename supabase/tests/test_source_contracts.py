@@ -47,6 +47,22 @@ class MigrationSourceContractsTest(unittest.TestCase):
             ],
         )
 
+    def test_social_feed_first_page_cannot_be_monopolized_by_one_author(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260923170524_make_social_reads_resilient.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "author_ranked as",
+                "partition by item ->> 'user_id'",
+                "order by author_sequence asc, score desc",
+                "cannot monopolize the first page",
+            ],
+        )
+
     def test_social_feed_cards_keep_full_snapshots_out_of_list_payloads(self) -> None:
         boundary = source(
             "supabase/migrations/"
