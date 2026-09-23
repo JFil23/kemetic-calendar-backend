@@ -28,6 +28,25 @@ def reject_all(test: unittest.TestCase, body: str, needles: list[str]) -> None:
 
 
 class MigrationSourceContractsTest(unittest.TestCase):
+    def test_flow_reads_keep_direct_owner_authority(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260923160113_repair_social_flow_reads.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create policy flows_select_visible",
+                "to authenticated",
+                "user_id = (select auth.uid())",
+                "scm.user_id = (select auth.uid())",
+                "fs.deleted_at is null",
+                "fs.sender_id = (select auth.uid())",
+                "fs.recipient_id = (select auth.uid())",
+            ],
+        )
+
     def test_social_feed_cards_keep_full_snapshots_out_of_list_payloads(self) -> None:
         boundary = source(
             "supabase/migrations/"
