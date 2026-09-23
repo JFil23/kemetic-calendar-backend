@@ -28,10 +28,71 @@ def reject_all(test: unittest.TestCase, body: str, needles: list[str]) -> None:
 
 
 class MigrationSourceContractsTest(unittest.TestCase):
+    def test_social_feed_cards_keep_full_snapshots_out_of_list_payloads(self) -> None:
+        boundary = source(
+            "supabase/migrations/"
+            "20260923032710_social_feed_card_payloads.sql"
+        )
+        feed = source(
+            "supabase/migrations/"
+            "20260923033313_optimize_social_feed_cards.sql"
+        )
+        commons = source(
+            "supabase/migrations/"
+            "20260923033701_optimize_commons_home_cards.sql"
+        )
+        require_all(
+            self,
+            boundary,
+            [
+                "private.social_flow_post_card_metadata",
+                "p_ai_metadata #> '{payload,appearance}'",
+                "public.get_profile_feed_cards",
+                "public.get_profile_feed(p_limit, p_offset)",
+                "public.get_commons_home_cards",
+                "public.get_commons_home(",
+                "item - 'ai_metadata'",
+                "to authenticated",
+            ],
+        )
+        require_all(
+            self,
+            feed,
+            [
+                "from public.flow_posts fp",
+                "from public.insight_posts ip",
+                "private.social_flow_post_card_metadata(fp.ai_metadata)",
+                "from public.flow_post_likes l",
+                "from public.flow_post_comments c",
+                "from public.follows f",
+                "from public.user_blocks b",
+            ],
+        )
+        require_all(
+            self,
+            commons,
+            [
+                "public.get_community_rhythm_rollups",
+                "public.commons_answer_json",
+                "public.shared_practice_room_card_json",
+                "public.get_profile_feed_cards(8, 0)",
+                "'my_shared_practices'",
+                "'public_shared_practices'",
+            ],
+        )
+        reject_all(
+            self,
+            f"{boundary}\n{feed}\n{commons}",
+            [
+                "p_ai_metadata #> '{payload,events}'",
+                "p_ai_metadata -> 'events'",
+            ],
+        )
+
     def test_user_flow_appearance_has_one_private_storage_contract(self) -> None:
         body = source(
             "supabase/migrations/"
-            "20260921001311_user_flow_appearance.sql"
+            "20260921004056_user_flow_appearance.sql"
         )
         select_start = body.index("select\n")
         from_start = body.index("from public.flows f", select_start)
