@@ -28,6 +28,116 @@ def reject_all(test: unittest.TestCase, body: str, needles: list[str]) -> None:
 
 
 class MigrationSourceContractsTest(unittest.TestCase):
+    def test_commons_uses_one_complete_social_snapshot_authority(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260923194527_restore_canonical_commons_home.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function public.get_commons_home(",
+                "from public.get_profile_feed(8, 0) feed_row",
+                "create or replace function public.get_commons_home_cards(",
+                "select public.get_commons_home(",
+                "Compatibility delegate to the canonical get_commons_home RPC",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "v_discover := public.get_profile_feed_cards(8, 0)",
+                "private.social_flow_post_card_metadata",
+            ],
+        )
+
+    def test_flow_activity_completion_reads_use_selected_flow_index(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260923193916_optimize_flow_activity_completion_reads.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "completion_keys as materialized (",
+                "join public.user_event_completions uec",
+                "and uec.flow_id = cf.id",
+                "left join completion_keys completion",
+                "(completion.flow_id is not null) as is_completed",
+                "and er.is_completed",
+                "or not er.is_completed",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "left join public.user_event_completions uec\n"
+                "      on uec.user_id = es.user_id",
+                "uec.id as completion_id",
+            ],
+        )
+
+    def test_flow_activity_fallback_expands_each_flow_once(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260923192643_optimize_flow_activity_fallback_once.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function private.flow_activity_summary_v1(",
+                "flow_action_map as materialized (",
+                "flow_action_ids_from_metadata(source_flow.ai_metadata)",
+                "join flow_action_map fam",
+                "fam.action_id = ua.action_id",
+                "grant execute on function private.flow_activity_summary_v1",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "flow_metadata_has_action_id(\n        cf.ai_metadata,",
+            ],
+        )
+
+    def test_canonical_social_and_filing_reads_are_restored(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260923191515_restore_canonical_social_and_filing_reads.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function public.get_profile_feed(",
+                "fp.ai_metadata",
+                "partition by ranked.user_id",
+                "order by\n    ar.author_sequence asc",
+                "source_flow.appearance",
+                "create index if not exists user_events_flow_filing_cover_idx",
+                "create index if not exists flow_posts_flow_id_visible_idx",
+                "create function public.get_my_filed_flows_v1(",
+                "f.appearance",
+                "cross join lateral private.flow_activity_summary_v1(",
+                "grant execute on function public.get_profile_feed",
+                "grant execute on function public.get_my_filed_flows_v1",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "private.social_flow_post_card_metadata(fp.ai_metadata)",
+                "public.get_profile_feed_cards(",
+            ],
+        )
+
     def test_flow_reads_keep_direct_owner_authority(self) -> None:
         body = source(
             "supabase/migrations/"
@@ -50,7 +160,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
     def test_social_feed_first_page_cannot_be_monopolized_by_one_author(self) -> None:
         body = source(
             "supabase/migrations/"
-            "20260923170524_make_social_reads_resilient.sql"
+            "20260923172656_make_social_reads_resilient.sql"
         )
         require_all(
             self,
