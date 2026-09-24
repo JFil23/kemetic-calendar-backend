@@ -1622,6 +1622,68 @@ class MigrationSourceContractsTest(unittest.TestCase):
             ],
         )
 
+    def test_reflection_generation_key_schema_is_additive_only(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924234345_add_reflection_generation_key.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "-- pg-delta: transaction=false",
+                "alter table public.reflection_generations",
+                "add column generation_key text",
+                "create unique index concurrently "
+                "reflection_generations_generation_key_uidx",
+                "on public.reflection_generations using btree (generation_key)",
+                "where generation_key is not null",
+            ],
+        )
+        for forbidden in [
+            r"^\s*(?:insert|update|delete)\s+",
+            r"^\s*create\s+(?:or\s+replace\s+)?function\b",
+            r"^\s*create\s+trigger\b",
+            r"^\s*(?:create|alter|drop)\s+policy\b",
+            r"^\s*(?:grant|revoke)\b",
+            r"\bcron_maat_decan_opening\b",
+            r"\bai_generate_reflection\b",
+            r"\(\s*user_id\s*,\s*period_key\s*\)",
+            r"generation_key\s+text\s+not\s+null",
+            r"generation_key\s+text\s+default",
+        ]:
+            with self.subTest(forbidden=forbidden):
+                self.assertIsNone(
+                    re.search(forbidden, body, re.IGNORECASE | re.MULTILINE)
+                )
+
+    def test_reflection_generation_key_rollback_is_narrow(self) -> None:
+        body = source(
+            "supabase/dev/rollback_reflection_generation_key.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "-- pg-delta: transaction=false",
+                "drop index concurrently if exists",
+                "public.reflection_generations_generation_key_uidx",
+                "alter table public.reflection_generations",
+                "drop column if exists generation_key",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "drop table",
+                "drop function",
+                "drop trigger",
+                "delete from",
+                "update public.",
+            ],
+        )
+
     def test_social_safety_migration(self) -> None:
         body = source(
             "supabase/migrations/20260602090000_social_safety_controls.sql"

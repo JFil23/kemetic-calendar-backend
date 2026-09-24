@@ -71,6 +71,7 @@ jobs:
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/scheduled_notification_no_token_state_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/push_token_no_token_wakeup_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/claim_scheduled_notifications_no_token_retry_window_smoke.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/reflection_generation_key_smoke.sql
           bash supabase/dev/claim_scheduled_notifications_concurrency_smoke.sh "$DB_URL"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -c "
           do \$\$
