@@ -1430,7 +1430,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
     def test_push_token_activation_wakes_only_existing_no_token_waits(self) -> None:
         body = source(
             "supabase/migrations/"
-            "20260924222849_wake_no_token_notifications_on_token_activation.sql"
+            "20260924224005_wake_no_token_notifications_on_token_activation.sql"
         )
         require_all(
             self,
