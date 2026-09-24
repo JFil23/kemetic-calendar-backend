@@ -28,6 +28,501 @@ def reject_all(test: unittest.TestCase, body: str, needles: list[str]) -> None:
 
 
 class MigrationSourceContractsTest(unittest.TestCase):
+    def test_legacy_flow_reference_index_uses_the_canonical_resolver(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260923235000_index_fallback_flow_references.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create index if not exists "
+                "user_events_user_fallback_flow_ref_idx",
+                "create index if not exists "
+                "user_events_user_fallback_action_idx",
+                "public.user_event_referenced_flow_id(",
+                "where flow_local_id is null",
+                "btrim(action_id)",
+                "action_id is not null",
+                ") is not null",
+                ") is null",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "insert into ",
+                "update public.",
+                "delete from ",
+                "create or replace function",
+            ],
+        )
+
+    def test_my_flows_reads_selected_direct_events_once(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924015040_read_direct_events_once_for_my_flows.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function private.flow_activity_summary_v1(",
+                "candidate_flow_ids as materialized (",
+                "direct_event_rows as materialized (",
+                "ue.flow_local_id = any(cfi.ids)",
+                "from direct_event_rows der",
+                "on cf.id = der.flow_id",
+                "grant execute on function private.flow_activity_summary_v1",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "from candidate_flows cf\n    join public.user_events ue",
+                "create or replace function public.get_my_filed_flows_v1(",
+                "insert into ",
+                "update public.",
+                "delete from ",
+            ],
+        )
+
+    def test_my_flows_availability_refactors_the_existing_accountant_only(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260923234822_restore_my_flows_read_availability.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function private.flow_activity_summary_v1(",
+                "referenced_fallback_events as materialized (",
+                "flow_action_map as materialized (",
+                "action_fallback_events as materialized (",
+                "completion_keys as materialized (",
+                "public.user_event_referenced_flow_id(",
+                "public.flow_action_ids_from_metadata(cf.ai_metadata)",
+                "grant execute on function private.flow_activity_summary_v1",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "fallback_base as materialized (",
+                "create or replace function public.get_my_filed_flows_v1(",
+                "insert into ",
+                "update public.",
+                "delete from ",
+            ],
+        )
+
+    def test_latest_social_list_reads_have_one_bounded_authority(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260923203000_bound_social_and_filing_list_reads.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function public.get_profile_feed_cards(",
+                "from jsonb_to_recordset(\n    public.get_profile_feed_cards",
+                "create or replace function public.get_commons_home_cards(",
+                "v_discover := public.get_profile_feed_cards(8, 0)",
+                "select public.get_commons_home_cards(",
+            ],
+        )
+
+    def test_latest_flow_accounting_restores_known_good_authority(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260923211500_restore_pre_regression_flow_accounting.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function private.flow_activity_summary_v1(",
+                "public.flow_metadata_has_action_id(",
+                "create or replace function public.get_my_filed_flows_v1(",
+                "f.appearance",
+                "join activity on activity.flow_id = f.id",
+                "grant execute on function public.get_my_filed_flows_v1",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "flow_action_map as materialized (",
+                "where activity.is_counted_active or f.filed_is_saved",
+            ],
+        )
+
+    def test_my_flows_restores_the_existing_single_bounded_authority(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924021634_restore_single_bounded_my_flows_authority.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function public.get_my_filed_flows_v1(",
+                "public.flow_is_deleted_state(",
+                "coalesce(f.is_reminder, false) = false",
+                "in ('active', 'inactive')",
+                "public.flow_is_schedule_open(",
+                "private.flow_activity_summary_v1(",
+                "where cardinality(flow_ids.ids) > 0",
+                "where activity.is_counted_active or f.filed_is_saved",
+                "f.filed_is_saved as visible_in_saved_list",
+                "grant execute on function public.get_my_filed_flows_v1",
+                "Single bounded My Flows list authority",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "create or replace function private.flow_activity_summary_v1(",
+                "create or replace function public.get_profile_flow_counts(",
+                "insert into ",
+                "update public.",
+                "delete from ",
+                "create index ",
+                "alter table ",
+                "drop table ",
+            ],
+        )
+
+    def test_canonical_flow_accountant_reads_user_relations_once(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924023519_make_canonical_flow_accounting_single_pass.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function private.flow_activity_summary_v1(",
+                "member_calendars as materialized (",
+                "flow_inputs as materialized (",
+                "user_event_rows as materialized (",
+                "from public.user_events ue\n    where ue.user_id = p_user_id",
+                "when ue.flow_local_id is not null then ue.flow_local_id",
+                "public.user_event_referenced_flow_id(",
+                "left join action_flow_matches afm",
+                "on cf.id = coalesce(uer.referenced_flow_id, afm.flow_id)",
+                "from public.user_event_completions uec",
+                "where uec.user_id = p_user_id",
+                "grant execute on function private.flow_activity_summary_v1",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "candidate_flow_ids as materialized (",
+                "direct_event_rows as materialized (",
+                "referenced_fallback_events as materialized (",
+                "action_fallback_events as materialized (",
+                "create or replace function public.get_my_filed_flows_v1(",
+                "insert into ",
+                "update public.",
+                "delete from ",
+                "create index ",
+                "alter table ",
+                "drop table ",
+            ],
+        )
+
+    def test_latest_flow_accountant_gates_metadata_to_unresolved_actions(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924025003_gate_flow_metadata_to_unresolved_actions.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function private.flow_activity_summary_v1(",
+                "user_event_rows as materialized (",
+                "unresolved_actions as materialized (",
+                "from user_event_rows uer",
+                "uer.flow_local_id is null",
+                "uer.referenced_flow_id is null",
+                "from unresolved_actions ua",
+                "join candidate_flows cf",
+                "public.flow_metadata_has_action_id(",
+                "left join action_flow_matches afm",
+                "grant execute on function private.flow_activity_summary_v1",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "flow_action_map as materialized (",
+                "public.flow_action_ids_from_metadata(",
+                "create or replace function public.flow_action_ids_from_metadata(",
+                "create or replace function public.get_my_filed_flows_v1(",
+                "insert into ",
+                "update public.",
+                "delete from ",
+                "create index ",
+                "alter table ",
+                "drop table ",
+            ],
+        )
+
+    def test_latest_flow_accountant_uses_indexed_ownership_branches(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924025608_bound_flow_accounting_to_indexed_ownership_branches.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function private.flow_activity_summary_v1(",
+                "candidate_flow_ids as materialized (",
+                "direct_event_rows as materialized (",
+                "ue.flow_local_id = any(cfi.ids)",
+                "referenced_fallback_events as materialized (",
+                "public.user_event_referenced_flow_id(",
+                ") is not null",
+                "unresolved_actions as materialized (",
+                "ue.action_id is not null",
+                ") is null",
+                "public.flow_metadata_has_action_id(",
+                "action_fallback_events as materialized (",
+                "from candidate_flows cf\n    join public.user_event_completions uec",
+                "grant execute on function private.flow_activity_summary_v1",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "user_event_rows as materialized (",
+                "flow_action_map as materialized (",
+                "public.flow_action_ids_from_metadata(",
+                "create or replace function public.flow_action_ids_from_metadata(",
+                "create or replace function public.get_my_filed_flows_v1(",
+                "insert into ",
+                "update public.",
+                "delete from ",
+                "create index ",
+                "alter table ",
+                "drop table ",
+            ],
+        )
+
+    def test_latest_flow_accountant_resolves_deletion_before_events(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924030720_avoid_rechecking_candidate_deletion_per_event.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function private.flow_activity_summary_v1(",
+                "if p_flow_ids is not null and cardinality(p_flow_ids) = 0 then",
+                "is_active_repeating_note",
+                "candidate_flow_ids as materialized (",
+                "direct_events as materialized (",
+                "referenced_fallback_events as materialized (",
+                "unresolved_actions as materialized (",
+                "action_fallback_events as materialized (",
+                "event_rows as materialized (",
+                "grant execute on function private.flow_activity_summary_v1",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "es.flow_notes",
+                "es.flow_active",
+                "es.flow_is_hidden",
+                "user_event_rows as materialized (",
+                "flow_action_map as materialized (",
+                "public.flow_action_ids_from_metadata(",
+                "create or replace function public.get_my_filed_flows_v1(",
+                "insert into ",
+                "update public.",
+                "delete from ",
+                "create index ",
+                "alter table ",
+                "drop table ",
+            ],
+        )
+
+    def test_existing_my_flows_authority_defers_display_flags(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924031041_simplify_existing_my_flows_wrapper.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function public.get_my_filed_flows_v1(",
+                "coalesce(f.is_hidden, false) = false",
+                "coalesce(f.is_reminder, false) = false",
+                "public.flow_has_repeating_note_metadata(f.notes) = false",
+                "private.flow_activity_summary_v1(",
+                "selected_flows as materialized (",
+                "where activity.is_counted_active or f.filed_is_saved",
+                "limit p_limit",
+                "social_flags as materialized (",
+                "f.appearance",
+                "f.filed_is_saved as visible_in_saved_list",
+                "grant execute on function public.get_my_filed_flows_v1",
+                "Single bounded My Flows list authority",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "public.flow_is_deleted_state(",
+                "public.flow_record_kind(",
+                "create or replace function private.flow_activity_summary_v1(",
+                "create or replace function public.flow_action_ids_from_metadata(",
+                "insert into ",
+                "update public.",
+                "delete from ",
+                "create index ",
+                "alter table ",
+                "drop table ",
+            ],
+        )
+
+    def test_latest_accountant_inlines_only_single_use_stages(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924031656_inline_single_use_flow_accounting_stages.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function private.flow_activity_summary_v1(",
+                "candidate_flows as materialized (",
+                "unresolved_actions as materialized (",
+                "action_flow_matches as materialized (",
+                "event_source as materialized (",
+                "reminder_refs as materialized (",
+                "direct_events as (",
+                "event_rows as (",
+                "event_counts as (",
+                "grant execute on function private.flow_activity_summary_v1",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "direct_events as materialized (",
+                "event_rows as materialized (",
+                "event_counts as materialized (",
+                "create or replace function public.get_my_filed_flows_v1(",
+                "create or replace function public.flow_action_ids_from_metadata(",
+                "insert into ",
+                "update public.",
+                "delete from ",
+                "create index ",
+                "alter table ",
+                "drop table ",
+            ],
+        )
+
+    def test_latest_accountant_gates_tombstone_key_expansion(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924032113_gate_tombstone_key_expansion.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function private.flow_activity_summary_v1(",
+                "active_tombstones as materialized (",
+                "where edt.user_id = p_user_id",
+                "edt.suppresses_client = true",
+                "reminder_refs as materialized (",
+                "where exists (select 1 from active_tombstones)",
+                "tombstone_keys as (",
+                "tombstoned_events as (",
+                "grant execute on function private.flow_activity_summary_v1",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "create or replace function public.get_my_filed_flows_v1(",
+                "create or replace function public.user_event_reminder_uuid(",
+                "insert into ",
+                "update public.",
+                "delete from ",
+                "create index ",
+                "alter table ",
+                "drop table ",
+            ],
+        )
+
+    def test_latest_accountant_has_guarded_direct_only_path(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924032438_short_circuit_direct_only_flow_accounting.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function private.flow_activity_summary_v1(",
+                "v_has_legacy_events boolean",
+                "v_has_active_tombstones boolean",
+                "into v_has_legacy_events",
+                "into v_has_active_tombstones",
+                "if not v_has_legacy_events and not v_has_active_tombstones then",
+                "ue.flow_local_id is null",
+                "public.user_event_referenced_flow_id(",
+                ") is not null",
+                "ue.action_id is not null",
+                ") is null",
+                "direct_events as (",
+                "event_counts as (",
+                "unresolved_actions as materialized (",
+                "active_tombstones as materialized (",
+                "grant execute on function private.flow_activity_summary_v1",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "create or replace function public.get_my_filed_flows_v1(",
+                "create or replace function public.user_event_referenced_flow_id(",
+                "create or replace function public.flow_action_ids_from_metadata(",
+                "insert into ",
+                "update public.",
+                "delete from ",
+                "create index ",
+                "alter table ",
+                "drop table ",
+            ],
+        )
+
     def test_commons_uses_one_complete_social_snapshot_authority(self) -> None:
         body = source(
             "supabase/migrations/"
