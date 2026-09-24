@@ -27,6 +27,25 @@ type ScheduledNotification = {
   claim_token?: string | null;
 };
 
+type ScheduledNoTokenState = {
+  scheduled_at: string;
+  attempt_count?: number | null;
+  last_error?: string | null;
+  no_token_attempt_count?: number | null;
+  no_token_first_at?: string | null;
+  next_attempt_at?: string | null;
+  expires_at?: string | null;
+  token_available_at?: string | null;
+};
+
+type NoTokenLifecycleTransition = {
+  noTokenAttemptCount: number;
+  noTokenFirstAt: string;
+  nextAttemptAt: string | null;
+  expiresAt: string;
+  isActive: boolean;
+};
+
 type SendPushResponse = {
   sent: number;
   failed: number;
@@ -109,6 +128,64 @@ function scheduledClaimLeaseSeconds() {
   );
 }
 const REARMED_PROCESSED_ROW_GRACE_MS = 1000;
+const NO_TOKEN_ERROR = "no_tokens_for_recipients";
+const NO_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000;
+const NO_TOKEN_RETRY_OFFSETS_MS = [
+  15 * 60 * 1000,
+  60 * 60 * 1000,
+  6 * 60 * 60 * 1000,
+  12 * 60 * 60 * 1000,
+  23 * 60 * 60 * 1000,
+] as const;
+
+function validTimestamp(raw?: string | null) {
+  if (!raw) return false;
+  return Number.isFinite(Date.parse(raw));
+}
+
+export function nextNoTokenLifecycleTransition(
+  row: ScheduledNoTokenState,
+  nowIso: string,
+): NoTokenLifecycleTransition {
+  const scheduledAtMs = Date.parse(row.scheduled_at);
+  const nowMs = Date.parse(nowIso);
+  if (!Number.isFinite(scheduledAtMs) || !Number.isFinite(nowMs)) {
+    throw new Error("INVALID_NO_TOKEN_LIFECYCLE_TIMESTAMP");
+  }
+
+  const priorNoTokenAttemptCount = Math.max(
+    0,
+    Number.isFinite(Number(row.no_token_attempt_count))
+      ? Number(row.no_token_attempt_count)
+      : 0,
+  );
+  const continuesExistingLifecycle = row.last_error === NO_TOKEN_ERROR &&
+    priorNoTokenAttemptCount > 0 &&
+    validTimestamp(row.no_token_first_at) &&
+    validTimestamp(row.expires_at);
+  const noTokenFirstAt = continuesExistingLifecycle
+    ? row.no_token_first_at as string
+    : nowIso;
+  const expiresAt = continuesExistingLifecycle
+    ? row.expires_at as string
+    : new Date(scheduledAtMs + NO_TOKEN_EXPIRY_MS).toISOString();
+  const expiresAtMs = Date.parse(expiresAt);
+  const nextCheckpointMs = NO_TOKEN_RETRY_OFFSETS_MS
+    .map((offsetMs) => scheduledAtMs + offsetMs)
+    .find((checkpointMs) => checkpointMs > nowMs && checkpointMs < expiresAtMs);
+
+  return {
+    noTokenAttemptCount: continuesExistingLifecycle
+      ? priorNoTokenAttemptCount + 1
+      : 1,
+    noTokenFirstAt,
+    nextAttemptAt: nextCheckpointMs == null
+      ? null
+      : new Date(nextCheckpointMs).toISOString(),
+    expiresAt,
+    isActive: nextCheckpointMs != null && nowMs < expiresAtMs,
+  };
+}
 
 function logBootstrap() {
   console.log(
@@ -562,8 +639,18 @@ async function markScheduledInactive(
   ids: number[],
   claimToken: string,
   nowIso: string,
+  resetNoTokenLifecycle = false,
 ) {
   if (!ids.length || !claimToken.trim().length) return;
+  const lifecycleReset = resetNoTokenLifecycle
+    ? {
+      no_token_attempt_count: 0,
+      no_token_first_at: null,
+      next_attempt_at: null,
+      expires_at: null,
+      token_available_at: null,
+    }
+    : {};
   const { error } = await getSupabase()
     .from("scheduled_notifications")
     .update({
@@ -574,11 +661,35 @@ async function markScheduledInactive(
       claimed_at: null,
       claim_token: null,
       updated_at: nowIso,
+      ...lifecycleReset,
     })
     .eq("claim_token", claimToken)
     .in("id", ids);
   if (error) {
     console.error("Failed to mark scheduled_notifications inactive:", error);
+  }
+}
+
+async function resetRearmedNoTokenLifecycle(
+  ids: number[],
+  claimToken: string,
+  nowIso: string,
+) {
+  if (!ids.length || !claimToken.trim().length) return;
+  const { error } = await getSupabase()
+    .from("scheduled_notifications")
+    .update({
+      no_token_attempt_count: 0,
+      no_token_first_at: null,
+      next_attempt_at: null,
+      expires_at: null,
+      token_available_at: null,
+      updated_at: nowIso,
+    })
+    .eq("claim_token", claimToken)
+    .in("id", ids);
+  if (error) {
+    throw new Error(`Failed to reset re-armed no-token state: ${error}`);
   }
 }
 
@@ -644,45 +755,69 @@ async function markScheduledUndeliverable(
   row: ScheduledNotification,
   message: string,
   nowIso: string,
-) {
-  const graceMinutes = parseInt(
-    Deno.env.get("NO_TOKEN_GRACE_MINUTES") ?? "1440",
-    10,
-  );
-  const graceMs = Math.max(graceMinutes, 0) * 60 * 1000;
-  const scheduledAtMs = Date.parse(row.scheduled_at);
-  const nowMs = Date.parse(nowIso);
-  const deactivate = Number.isFinite(scheduledAtMs) && Number.isFinite(nowMs)
-    ? nowMs - scheduledAtMs > graceMs
-    : false;
-
+): Promise<NoTokenLifecycleTransition | null> {
   try {
-    const { error } = await getSupabase()
+    const claimToken = row.claim_token ?? "";
+    const { data, error: readError } = await getSupabase()
+      .from("scheduled_notifications")
+      .select(
+        "scheduled_at, attempt_count, last_error, no_token_attempt_count, no_token_first_at, next_attempt_at, expires_at, token_available_at",
+      )
+      .eq("id", row.id)
+      .eq("claim_token", claimToken)
+      .maybeSingle();
+
+    if (readError) throw readError;
+    if (!data) {
+      console.warn(
+        JSON.stringify({
+          at: nowIso,
+          msg: "scheduled_claim_lost_before_no_token_update",
+          scheduled_id: row.id,
+        }),
+      );
+      return null;
+    }
+
+    const transition = nextNoTokenLifecycleTransition(
+      data as ScheduledNoTokenState,
+      nowIso,
+    );
+    const { error: updateError } = await getSupabase()
       .from("scheduled_notifications")
       .update({
         last_error: message,
         last_attempt_at: nowIso,
-        is_active: deactivate ? false : true,
+        no_token_attempt_count: transition.noTokenAttemptCount,
+        no_token_first_at: transition.noTokenFirstAt,
+        next_attempt_at: transition.nextAttemptAt,
+        expires_at: transition.expiresAt,
+        is_active: transition.isActive,
         claimed_at: null,
         claim_token: null,
         updated_at: nowIso,
       })
       .eq("id", row.id)
-      .eq("claim_token", row.claim_token ?? "");
+      .eq("claim_token", claimToken);
 
-    if (error) throw error;
+    if (updateError) throw updateError;
 
     console.log(
       JSON.stringify({
         at: nowIso,
         msg: "scheduled_undeliverable",
         scheduled_id: row.id,
-        deactivate,
-        graceMinutes,
+        no_token_attempt_count: transition.noTokenAttemptCount,
+        no_token_first_at: transition.noTokenFirstAt,
+        next_attempt_at: transition.nextAttemptAt,
+        expires_at: transition.expiresAt,
+        retired: !transition.isActive,
       }),
     );
+    return transition;
   } catch (err) {
     console.error("Failed to record scheduled undeliverable state:", err);
+    return null;
   }
 }
 
@@ -698,9 +833,12 @@ function safeParseJson(raw?: string | null): Record<string, unknown> | null {
   }
 }
 
-export function createCronReminderPushHandler() {
+export function createCronReminderPushHandler(
+  options: { now?: () => Date } = {},
+) {
+  const now = options.now ?? (() => new Date());
   return async (req: Request) => {
-    const start = Date.now();
+    const start = now().getTime();
     try {
       if (req.method !== "POST") {
         return new Response(
@@ -722,7 +860,7 @@ export function createCronReminderPushHandler() {
         );
       }
 
-      const nowIso = new Date().toISOString();
+      const nowIso = now().toISOString();
       const functionStartedAt = new Date(start).toISOString();
       const due = await fetchDueReminders(nowIso);
       const dueScheduled = await claimDueScheduledNotifications(nowIso);
@@ -759,10 +897,12 @@ export function createCronReminderPushHandler() {
       );
       const rearmedProcessedScheduledIds =
         await findRearmedProcessedScheduledNotificationIds(dueScheduled);
-      const staleScheduledIdSet = new Set([
-        ...staleScheduledIds,
-        ...rearmedProcessedScheduledIds,
-      ]);
+      await resetRearmedNoTokenLifecycle(
+        rearmedProcessedScheduledIds,
+        scheduledClaimToken,
+        nowIso,
+      );
+      const staleScheduledIdSet = new Set(staleScheduledIds);
 
       if (staleScheduledIdSet.size) {
         await markScheduledInactive(
@@ -771,7 +911,6 @@ export function createCronReminderPushHandler() {
           nowIso,
         );
         const staleSet = new Set(staleScheduledIds);
-        const rearmedSet = new Set(rearmedProcessedScheduledIds);
         await Promise.all(
           dueScheduled
             .filter((row) => staleScheduledIdSet.has(row.id))
@@ -779,11 +918,9 @@ export function createCronReminderPushHandler() {
               recordScheduledDeliveryEvent(row, {
                 status: "skipped",
                 functionStartedAt,
-                deliveredAt: new Date().toISOString(),
+                deliveredAt: now().toISOString(),
                 skipReason: staleSet.has(row.id)
                   ? "stale_event_or_flow"
-                  : rearmedSet.has(row.id)
-                  ? "rearmed_processed_row"
                   : "ineligible",
               })
             ),
@@ -805,7 +942,7 @@ export function createCronReminderPushHandler() {
         console.log(
           JSON.stringify({
             at: nowIso,
-            msg: "retired_rearmed_processed_scheduled_notifications",
+            msg: "reset_rearmed_scheduled_notification_no_token_state",
             count: rearmedProcessedScheduledIds.length,
             scheduled_ids: rearmedProcessedScheduledIds,
           }),
@@ -823,8 +960,9 @@ export function createCronReminderPushHandler() {
             sent: 0,
             failed: 0,
             retiredStaleScheduledIds: staleScheduledIds,
-            retiredRearmedProcessedScheduledIds: rearmedProcessedScheduledIds,
-            durationMs: Date.now() - start,
+            retiredRearmedProcessedScheduledIds: [],
+            resetRearmedProcessedScheduledIds: rearmedProcessedScheduledIds,
+            durationMs: now().getTime() - start,
           }),
           { headers: { "Content-Type": "application/json" } },
         );
@@ -840,7 +978,7 @@ export function createCronReminderPushHandler() {
           if (result.sent > 0) {
             sentIds.push(reminder.id);
           } else {
-            const failedAt = new Date().toISOString();
+            const failedAt = now().toISOString();
             await markReminderFailed(reminder.id, failedAt);
             await recordReminderDeliveryEvent(reminder, {
               status: "failed",
@@ -863,7 +1001,7 @@ export function createCronReminderPushHandler() {
             });
             console.error(
               JSON.stringify({
-                at: new Date().toISOString(),
+                at: now().toISOString(),
                 msg: "reminder push not delivered",
                 reminder_id: reminder.id,
                 user_id: reminder.user_id,
@@ -873,7 +1011,7 @@ export function createCronReminderPushHandler() {
             );
           }
         } catch (e) {
-          const failedAt = new Date().toISOString();
+          const failedAt = now().toISOString();
           await markReminderFailed(reminder.id, failedAt);
           await recordReminderDeliveryEvent(reminder, {
             status: "failed",
@@ -891,7 +1029,7 @@ export function createCronReminderPushHandler() {
           });
           console.error(
             JSON.stringify({
-              at: new Date().toISOString(),
+              at: now().toISOString(),
               msg: "reminder push failed",
               reminder_id: reminder.id,
               user_id: reminder.user_id,
@@ -931,10 +1069,14 @@ export function createCronReminderPushHandler() {
           }
 
           failed += 1;
-          const nowIso = new Date().toISOString();
+          const nowIso = now().toISOString();
           const reason = result.reason ?? "push_not_delivered";
           if (reason === "no_tokens_for_recipients") {
-            await markScheduledUndeliverable(row, reason, nowIso);
+            const transition = await markScheduledUndeliverable(
+              row,
+              reason,
+              nowIso,
+            );
             await recordScheduledDeliveryEvent(row, {
               status: "skipped",
               functionStartedAt,
@@ -946,6 +1088,11 @@ export function createCronReminderPushHandler() {
                 push_blocked: result.pushBlocked === true,
                 package_version: result.pushPackageVersion ?? null,
                 compiler_status: result.pushCompilerStatus ?? null,
+                no_token_attempt_count: transition?.noTokenAttemptCount ?? null,
+                no_token_first_at: transition?.noTokenFirstAt ?? null,
+                next_attempt_at: transition?.nextAttemptAt ?? null,
+                expires_at: transition?.expiresAt ?? null,
+                retired: transition ? !transition.isActive : null,
               },
             });
           } else if (
@@ -1012,7 +1159,7 @@ export function createCronReminderPushHandler() {
           );
         } catch (e) {
           failed += 1;
-          const nowIso = new Date().toISOString();
+          const nowIso = now().toISOString();
           await markScheduledFailure(
             row.id,
             String(e),
@@ -1035,7 +1182,7 @@ export function createCronReminderPushHandler() {
           });
           console.error(
             JSON.stringify({
-              at: new Date().toISOString(),
+              at: now().toISOString(),
               msg: "scheduled_notification push failed",
               scheduled_id: row.id,
               user_id: row.user_id,
@@ -1049,9 +1196,10 @@ export function createCronReminderPushHandler() {
       await markScheduledInactive(
         sentScheduledIds,
         scheduledClaimToken,
-        new Date().toISOString(),
+        now().toISOString(),
+        true,
       );
-      const deliveredAt = new Date().toISOString();
+      const deliveredAt = now().toISOString();
       const remindersById = new Map(due.map((row) => [row.id, row]));
       const scheduledById = new Map(eligibleDueScheduled.map((row) => [
         row.id,
@@ -1089,9 +1237,10 @@ export function createCronReminderPushHandler() {
           failed,
           sentScheduledIds,
           retiredStaleScheduledIds: staleScheduledIds,
-          retiredRearmedProcessedScheduledIds: rearmedProcessedScheduledIds,
+          retiredRearmedProcessedScheduledIds: [],
+          resetRearmedProcessedScheduledIds: rearmedProcessedScheduledIds,
           failedDetails,
-          durationMs: Date.now() - start,
+          durationMs: now().getTime() - start,
         }),
         {
           status: failed > 0 ? 207 : 200,
@@ -1104,7 +1253,7 @@ export function createCronReminderPushHandler() {
       return new Response(
         JSON.stringify({
           error: message,
-          durationMs: Date.now() - start,
+          durationMs: now().getTime() - start,
         }),
         { status: 500, headers: { "Content-Type": "application/json" } },
       );

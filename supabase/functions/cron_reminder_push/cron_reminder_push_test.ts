@@ -14,6 +14,9 @@ type FetchCall = {
 
 type TestState = {
   reminders: Row[];
+  scheduledNotifications: Row[];
+  userEvents: Row[];
+  flows: Row[];
   rpcCalls: Array<{ name: string; body: Row }>;
   pushCalls: FetchCall[];
   pushResponses: Row[];
@@ -24,10 +27,14 @@ type Handler = (request: Request) => Response | Promise<Response>;
 
 const originalFetch = globalThis.fetch;
 let state: TestState = createState();
+let currentNowIso = "2040-01-01T10:00:00.000Z";
 
 function createState(overrides: Partial<TestState> = {}): TestState {
   return {
     reminders: [],
+    scheduledNotifications: [],
+    userEvents: [],
+    flows: [],
     rpcCalls: [],
     pushCalls: [],
     pushResponses: [],
@@ -38,6 +45,7 @@ function createState(overrides: Partial<TestState> = {}): TestState {
 
 function resetState(overrides: Partial<TestState> = {}) {
   state = createState(overrides);
+  currentNowIso = "2040-01-01T10:00:00.000Z";
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -95,6 +103,60 @@ function matchesPostgrestFilters(row: Row, params: URLSearchParams) {
   return true;
 }
 
+function scheduledLifecycleIsComplete(row: Row) {
+  return row.last_error === "no_tokens_for_recipients" &&
+    Number(row.no_token_attempt_count) > 0 &&
+    row.no_token_first_at != null &&
+    row.next_attempt_at != null &&
+    row.expires_at != null;
+}
+
+function scheduledRow(overrides: Row = {}): Row {
+  return {
+    id: 401,
+    user_id: "00000000-0000-4000-8000-00000000c501",
+    client_event_id: "cut5-scheduled",
+    title: "Cut 5 scheduled notification",
+    body: "Cut 5 body",
+    payload: "{}",
+    notification_type: "event_start",
+    scheduled_at: "2040-01-01T10:00:00.000Z",
+    is_active: true,
+    attempt_count: 7,
+    last_error: null,
+    last_attempt_at: null,
+    claimed_at: null,
+    claim_token: null,
+    no_token_attempt_count: 0,
+    no_token_first_at: null,
+    next_attempt_at: null,
+    expires_at: null,
+    token_available_at: null,
+    updated_at: "2040-01-01T09:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function validScheduledEvent(row: Row): Row {
+  return {
+    user_id: row.user_id,
+    client_event_id: row.client_event_id,
+    flow_local_id: null,
+  };
+}
+
+function noTokenPushResponse(): Row {
+  return {
+    sent: 0,
+    failed: 0,
+    stale: 0,
+    matchedTokens: 0,
+    delivered: false,
+    reason: "no_tokens_for_recipients",
+    failedReasons: [],
+  };
+}
+
 async function mockFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
@@ -138,7 +200,47 @@ async function mockFetch(
       name: "claim_due_scheduled_notifications",
       body,
     });
-    return jsonResponse([]);
+    const nowMs = Date.parse(String(body.p_now));
+    const leaseMs = Number(body.p_lease_seconds ?? 900) * 1000;
+    const limit = Number(body.p_limit ?? 500);
+    const claimToken = `cut5-claim-${state.rpcCalls.length}`;
+    const due = state.scheduledNotifications
+      .filter((row) => {
+        if (row.is_active !== true) return false;
+        if (Date.parse(String(row.scheduled_at)) > nowMs) return false;
+        if (
+          row.claimed_at != null &&
+          Date.parse(String(row.claimed_at)) >= nowMs - leaseMs
+        ) return false;
+        if (!scheduledLifecycleIsComplete(row)) return true;
+        if (Date.parse(String(row.next_attempt_at)) > nowMs) return false;
+        const expiresAtMs = Date.parse(String(row.expires_at));
+        if (nowMs < expiresAtMs) return true;
+        return row.token_available_at != null &&
+          Date.parse(String(row.token_available_at)) < expiresAtMs &&
+          nowMs <= expiresAtMs + 2 * 60 * 1000;
+      })
+      .sort((a, b) =>
+        Date.parse(String(a.scheduled_at)) -
+          Date.parse(String(b.scheduled_at)) || Number(a.id) - Number(b.id)
+      )
+      .slice(0, Math.max(1, Math.min(limit, 500)));
+    for (const row of due) {
+      row.claimed_at = body.p_now;
+      row.claim_token = claimToken;
+      row.updated_at = body.p_now;
+    }
+    return jsonResponse(due.map((row) => ({
+      id: row.id,
+      user_id: row.user_id,
+      client_event_id: row.client_event_id,
+      title: row.title,
+      body: row.body,
+      payload: row.payload,
+      notification_type: row.notification_type,
+      scheduled_at: row.scheduled_at,
+      claim_token: row.claim_token,
+    })));
   }
 
   if (url.pathname.endsWith("/rest/v1/maat_delivery_timing_events")) {
@@ -155,6 +257,40 @@ async function mockFetch(
       }
     }
     return jsonResponse([]);
+  }
+
+  if (url.pathname.endsWith("/rest/v1/scheduled_notifications")) {
+    const matching = state.scheduledNotifications.filter((row) =>
+      matchesPostgrestFilters(row, url.searchParams)
+    );
+    if (method === "GET") {
+      const wantsObject = headers.get("accept")?.includes(
+        "application/vnd.pgrst.object",
+      );
+      return jsonResponse(wantsObject ? matching[0] ?? null : matching);
+    }
+    if (method === "PATCH") {
+      for (const row of matching) Object.assign(row, body);
+      return jsonResponse([]);
+    }
+  }
+
+  if (url.pathname.endsWith("/rest/v1/user_events")) {
+    assertEquals(method, "GET");
+    return jsonResponse(
+      state.userEvents.filter((row) =>
+        matchesPostgrestFilters(row, url.searchParams)
+      ),
+    );
+  }
+
+  if (url.pathname.endsWith("/rest/v1/flows")) {
+    assertEquals(method, "GET");
+    return jsonResponse(
+      state.flows.filter((row) =>
+        matchesPostgrestFilters(row, url.searchParams)
+      ),
+    );
   }
 
   return jsonResponse({ error: `Unhandled fetch ${method} ${url}` }, 500);
@@ -188,7 +324,9 @@ function cronRequest() {
 }
 
 async function callCron() {
-  const handler: Handler = createCronReminderPushHandler();
+  const handler: Handler = createCronReminderPushHandler({
+    now: () => new Date(currentNowIso),
+  });
   (globalThis as any).fetch = mockFetch;
   try {
     return await handler(cronRequest());
@@ -332,4 +470,286 @@ Deno.test("cron_reminder_push releases failed token attempts without marking sen
     state.timingEvents[1].error_code,
     "404:NOT_FOUND/UNREGISTERED",
   );
+});
+
+Deno.test("cron_reminder_push advances no-token retries on fixed scheduled_at checkpoints without minute churn", async () => {
+  const scheduled = scheduledRow();
+  resetState({
+    scheduledNotifications: [scheduled],
+    userEvents: [validScheduledEvent(scheduled)],
+    pushResponses: Array.from({ length: 6 }, noTokenPushResponse),
+  });
+
+  const first = await callCron();
+  assertEquals(first.status, 207);
+  assertEquals(scheduled.no_token_attempt_count, 1);
+  assertEquals(scheduled.no_token_first_at, "2040-01-01T10:00:00.000Z");
+  assertEquals(scheduled.next_attempt_at, "2040-01-01T10:15:00.000Z");
+  assertEquals(scheduled.expires_at, "2040-01-02T10:00:00.000Z");
+  assertEquals(scheduled.token_available_at, null);
+  assertEquals(scheduled.attempt_count, 7);
+  assertEquals(scheduled.is_active, true);
+  assertEquals(scheduled.claimed_at, null);
+  assertEquals(scheduled.claim_token, null);
+  assertEquals(state.pushCalls.length, 1);
+  assertEquals(
+    state.timingEvents.map((event) => event.delivery_status),
+    ["picked", "skipped"],
+  );
+  assertEquals(
+    state.timingEvents[1].metadata.next_attempt_at,
+    "2040-01-01T10:15:00.000Z",
+  );
+
+  currentNowIso = "2040-01-01T10:01:00.000Z";
+  const between = await callCron();
+  assertEquals(between.status, 200);
+  assertEquals((await between.json()).processed, 0);
+  assertEquals(state.pushCalls.length, 1);
+  assertEquals(state.timingEvents.length, 2);
+
+  const checkpoints = [
+    ["2040-01-01T10:15:00.000Z", "2040-01-01T11:00:00.000Z", 2],
+    ["2040-01-01T11:00:00.000Z", "2040-01-01T16:00:00.000Z", 3],
+    ["2040-01-01T16:00:00.000Z", "2040-01-01T22:00:00.000Z", 4],
+    ["2040-01-01T22:00:00.000Z", "2040-01-02T09:00:00.000Z", 5],
+  ] as const;
+  for (const [at, nextAt, count] of checkpoints) {
+    currentNowIso = at;
+    const response = await callCron();
+    assertEquals(response.status, 207);
+    assertEquals(scheduled.no_token_attempt_count, count);
+    assertEquals(scheduled.next_attempt_at, nextAt);
+    assertEquals(scheduled.no_token_first_at, "2040-01-01T10:00:00.000Z");
+    assertEquals(scheduled.expires_at, "2040-01-02T10:00:00.000Z");
+    assertEquals(scheduled.attempt_count, 7);
+    assertEquals(scheduled.is_active, true);
+  }
+
+  currentNowIso = "2040-01-02T09:00:00.000Z";
+  const exhausted = await callCron();
+  assertEquals(exhausted.status, 207);
+  assertEquals(scheduled.no_token_attempt_count, 6);
+  assertEquals(scheduled.next_attempt_at, null);
+  assertEquals(scheduled.no_token_first_at, "2040-01-01T10:00:00.000Z");
+  assertEquals(scheduled.expires_at, "2040-01-02T10:00:00.000Z");
+  assertEquals(scheduled.attempt_count, 7);
+  assertEquals(scheduled.is_active, false);
+  assertEquals(scheduled.claimed_at, null);
+  assertEquals(scheduled.claim_token, null);
+  assertEquals(state.pushCalls.length, 6);
+  assertEquals(
+    state.timingEvents.map((event) => event.delivery_status),
+    Array.from({ length: 6 }, () => ["picked", "skipped"]).flat(),
+  );
+});
+
+Deno.test("cron_reminder_push honors token wake success once and clears stale lifecycle state", async () => {
+  const scheduled = scheduledRow();
+  resetState({
+    scheduledNotifications: [scheduled],
+    userEvents: [validScheduledEvent(scheduled)],
+    pushResponses: [
+      noTokenPushResponse(),
+      {
+        sent: 1,
+        failed: 0,
+        stale: 0,
+        matchedTokens: 1,
+        delivered: true,
+        failedReasons: [],
+      },
+    ],
+  });
+
+  await callCron();
+  scheduled.token_available_at = "2040-01-01T10:05:00.000Z";
+  scheduled.next_attempt_at = "2040-01-01T10:05:00.000Z";
+  currentNowIso = "2040-01-01T10:05:00.000Z";
+
+  const delivered = await callCron();
+  const deliveredBody = await delivered.json();
+  assertEquals(delivered.status, 200);
+  assertEquals(deliveredBody.sent, 1);
+  assertEquals(state.pushCalls.length, 2);
+  assertEquals(scheduled.is_active, false);
+  assertEquals(scheduled.no_token_attempt_count, 0);
+  assertEquals(scheduled.no_token_first_at, null);
+  assertEquals(scheduled.next_attempt_at, null);
+  assertEquals(scheduled.expires_at, null);
+  assertEquals(scheduled.token_available_at, null);
+  assertEquals(
+    state.timingEvents.map((event) => event.delivery_status),
+    ["picked", "skipped", "picked", "sent"],
+  );
+
+  const repeated = await callCron();
+  assertEquals((await repeated.json()).processed, 0);
+  assertEquals(state.pushCalls.length, 2);
+});
+
+Deno.test("cron_reminder_push token wake no-token result continues the original lifecycle", async () => {
+  const scheduled = scheduledRow();
+  resetState({
+    scheduledNotifications: [scheduled],
+    userEvents: [validScheduledEvent(scheduled)],
+    pushResponses: [noTokenPushResponse(), noTokenPushResponse()],
+  });
+
+  await callCron();
+  const firstAt = scheduled.no_token_first_at;
+  const expiresAt = scheduled.expires_at;
+  scheduled.token_available_at = "2040-01-01T10:05:00.000Z";
+  scheduled.next_attempt_at = "2040-01-01T10:05:00.000Z";
+  currentNowIso = "2040-01-01T10:05:00.000Z";
+  await callCron();
+
+  assertEquals(scheduled.no_token_attempt_count, 2);
+  assertEquals(scheduled.no_token_first_at, firstAt);
+  assertEquals(scheduled.expires_at, expiresAt);
+  assertEquals(scheduled.next_attempt_at, "2040-01-01T10:15:00.000Z");
+  assertEquals(scheduled.token_available_at, "2040-01-01T10:05:00.000Z");
+  assertEquals(scheduled.attempt_count, 7);
+});
+
+Deno.test("cron_reminder_push allows only the pre-expiry token catch-up and retires another no-token result", async () => {
+  const catchup = scheduledRow({
+    no_token_attempt_count: 5,
+    no_token_first_at: "2040-01-01T10:00:00.000Z",
+    next_attempt_at: "2040-01-02T09:59:00.000Z",
+    expires_at: "2040-01-02T10:00:00.000Z",
+    token_available_at: "2040-01-02T09:59:00.000Z",
+    last_error: "no_tokens_for_recipients",
+    last_attempt_at: "2040-01-02T09:00:00.000Z",
+  });
+  resetState({
+    scheduledNotifications: [catchup],
+    userEvents: [validScheduledEvent(catchup)],
+    pushResponses: [noTokenPushResponse()],
+  });
+  currentNowIso = "2040-01-02T10:01:00.000Z";
+
+  const response = await callCron();
+  assertEquals(response.status, 207);
+  assertEquals(state.pushCalls.length, 1);
+  assertEquals(catchup.no_token_attempt_count, 6);
+  assertEquals(catchup.next_attempt_at, null);
+  assertEquals(catchup.no_token_first_at, "2040-01-01T10:00:00.000Z");
+  assertEquals(catchup.expires_at, "2040-01-02T10:00:00.000Z");
+  assertEquals(catchup.is_active, false);
+
+  const lateToken = scheduledRow({
+    id: 402,
+    client_event_id: "cut5-post-expiry-token",
+    no_token_attempt_count: 5,
+    no_token_first_at: "2040-01-01T10:00:00.000Z",
+    next_attempt_at: "2040-01-02T10:00:30.000Z",
+    expires_at: "2040-01-02T10:00:00.000Z",
+    token_available_at: "2040-01-02T10:00:30.000Z",
+    last_error: "no_tokens_for_recipients",
+  });
+  resetState({
+    scheduledNotifications: [lateToken],
+    userEvents: [validScheduledEvent(lateToken)],
+  });
+  currentNowIso = "2040-01-02T10:01:00.000Z";
+  const blocked = await callCron();
+  assertEquals(blocked.status, 200);
+  assertEquals((await blocked.json()).processed, 0);
+  assertEquals(state.pushCalls.length, 0);
+  assertEquals(state.timingEvents.length, 0);
+});
+
+Deno.test("cron_reminder_push keeps transient, compiled-package, and stale paths independent", async () => {
+  const transient = scheduledRow({
+    id: 410,
+    client_event_id: "cut5-transient",
+    attempt_count: 0,
+  });
+  resetState({
+    scheduledNotifications: [transient],
+    userEvents: [validScheduledEvent(transient)],
+    pushResponses: [{
+      sent: 0,
+      failed: 1,
+      stale: 0,
+      matchedTokens: 1,
+      delivered: false,
+      reason: "transient_push_failure",
+      failedReasons: ["timeout"],
+    }],
+  });
+  await callCron();
+  assertEquals(transient.attempt_count, 1);
+  assertEquals(transient.no_token_attempt_count, 0);
+  assertEquals(transient.no_token_first_at, null);
+  assertEquals(transient.next_attempt_at, null);
+  assertEquals(transient.expires_at, null);
+  assertEquals(transient.is_active, true);
+  assertEquals(state.timingEvents[1].delivery_status, "failed");
+
+  const compiled = scheduledRow({ id: 411, client_event_id: "cut5-compiled" });
+  resetState({
+    scheduledNotifications: [compiled],
+    userEvents: [validScheduledEvent(compiled)],
+    pushResponses: [{
+      sent: 0,
+      failed: 0,
+      stale: 0,
+      matchedTokens: 0,
+      delivered: false,
+      reason: "compiled_package_not_quality_proof",
+      failedReasons: [],
+    }],
+  });
+  await callCron();
+  assertEquals(compiled.is_active, false);
+  assertEquals(compiled.no_token_attempt_count, 0);
+  assertEquals(state.timingEvents[1].delivery_status, "skipped");
+
+  const stale = scheduledRow({ id: 412, client_event_id: "cut5-stale" });
+  resetState({ scheduledNotifications: [stale] });
+  const staleResponse = await callCron();
+  const staleBody = await staleResponse.json();
+  assertEquals(staleBody.retiredStaleScheduledIds, [412]);
+  assertEquals(stale.is_active, false);
+  assertEquals(state.pushCalls.length, 0);
+  assertEquals(
+    state.timingEvents.map((event) => event.delivery_status),
+    ["picked", "skipped"],
+  );
+  assertEquals(state.timingEvents[1].skip_reason, "stale_event_or_flow");
+});
+
+Deno.test("cron_reminder_push resets stale no-token state for a genuinely re-armed occurrence", async () => {
+  const rearmed = scheduledRow({
+    id: 420,
+    client_event_id: "cut5-rearmed",
+    last_error: null,
+    last_attempt_at: "2040-01-01T09:00:00.000Z",
+    no_token_attempt_count: 5,
+    no_token_first_at: "2039-12-31T09:00:00.000Z",
+    next_attempt_at: "2039-12-31T10:00:00.000Z",
+    expires_at: "2040-01-01T09:00:00.000Z",
+    token_available_at: "2040-01-01T08:59:00.000Z",
+  });
+  resetState({
+    scheduledNotifications: [rearmed],
+    userEvents: [validScheduledEvent(rearmed)],
+    pushResponses: [noTokenPushResponse()],
+  });
+
+  const response = await callCron();
+  const body = await response.json();
+  assertEquals(response.status, 207);
+  assertEquals(body.retiredRearmedProcessedScheduledIds, []);
+  assertEquals(body.resetRearmedProcessedScheduledIds, [420]);
+  assertEquals(state.pushCalls.length, 1);
+  assertEquals(rearmed.no_token_attempt_count, 1);
+  assertEquals(rearmed.no_token_first_at, "2040-01-01T10:00:00.000Z");
+  assertEquals(rearmed.next_attempt_at, "2040-01-01T10:15:00.000Z");
+  assertEquals(rearmed.expires_at, "2040-01-02T10:00:00.000Z");
+  assertEquals(rearmed.token_available_at, null);
+  assertEquals(rearmed.attempt_count, 7);
+  assertEquals(rearmed.is_active, true);
 });

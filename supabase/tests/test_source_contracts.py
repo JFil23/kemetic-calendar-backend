@@ -1645,6 +1645,41 @@ class MigrationSourceContractsTest(unittest.TestCase):
 
 
 class EdgeFunctionSourceContractsTest(unittest.TestCase):
+    def test_cron_scheduled_no_token_lifecycle_uses_fixed_event_checkpoints(self) -> None:
+        body = source("supabase/functions/cron_reminder_push/index.ts")
+        require_all(
+            self,
+            body,
+            [
+                'const NO_TOKEN_ERROR = "no_tokens_for_recipients"',
+                "15 * 60 * 1000",
+                "60 * 60 * 1000",
+                "6 * 60 * 60 * 1000",
+                "12 * 60 * 60 * 1000",
+                "23 * 60 * 60 * 1000",
+                "scheduledAtMs + NO_TOKEN_EXPIRY_MS",
+                "checkpointMs > nowMs && checkpointMs < expiresAtMs",
+                "row.last_error === NO_TOKEN_ERROR",
+                "no_token_attempt_count: transition.noTokenAttemptCount",
+                "no_token_first_at: transition.noTokenFirstAt",
+                "next_attempt_at: transition.nextAttemptAt",
+                "expires_at: transition.expiresAt",
+                "claimed_at: null",
+                "claim_token: null",
+                "resetRearmedNoTokenLifecycle(",
+                "token_available_at: null",
+                "markScheduledInactive(\n        sentScheduledIds,",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "NO_TOKEN_GRACE_MINUTES",
+                "nowMs + NO_TOKEN_EXPIRY_MS",
+            ],
+        )
+
     def test_shared_calendar_notification_fanout(self) -> None:
         body = source(
             "supabase/functions/notify_shared_calendar_item_added/index.ts"
