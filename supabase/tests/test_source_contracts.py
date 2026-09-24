@@ -1394,6 +1394,39 @@ class MigrationSourceContractsTest(unittest.TestCase):
             ],
         )
 
+    def test_scheduled_notification_no_token_state_is_additive_only(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924215233_add_scheduled_notification_no_token_state.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "add column no_token_attempt_count integer not null default 0",
+                "add column no_token_first_at timestamp with time zone",
+                "add column next_attempt_at timestamp with time zone",
+                "add column expires_at timestamp with time zone",
+                "add column token_available_at timestamp with time zone",
+                "scheduled_notifications_no_token_attempt_count_nonnegative",
+                "check (no_token_attempt_count >= 0)",
+            ],
+        )
+        for forbidden in [
+            r"^\s*update\s+public\.scheduled_notifications\b",
+            r"^\s*create\s+(?:or\s+replace\s+)?function\b",
+            r"^\s*create\s+trigger\b",
+            r"^\s*create\s+policy\b",
+            r"^\s*grant\b",
+            r"^\s*revoke\b",
+            r"\bclaim_due_scheduled_notifications\b",
+            r"\bcron_reminder_push\b",
+        ]:
+            with self.subTest(forbidden=forbidden):
+                self.assertIsNone(
+                    re.search(forbidden, body, re.IGNORECASE | re.MULTILINE)
+                )
+
     def test_social_safety_migration(self) -> None:
         body = source(
             "supabase/migrations/20260602090000_social_safety_controls.sql"
