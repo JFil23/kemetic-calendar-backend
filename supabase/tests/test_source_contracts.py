@@ -1397,7 +1397,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
     def test_scheduled_notification_no_token_state_is_additive_only(self) -> None:
         body = source(
             "supabase/migrations/"
-            "20260924215233_add_scheduled_notification_no_token_state.sql"
+            "20260924220159_add_scheduled_notification_no_token_state.sql"
         )
         require_all(
             self,
