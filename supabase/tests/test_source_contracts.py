@@ -1507,7 +1507,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
     def test_claim_rpc_adds_only_the_complete_no_token_retry_window(self) -> None:
         body = source(
             "supabase/migrations/"
-            "20260924225318_claim_scheduled_notifications_no_token_retry_window.sql"
+            "20260924230252_claim_scheduled_notifications_no_token_retry_window.sql"
         )
         require_all(
             self,
