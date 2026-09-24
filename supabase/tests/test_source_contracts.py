@@ -1427,6 +1427,83 @@ class MigrationSourceContractsTest(unittest.TestCase):
                     re.search(forbidden, body, re.IGNORECASE | re.MULTILINE)
                 )
 
+    def test_push_token_activation_wakes_only_existing_no_token_waits(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924222849_wake_no_token_notifications_on_token_activation.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create function "
+                "private.wake_no_token_notifications_on_token_activation()",
+                "security definer",
+                "set search_path = ''",
+                "new.is_active is not true",
+                "old.is_active is true",
+                "old.user_id is not distinct from new.user_id",
+                "set token_available_at = v_now,",
+                "next_attempt_at = v_now",
+                "notification.user_id = new.user_id",
+                "notification.is_active is true",
+                "notification.last_error = 'no_tokens_for_recipients'",
+                "notification.no_token_attempt_count > 0",
+                "notification.no_token_first_at is not null",
+                "notification.next_attempt_at is not null",
+                "notification.expires_at > v_now",
+                "from public, anon, authenticated, service_role",
+                "after insert or update of is_active on public.push_tokens",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "claim_due_scheduled_notifications",
+                "cron_reminder_push",
+                "send_push",
+                "set is_active =",
+                "set attempt_count =",
+                "set last_error =",
+                "set last_attempt_at =",
+                "set claimed_at =",
+                "set claim_token =",
+                "create policy",
+                "alter policy",
+                "grant ",
+                "alter table",
+                "create index",
+            ],
+        )
+
+    def test_push_token_activation_rollback_keeps_cut2_state(self) -> None:
+        body = source(
+            "supabase/dev/"
+            "rollback_wake_no_token_notifications_on_token_activation.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "drop trigger if exists "
+                "wake_no_token_notifications_on_token_activation",
+                "on public.push_tokens",
+                "drop function if exists",
+                "private.wake_no_token_notifications_on_token_activation()",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "drop column",
+                "scheduled_notifications",
+                "claim_due_scheduled_notifications",
+                "cron_reminder_push",
+            ],
+        )
+
     def test_social_safety_migration(self) -> None:
         body = source(
             "supabase/migrations/20260602090000_social_safety_controls.sql"
