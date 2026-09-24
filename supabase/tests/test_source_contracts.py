@@ -1504,6 +1504,124 @@ class MigrationSourceContractsTest(unittest.TestCase):
             ],
         )
 
+    def test_claim_rpc_adds_only_the_complete_no_token_retry_window(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260924225318_claim_scheduled_notifications_no_token_retry_window.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function public.claim_due_scheduled_notifications(",
+                "p_now timestamp with time zone default now()",
+                "p_limit integer default 500",
+                "p_lease_seconds integer default 900",
+                "returns table(",
+                "security definer",
+                "set search_path = public",
+                "sn.is_active = true",
+                "sn.scheduled_at <= p_now",
+                "sn.last_error = 'no_tokens_for_recipients'",
+                "sn.no_token_attempt_count > 0",
+                "sn.no_token_first_at is not null",
+                "sn.next_attempt_at is not null",
+                "sn.expires_at is not null",
+                ") is not true",
+                "sn.next_attempt_at <= p_now",
+                "p_now < sn.expires_at",
+                "sn.token_available_at < sn.expires_at",
+                "p_now <= sn.expires_at + interval '2 minutes'",
+                "sn.claimed_at < (p_now - v_lease)",
+                "order by sn.scheduled_at asc, sn.id asc",
+                "for update skip locked",
+                "limit v_limit",
+                "set claimed_at = p_now,",
+                "claim_token = v_claim_token,",
+                "updated_at = p_now",
+            ],
+        )
+        for forbidden in [
+            r"\bcron_reminder_push\b",
+            r"\bwake_no_token_notifications_on_token_activation\b",
+            r"^\s*(?:create|drop)\s+trigger\b",
+            r"^\s*(?:create|alter|drop)\s+policy\b",
+            r"^\s*create\s+(?:unique\s+)?index\b",
+            r"^\s*alter\s+table\b",
+            r"^\s*(?:grant|revoke)\b",
+            r"\bset\s+is_active\s*=",
+            r"\bset\s+attempt_count\s*=",
+            r"\bset\s+last_error\s*=",
+            r"\bset\s+last_attempt_at\s*=",
+            r"\bset\s+no_token_attempt_count\s*=",
+            r"\bset\s+no_token_first_at\s*=",
+            r"\bset\s+next_attempt_at\s*=",
+            r"\bset\s+expires_at\s*=",
+            r"\bset\s+token_available_at\s*=",
+        ]:
+            with self.subTest(forbidden=forbidden):
+                self.assertIsNone(
+                    re.search(forbidden, body, re.IGNORECASE | re.MULTILINE)
+                )
+
+    def test_claim_rpc_rollback_restores_exact_legacy_contract_and_acl(self) -> None:
+        body = source(
+            "supabase/dev/"
+            "rollback_claim_scheduled_notifications_no_token_retry_window.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function public.claim_due_scheduled_notifications(",
+                "sn.is_active = true",
+                "sn.scheduled_at <= p_now",
+                "sn.claimed_at is null",
+                "sn.claimed_at < (p_now - v_lease)",
+                "order by sn.scheduled_at asc, sn.id asc",
+                "for update skip locked",
+                "set claimed_at = p_now,",
+                "claim_token = v_claim_token,",
+                "updated_at = p_now",
+                "owner to postgres",
+                "from public, postgres, anon, authenticated, service_role",
+                "to postgres",
+                "to anon, authenticated, service_role",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "no_token_attempt_count",
+                "no_token_first_at",
+                "next_attempt_at",
+                "expires_at",
+                "token_available_at",
+                "wake_no_token_notifications_on_token_activation",
+                "cron_reminder_push",
+                "drop column",
+            ],
+        )
+
+    def test_claim_rpc_concurrency_smoke_exercises_skip_locked(self) -> None:
+        body = source(
+            "supabase/dev/claim_scheduled_notifications_concurrency_smoke.sh"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "claim_due_scheduled_notifications(",
+                "pg_advisory_xact_lock(2147483000, 404)",
+                "from pg_locks",
+                "session A did not claim exactly one fixture row",
+                "session B did not SKIP LOCKED",
+                "claimed_at = '1801-01-01 00:00:00+00'",
+                "claim_token is not null",
+            ],
+        )
+
     def test_social_safety_migration(self) -> None:
         body = source(
             "supabase/migrations/20260602090000_social_safety_controls.sql"
