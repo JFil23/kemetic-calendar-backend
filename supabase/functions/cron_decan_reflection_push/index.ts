@@ -223,6 +223,22 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+export function timestampsEqualAtSchedulerPrecision(
+  existing: string | null | undefined,
+  scheduled: string | null | undefined,
+) {
+  const existingMs = typeof existing === "string"
+    ? Date.parse(existing)
+    : Number.NaN;
+  const scheduledMs = typeof scheduled === "string"
+    ? Date.parse(scheduled)
+    : Number.NaN;
+
+  return Number.isFinite(existingMs) &&
+    Number.isFinite(scheduledMs) &&
+    existingMs === scheduledMs;
+}
+
 async function fetchEligibleUsers(
   client: SupabaseClientLike,
   from: number,
@@ -352,7 +368,11 @@ async function seedMissingSchedules(
         };
 
         if (
-          existing.status === "pending" && existing.send_at !== window.sendAt
+          existing.status === "pending" &&
+          !timestampsEqualAtSchedulerPrecision(
+            existing.send_at,
+            window.sendAt,
+          )
         ) {
           await updateExistingSeedSchedule(client, existing.id, desiredFields);
           continue;
