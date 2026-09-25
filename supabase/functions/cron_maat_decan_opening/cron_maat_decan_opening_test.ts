@@ -304,6 +304,14 @@ Deno.test("cron_maat_decan_opening creates one opening and expires stale rows", 
     "calendar_month_decan_day1_context",
   );
   assertEquals(body.delivery.payload.profile_personalization_used, false);
+  assertEquals(
+    body.delivery.payload.opening_contract_version,
+    "decan-opening-generation-v1",
+  );
+  assertEquals(
+    body.delivery.payload.opening_input_fingerprint.length,
+    64,
+  );
   assertEquals(body.delivery.payload.month_short, "Thoth");
   assertEquals(body.delivery.payload.decan_short_name, "tpy-ꜥ sbꜣw");
 
@@ -383,6 +391,273 @@ Deno.test("cron_maat_decan_opening reuses one keyed generation for identical nor
     tables.reflection_generations[0].generation_key,
     firstGeneration.generation_key,
   );
+});
+
+Deno.test("cron_maat_decan_opening keeps matching markers stable across CTA and payload shapes", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [],
+  };
+  const handler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+
+  const created = await handler(authenticatedOpeningRequest(openingBody()));
+  assertEquals(created.status, 200);
+  const opening = tables.maat_guidance_deliveries[0];
+  const inputFingerprint = opening.payload.opening_input_fingerprint;
+
+  const matchingFlow = await handler(
+    authenticatedOpeningRequest(openingBody()),
+  );
+  const matchingFlowBody = await matchingFlow.json();
+  assertEquals(matchingFlow.status, 200);
+  assertEquals(matchingFlowBody.enriched, false);
+  assertEquals(matchingFlowBody.refreshed, false);
+  assertEquals(tables.reflection_generations.length, 1);
+
+  const whitespaceEquivalent = await handler(authenticatedOpeningRequest(
+    openingBody({
+      decan_name: "  Thoth   -   measure  ",
+      day_card: {
+        date: "  2026-05-16  ",
+        maatPrinciple: "  Record   honestly  ",
+        decanDayAction: " Write   one true   mark ",
+      },
+    }),
+  ));
+  const whitespaceBody = await whitespaceEquivalent.json();
+  assertEquals(whitespaceEquivalent.status, 200);
+  assertEquals(whitespaceBody.refreshed, false);
+  assertEquals(tables.reflection_generations.length, 1);
+
+  opening.cta_type = "node";
+  opening.cta_ref = "maat";
+  opening.teaser_text = "Today's card names a legacy phrase.";
+  opening.body_text = "Today's card names a legacy phrase.";
+  opening.payload = {
+    ...opening.payload,
+    node_ref: null,
+    delivery_track: "legacy_track",
+    content_source: "legacy_source",
+    profile_personalization_used: true,
+    output_control: null,
+    compiled_output_package: {
+      package_version: "legacy_package",
+      destination: {},
+    },
+  };
+
+  const matchingNode = await handler(
+    authenticatedOpeningRequest(openingBody()),
+  );
+  const matchingNodeBody = await matchingNode.json();
+  assertEquals(matchingNode.status, 200);
+  assertEquals(matchingNodeBody.enriched, false);
+  assertEquals(matchingNodeBody.refreshed, false);
+  assertEquals(matchingNodeBody.delivery.cta_type, "node");
+  assertEquals(matchingNodeBody.delivery.body_text, opening.body_text);
+  assertEquals(
+    matchingNodeBody.delivery.payload.opening_input_fingerprint,
+    inputFingerprint,
+  );
+  assertEquals(tables.reflection_generations.length, 1);
+});
+
+Deno.test("cron_maat_decan_opening refreshes a legacy opening once and then stays stable", async () => {
+  const legacyGeneration = {
+    id: "legacy-generation",
+    user_id: userId,
+    period_type: "decan_opening",
+    period_key: periodKey,
+    generation_key: null,
+    generated_text: "Legacy opening",
+  };
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [{ ...legacyGeneration }],
+    maat_guidance_deliveries: [{
+      id: "opening",
+      user_id: userId,
+      kind: "decan_opening",
+      decan_period_key: periodKey,
+      status: "pending",
+      priority: 10,
+      teaser_text: "Legacy opening",
+      body_text: "Legacy opening",
+      payload: { day_card_date: "2026-05-16" },
+      cta_type: "node",
+      cta_ref: "maat",
+      generation_id: legacyGeneration.id,
+      trigger_reason: "decan_boundary",
+      created_at: "2026-05-16T12:00:00.000Z",
+    }],
+  };
+  const handler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+
+  const refreshed = await handler(authenticatedOpeningRequest(openingBody()));
+  const refreshedBody = await refreshed.json();
+  assertEquals(refreshed.status, 200);
+  assertEquals(refreshedBody.enriched, false);
+  assertEquals(refreshedBody.refreshed, true);
+  assertEquals(tables.reflection_generations.length, 2);
+  assertEquals(tables.reflection_generations[0], legacyGeneration);
+  assertEquals(
+    refreshedBody.delivery.payload.opening_contract_version,
+    "decan-opening-generation-v1",
+  );
+  assertEquals(
+    refreshedBody.delivery.payload.opening_input_fingerprint.length,
+    64,
+  );
+  const keyedGenerationId = refreshedBody.delivery.generation_id;
+
+  const stable = await handler(authenticatedOpeningRequest(openingBody()));
+  const stableBody = await stable.json();
+  assertEquals(stable.status, 200);
+  assertEquals(stableBody.enriched, false);
+  assertEquals(stableBody.refreshed, false);
+  assertEquals(stableBody.delivery.generation_id, keyedGenerationId);
+  assertEquals(tables.reflection_generations.length, 2);
+  assertEquals(tables.reflection_generations[0], legacyGeneration);
+});
+
+Deno.test("cron_maat_decan_opening refreshes an old contract marker once", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [],
+  };
+  const handler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+
+  assertEquals(
+    (await handler(authenticatedOpeningRequest(openingBody()))).status,
+    200,
+  );
+  tables.maat_guidance_deliveries[0].payload.opening_contract_version =
+    "decan-opening-generation-v0";
+
+  const refreshed = await handler(authenticatedOpeningRequest(openingBody()));
+  const refreshedBody = await refreshed.json();
+  assertEquals(refreshed.status, 200);
+  assertEquals(refreshedBody.refreshed, true);
+  assertEquals(
+    refreshedBody.delivery.payload.opening_contract_version,
+    "decan-opening-generation-v1",
+  );
+  assertEquals(tables.reflection_generations.length, 1);
+
+  const stable = await handler(authenticatedOpeningRequest(openingBody()));
+  const stableBody = await stable.json();
+  assertEquals(stable.status, 200);
+  assertEquals(stableBody.refreshed, false);
+  assertEquals(tables.reflection_generations.length, 1);
+});
+
+Deno.test("cron_maat_decan_opening refreshes when a relevant input fingerprint changes", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [],
+  };
+  const handler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+
+  const created = await handler(authenticatedOpeningRequest(openingBody()));
+  const createdBody = await created.json();
+  const firstFingerprint =
+    createdBody.delivery.payload.opening_input_fingerprint;
+  const firstGenerationId = createdBody.delivery.generation_id;
+
+  const changed = await handler(authenticatedOpeningRequest(openingBody({
+    day_card: {
+      date: "2026-05-16",
+      maatPrinciple: "Record honestly",
+      decanDayAction: "Name one measured correction",
+    },
+  })));
+  const changedBody = await changed.json();
+  assertEquals(changed.status, 200);
+  assertEquals(changedBody.enriched, false);
+  assertEquals(changedBody.refreshed, true);
+  assert(
+    changedBody.delivery.payload.opening_input_fingerprint !==
+      firstFingerprint,
+  );
+  assert(changedBody.delivery.generation_id !== firstGenerationId);
+  assertEquals(tables.reflection_generations.length, 2);
+});
+
+Deno.test("cron_maat_decan_opening keeps day-card enrichment separate from refresh identity", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [],
+  };
+  const handler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+
+  assertEquals(
+    (await handler(authenticatedOpeningRequest(openingBody()))).status,
+    200,
+  );
+  delete tables.maat_guidance_deliveries[0].payload.day_card_date;
+
+  const enriched = await handler(authenticatedOpeningRequest(openingBody()));
+  const enrichedBody = await enriched.json();
+  assertEquals(enriched.status, 200);
+  assertEquals(enrichedBody.enriched, true);
+  assertEquals(enrichedBody.refreshed, false);
+  assertEquals(enrichedBody.delivery.payload.day_card_date, "2026-05-16");
+  assertEquals(tables.reflection_generations.length, 1);
+});
+
+Deno.test("cron_maat_decan_opening does not refresh non-updatable legacy openings", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [{
+      id: "opening",
+      user_id: userId,
+      kind: "decan_opening",
+      decan_period_key: periodKey,
+      status: "dismissed",
+      priority: 10,
+      teaser_text: "Legacy opening",
+      body_text: "Legacy opening",
+      payload: { day_card_date: "2026-05-16" },
+      cta_type: "node",
+      cta_ref: "maat",
+      generation_id: "legacy-generation",
+      trigger_reason: "decan_boundary",
+      created_at: "2026-05-16T12:00:00.000Z",
+    }],
+  };
+  const handler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+
+  const response = await handler(authenticatedOpeningRequest(openingBody()));
+  const body = await response.json();
+  assertEquals(response.status, 200);
+  assertEquals(body.enriched, false);
+  assertEquals(body.refreshed, false);
+  assertEquals(body.delivery.status, "dismissed");
+  assertEquals(body.delivery.payload.opening_contract_version, undefined);
+  assertEquals(tables.reflection_generations.length, 0);
 });
 
 Deno.test("cron_maat_decan_opening creates a new key when relevant day-card input changes", async () => {
@@ -619,6 +894,29 @@ Deno.test("cron_maat_decan_opening sends one push for a new opening", async () =
 });
 
 Deno.test("cron_maat_decan_opening make-good sends current pending opening without prior push", async () => {
+  const requestBody = {
+    timezone: "America/Los_Angeles",
+    decan_start: "2026-05-16",
+    decan_end: "2026-05-25",
+    decan_name: "Thoth - measure",
+    decan_theme: "measure",
+    decan_context_key: "1-1",
+  };
+  const identityTables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [],
+  };
+  const identityHandler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(identityTables),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+  assertEquals(
+    (await identityHandler(authenticatedOpeningRequest(requestBody))).status,
+    200,
+  );
+  const currentIdentity = identityTables.maat_guidance_deliveries[0].payload;
+
   const tables: Tables = {
     profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
     reflection_generations: [],
@@ -640,6 +938,8 @@ Deno.test("cron_maat_decan_opening make-good sends current pending opening witho
         notification_track: "decan_context_opening",
         content_source: "calendar_month_decan_day1_context",
         profile_personalization_used: false,
+        opening_contract_version: currentIdentity.opening_contract_version,
+        opening_input_fingerprint: currentIdentity.opening_input_fingerprint,
         compiled_output_package: {
           package_version: "compiled_output_package_v1",
           final_text: "Begin with measure.",
@@ -681,12 +981,7 @@ Deno.test("cron_maat_decan_opening make-good sends current pending opening witho
     const response = await handler(
       cronRequest({
         limit: 1,
-        timezone: "America/Los_Angeles",
-        decan_start: "2026-05-16",
-        decan_end: "2026-05-25",
-        decan_name: "Thoth - measure",
-        decan_theme: "measure",
-        decan_context_key: "1-1",
+        ...requestBody,
       }),
     );
     const body = await response.json();
@@ -1049,7 +1344,7 @@ Deno.test("cron_maat_decan_opening refreshes stale generic pending opening shape
   assertEquals(response.status, 200);
   assertEquals(body.created, false);
   assertEquals(body.enriched, true);
-  assertEquals(body.refreshed, false);
+  assertEquals(body.refreshed, true);
   assertEquals(body.delivery.id, "opening");
   assertEquals(tables.maat_guidance_deliveries.length, 1);
   assertEquals(tables.reflection_generations.length, 1);
@@ -1140,8 +1435,8 @@ Deno.test("cron_maat_decan_opening can re-enrich opened stale opening when day c
 
   assertEquals(response.status, 200);
   assertEquals(body.created, false);
-  assertEquals(body.enriched, true);
-  assertEquals(body.refreshed, false);
+  assertEquals(body.enriched, false);
+  assertEquals(body.refreshed, true);
 
   const opening = tables.maat_guidance_deliveries[0];
   assertEquals(opening.status, "opened");

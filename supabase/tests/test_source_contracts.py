@@ -1726,7 +1726,15 @@ class EdgeFunctionSourceContractsTest(unittest.TestCase):
                 "period_key: params.periodKey",
                 "empty_snapshot: params.emptySnapshot",
                 "input_fingerprint: inputFingerprint",
+                "async function openingGenerationIdentity",
+                "async function prepareOpeningGeneration",
+                "inputFingerprint",
+                "generationKey",
+                "opening_contract_version: identity.contractVersion",
+                "opening_input_fingerprint: identity.inputFingerprint",
                 '.eq("generation_key", generationKey)',
+                "function existingOpeningCanBeUpdated",
+                "function existingOpeningHasDayCard",
             ],
         )
         require_all(
@@ -1749,17 +1757,24 @@ class EdgeFunctionSourceContractsTest(unittest.TestCase):
             refresh_body,
             [
                 "if (!existingOpeningCanBeUpdated(existing)) return false",
-                'ctaType !== "flow_template"',
-                "!ctaRef.trim()",
-                "!nodeRef.trim()",
-                "deliveryTrack !== DECAN_CONTEXT_OPENING_TRACK",
-                "contentSource !== DECAN_CONTEXT_OPENING_SOURCE",
-                "payload.profile_personalization_used !== false",
-                'compiledPackage?.package_version !== "compiled_output_package_v1"',
-                'teaser.includes("Today\'s card names")',
-                'body.includes("Today\'s card names")',
+                "payload.opening_contract_version !== currentIdentity.contractVersion",
+                "payload.opening_input_fingerprint !== currentIdentity.inputFingerprint",
             ],
         )
+        for legacy_shape_predicate in (
+            'ctaType !== "flow_template"',
+            "!ctaRef.trim()",
+            "!nodeRef.trim()",
+            "destination?.ref",
+            "deliveryTrack !== DECAN_CONTEXT_OPENING_TRACK",
+            "contentSource !== DECAN_CONTEXT_OPENING_SOURCE",
+            "payload.profile_personalization_used !== false",
+            "!outputControl",
+            'compiledPackage?.package_version !== "compiled_output_package_v1"',
+            'teaser.includes("Today\'s card names")',
+            'body.includes("Today\'s card names")',
+        ):
+            self.assertNotIn(legacy_shape_predicate, refresh_body)
 
     def test_cron_scheduled_no_token_lifecycle_uses_fixed_event_checkpoints(self) -> None:
         body = source("supabase/functions/cron_reminder_push/index.ts")

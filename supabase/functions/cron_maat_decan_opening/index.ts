@@ -99,6 +99,19 @@ type OpeningPushSender = (params: {
 
 const OPENING_GENERATION_CONTRACT_VERSION = "decan-opening-generation-v1";
 
+type OpeningGenerationIdentity = {
+  contractVersion: string;
+  inputFingerprint: string;
+  generationKey: string;
+};
+
+type PreparedOpeningGeneration = {
+  decanContext: DecanContext | null;
+  emptySnapshot: ReturnType<typeof buildGuidanceSnapshot>;
+  dayCard: DayCardGuidanceInput | null;
+  identity: OpeningGenerationIdentity;
+};
+
 function canonicalJson(value: unknown): string {
   if (value === null) return "null";
   if (typeof value === "string" || typeof value === "boolean") {
@@ -270,56 +283,17 @@ function existingOpeningHasDayCard(existing: Record<string, unknown>) {
   return Boolean(payload.day_card_date);
 }
 
-function existingOpeningNeedsRefresh(existing: Record<string, unknown>) {
+function existingOpeningNeedsRefresh(
+  existing: Record<string, unknown>,
+  currentIdentity: OpeningGenerationIdentity,
+) {
   if (!existingOpeningCanBeUpdated(existing)) return false;
 
   const payload = existing.payload && typeof existing.payload === "object"
     ? existing.payload as Record<string, unknown>
     : {};
-  const ctaType = typeof existing.cta_type === "string"
-    ? existing.cta_type
-    : "";
-  const ctaRef = typeof existing.cta_ref === "string" ? existing.cta_ref : "";
-  const nodeRef = typeof payload.node_ref === "string" ? payload.node_ref : "";
-  const outputControl = payload.output_control &&
-      typeof payload.output_control === "object"
-    ? payload.output_control as Record<string, unknown>
-    : null;
-  const compiledPackage = payload.compiled_output_package &&
-      typeof payload.compiled_output_package === "object"
-    ? payload.compiled_output_package as Record<string, unknown>
-    : null;
-  const deliveryTrack = typeof payload.delivery_track === "string"
-    ? payload.delivery_track
-    : typeof payload.notification_track === "string"
-    ? payload.notification_track
-    : "";
-  const contentSource = typeof payload.content_source === "string"
-    ? payload.content_source
-    : "";
-  const teaser = typeof existing.teaser_text === "string"
-    ? existing.teaser_text
-    : "";
-  const body = typeof existing.body_text === "string" ? existing.body_text : "";
-
-  const destination = compiledPackage?.destination &&
-      typeof compiledPackage.destination === "object" &&
-      !Array.isArray(compiledPackage.destination)
-    ? compiledPackage.destination as Record<string, unknown>
-    : null;
-
-  return ctaType !== "flow_template" ||
-    !ctaRef.trim() ||
-    !nodeRef.trim() ||
-    typeof destination?.ref !== "string" ||
-    !destination.ref.trim() ||
-    deliveryTrack !== DECAN_CONTEXT_OPENING_TRACK ||
-    contentSource !== DECAN_CONTEXT_OPENING_SOURCE ||
-    payload.profile_personalization_used !== false ||
-    !outputControl ||
-    compiledPackage?.package_version !== "compiled_output_package_v1" ||
-    teaser.includes("Today's card names") ||
-    body.includes("Today's card names");
+  return payload.opening_contract_version !== currentIdentity.contractVersion ||
+    payload.opening_input_fingerprint !== currentIdentity.inputFingerprint;
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -685,7 +659,7 @@ async function expireStaleDeliveries(
   }
 }
 
-async function openingGenerationKey(params: {
+async function openingGenerationIdentity(params: {
   userId: string;
   periodKey: string;
   window: GuidanceWindow;
@@ -732,7 +706,40 @@ async function openingGenerationKey(params: {
     period_key: params.periodKey,
     input_fingerprint: inputFingerprint,
   }));
-  return `decan_opening:${OPENING_GENERATION_CONTRACT_VERSION}:${digest}`;
+  return {
+    contractVersion: OPENING_GENERATION_CONTRACT_VERSION,
+    inputFingerprint,
+    generationKey:
+      `decan_opening:${OPENING_GENERATION_CONTRACT_VERSION}:${digest}`,
+  };
+}
+
+async function prepareOpeningGeneration(params: {
+  userId: string;
+  body: Payload;
+  window: GuidanceWindow;
+  periodKey: string;
+}): Promise<PreparedOpeningGeneration> {
+  const decanContext = getDecanContext(params.window.decanContextKey);
+  const emptySnapshot = buildGuidanceSnapshot({
+    window: params.window,
+    decanContext,
+    badges: [],
+  });
+  const dayCard = resolveOpeningDayCard({
+    requested: params.body.day_card ?? null,
+    decanContext,
+    decanStart: params.window.start,
+  });
+  const identity = await openingGenerationIdentity({
+    userId: params.userId,
+    periodKey: params.periodKey,
+    window: params.window,
+    decanContext,
+    dayCard,
+    emptySnapshot,
+  });
+  return { decanContext, emptySnapshot, dayCard, identity };
 }
 
 async function existingOpeningGenerationId(
@@ -757,33 +764,25 @@ async function buildAndPersistOpeningDraft(params: {
   body: Payload;
   window: GuidanceWindow;
   periodKey: string;
+  prepared: PreparedOpeningGeneration;
 }) {
-  const { client, userId, body, window, periodKey } = params;
-  const decanContext = getDecanContext(window.decanContextKey);
-  const emptySnapshot = buildGuidanceSnapshot({
-    window,
-    decanContext,
-    badges: [],
-  });
-  const dayCard = resolveOpeningDayCard({
-    requested: body.day_card ?? null,
-    decanContext,
-    decanStart: window.start,
-  });
-  const draft = buildDecanOpeningDraft({
+  const { client, userId, body, window, periodKey, prepared } = params;
+  const { decanContext, dayCard, emptySnapshot, identity } = prepared;
+  const openingDraft = buildDecanOpeningDraft({
     window,
     decanContext,
     dayCard,
     snapshot: emptySnapshot,
   });
-  const generationKey = await openingGenerationKey({
-    userId,
-    periodKey,
-    window,
-    decanContext,
-    dayCard,
-    emptySnapshot,
-  });
+  const draft: ReturnType<typeof buildDecanOpeningDraft> = {
+    ...openingDraft,
+    payload: {
+      ...openingDraft.payload,
+      opening_contract_version: identity.contractVersion,
+      opening_input_fingerprint: identity.inputFingerprint,
+    },
+  };
+  const generationKey = identity.generationKey;
 
   const existingGenerationId = await existingOpeningGenerationId(
     client,
@@ -875,6 +874,12 @@ async function ensureOpeningForUser(params: {
 
   const periodKey = decanPeriodKey(window);
   await expireStaleDeliveries(client, userId, periodKey, now);
+  const prepared = await prepareOpeningGeneration({
+    userId,
+    body,
+    window,
+    periodKey,
+  });
 
   const { data: existing, error: existingError } = await client
     .from("maat_guidance_deliveries")
@@ -890,21 +895,15 @@ async function ensureOpeningForUser(params: {
 
   if (existing) {
     const existingRecord = existing as Record<string, unknown>;
-    const decanContext = getDecanContext(window.decanContextKey);
-    const resolvedDayCard = resolveOpeningDayCard({
-      requested: body.day_card ?? null,
-      decanContext,
-      decanStart: window.start,
-    });
-    const hasDayCard = hasDayCardSignal(resolvedDayCard);
-    const needsRefresh = existingOpeningNeedsRefresh(existingRecord);
+    const hasDayCard = hasDayCardSignal(prepared.dayCard);
+    const needsRefresh = existingOpeningNeedsRefresh(
+      existingRecord,
+      prepared.identity,
+    );
     const shouldEnrich = hasDayCard &&
       existingOpeningCanBeUpdated(existingRecord) &&
-      (!existingOpeningHasDayCard(existingRecord) ||
-        needsRefresh);
-    const shouldRefresh = !hasDayCard &&
-      !existingOpeningHasDayCard(existingRecord) &&
-      needsRefresh;
+      !existingOpeningHasDayCard(existingRecord);
+    const shouldRefresh = needsRefresh;
 
     if (shouldEnrich || shouldRefresh) {
       const { draft, generationId } = await buildAndPersistOpeningDraft({
@@ -913,6 +912,7 @@ async function ensureOpeningForUser(params: {
         body,
         window,
         periodKey,
+        prepared,
       });
       const refreshedPayload = mergeMaatOutputTelemetry({
         payload: draft.payload,
@@ -992,6 +992,7 @@ async function ensureOpeningForUser(params: {
     body,
     window,
     periodKey,
+    prepared,
   });
   const payload = mergeMaatOutputTelemetry({
     payload: draft.payload,
