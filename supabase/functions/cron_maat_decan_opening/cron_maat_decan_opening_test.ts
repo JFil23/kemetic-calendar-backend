@@ -9,6 +9,14 @@ import { createCronMaatDecanOpeningHandler } from "./index.ts";
 
 type Row = Record<string, any>;
 type Tables = Record<string, Row[]>;
+type MockOptions = {
+  authUserId?: string;
+  onInsert?: (
+    table: string,
+    payload: Row | Row[],
+    tables: Tables,
+  ) => Row | null;
+};
 
 const userId = "00000000-0000-4000-8000-000000000001";
 const periodKey = "2026-05-16:2026-05-25:1-1";
@@ -25,6 +33,7 @@ class MockSupabaseQuery {
   constructor(
     private readonly tables: Tables,
     private readonly table: string,
+    private readonly options: MockOptions,
   ) {}
 
   select(_columns = "*") {
@@ -122,6 +131,13 @@ class MockSupabaseQuery {
 
   private async execute() {
     if (this.op === "insert") {
+      const payload = this.payload as Row | Row[];
+      const insertError = this.options.onInsert?.(
+        this.table,
+        payload,
+        this.tables,
+      );
+      if (insertError) return { data: null, error: insertError };
       const rows = Array.isArray(this.payload) ? this.payload : [this.payload];
       const inserted = rows.filter(Boolean).map((row) => ({
         id: row.id ?? this.nextId(),
@@ -142,13 +158,16 @@ class MockSupabaseQuery {
   }
 }
 
-function createMockClient(tables: Tables) {
+function createMockClient(tables: Tables, options: MockOptions = {}) {
   return {
     auth: {
       getUser: (_token: string) =>
-        Promise.resolve({ data: { user: { id: userId } }, error: null }),
+        Promise.resolve({
+          data: { user: { id: options.authUserId ?? userId } },
+          error: null,
+        }),
     },
-    from: (table: string) => new MockSupabaseQuery(tables, table),
+    from: (table: string) => new MockSupabaseQuery(tables, table, options),
   };
 }
 
@@ -175,6 +194,34 @@ function cronRequest(body: Record<string, unknown>) {
     },
     body: JSON.stringify(body),
   });
+}
+
+function authenticatedOpeningRequest(body: Record<string, unknown>) {
+  return new Request("http://localhost/cron_maat_decan_opening", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer test-token",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+function openingBody(overrides: Record<string, unknown> = {}) {
+  return {
+    timezone: "America/Los_Angeles",
+    decan_start: "2026-05-16",
+    decan_end: "2026-05-25",
+    decan_name: "Thoth - measure",
+    decan_theme: "measure",
+    decan_context_key: "1-1",
+    day_card: {
+      date: "2026-05-16",
+      maatPrinciple: "Record honestly",
+      decanDayAction: "Write one true mark",
+    },
+    ...overrides,
+  };
 }
 
 Deno.test("cron_maat_decan_opening creates one opening and expires stale rows", async () => {
@@ -268,6 +315,15 @@ Deno.test("cron_maat_decan_opening creates one opening and expires stale rows", 
 
   assertEquals(tables.reflection_generations.length, 1);
   assertEquals(
+    body.delivery.generation_id,
+    tables.reflection_generations[0].id,
+  );
+  assert(
+    tables.reflection_generations[0].generation_key.startsWith(
+      "decan_opening:decan-opening-generation-v1:",
+    ),
+  );
+  assertEquals(
     tables.reflection_generations[0].metadata.notification_track,
     "decan_context_opening",
   );
@@ -284,6 +340,213 @@ Deno.test("cron_maat_decan_opening creates one opening and expires stale rows", 
     tables.reflection_generations[0].source_snapshot.month_short,
     "Thoth",
   );
+});
+
+Deno.test("cron_maat_decan_opening reuses one keyed generation for identical normalized input", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [],
+  };
+  const handler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+
+  const first = await handler(authenticatedOpeningRequest(openingBody()));
+  assertEquals(first.status, 200);
+  const firstBody = await first.json();
+  const firstGeneration = tables.reflection_generations[0];
+  assertEquals(firstBody.delivery.generation_id, firstGeneration.id);
+
+  tables.maat_guidance_deliveries.length = 0;
+  const identical = await handler(authenticatedOpeningRequest(openingBody()));
+  assertEquals(identical.status, 200);
+  const identicalBody = await identical.json();
+  assertEquals(identicalBody.delivery.generation_id, firstGeneration.id);
+  assertEquals(tables.reflection_generations.length, 1);
+
+  tables.maat_guidance_deliveries.length = 0;
+  const formatted = await handler(authenticatedOpeningRequest(openingBody({
+    decan_name: "  Thoth   -   measure  ",
+    day_card: {
+      date: "  2026-05-16  ",
+      maatPrinciple: "  Record   honestly  ",
+      decanDayAction: " Write   one true   mark ",
+    },
+  })));
+  assertEquals(formatted.status, 200);
+  const formattedBody = await formatted.json();
+  assertEquals(formattedBody.delivery.generation_id, firstGeneration.id);
+  assertEquals(tables.reflection_generations.length, 1);
+  assertEquals(
+    tables.reflection_generations[0].generation_key,
+    firstGeneration.generation_key,
+  );
+});
+
+Deno.test("cron_maat_decan_opening creates a new key when relevant day-card input changes", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [],
+  };
+  const handler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+
+  const first = await handler(authenticatedOpeningRequest(openingBody()));
+  assertEquals(first.status, 200);
+  tables.maat_guidance_deliveries.length = 0;
+  const changed = await handler(authenticatedOpeningRequest(openingBody({
+    day_card: {
+      date: "2026-05-16",
+      maatPrinciple: "Record honestly",
+      decanDayAction: "Name one measured correction",
+    },
+  })));
+  assertEquals(changed.status, 200);
+
+  assertEquals(tables.reflection_generations.length, 2);
+  assert(
+    tables.reflection_generations[0].generation_key !==
+      tables.reflection_generations[1].generation_key,
+  );
+});
+
+Deno.test("cron_maat_decan_opening scopes generation keys by user and period", async () => {
+  const secondUserId = "00000000-0000-4000-8000-000000000002";
+  const tables: Tables = {
+    profiles: [
+      { id: userId, timezone: "America/Los_Angeles" },
+      { id: secondUserId, timezone: "America/Los_Angeles" },
+    ],
+    reflection_generations: [],
+    maat_guidance_deliveries: [],
+  };
+  const firstUserHandler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+  const secondUserHandler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(tables, { authUserId: secondUserId }),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+
+  assertEquals(
+    (await firstUserHandler(authenticatedOpeningRequest(openingBody()))).status,
+    200,
+  );
+  assertEquals(
+    (await secondUserHandler(authenticatedOpeningRequest(openingBody())))
+      .status,
+    200,
+  );
+  assertEquals(
+    (await firstUserHandler(authenticatedOpeningRequest(openingBody({
+      decan_start: "2026-05-26",
+      decan_end: "2026-06-04",
+      day_card: {
+        date: "2026-05-26",
+        maatPrinciple: "Record honestly",
+        decanDayAction: "Write one true mark",
+      },
+    })))).status,
+    200,
+  );
+
+  assertEquals(tables.reflection_generations.length, 3);
+  assertEquals(
+    new Set(
+      tables.reflection_generations.map((row) => row.generation_key),
+    ).size,
+    3,
+  );
+});
+
+Deno.test("cron_maat_decan_opening recovers the generation winner after a 23505 race", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [],
+  };
+  let raceInjected = false;
+  const handler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(tables, {
+      onInsert: (table, payload) => {
+        if (table !== "reflection_generations" || raceInjected) return null;
+        raceInjected = true;
+        const generation = Array.isArray(payload) ? payload[0] : payload;
+        tables.reflection_generations.push({
+          id: "race-winner",
+          created_at: "2026-05-16T12:00:00.000Z",
+          ...generation,
+        });
+        return {
+          code: "23505",
+          message: "duplicate generation key",
+        };
+      },
+    }),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+
+  const response = await handler(authenticatedOpeningRequest(openingBody()));
+  const body = await response.json();
+  assertEquals(response.status, 200);
+  assertEquals(raceInjected, true);
+  assertEquals(tables.reflection_generations.length, 1);
+  assertEquals(body.delivery.generation_id, "race-winner");
+});
+
+Deno.test("cron_maat_decan_opening fails generation persistence on non-23505 insert errors", async () => {
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [],
+    maat_guidance_deliveries: [],
+  };
+  const handler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(tables, {
+      onInsert: (table) =>
+        table === "reflection_generations"
+          ? { code: "42501", message: "permission denied" }
+          : null,
+    }),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+
+  const response = await handler(authenticatedOpeningRequest(openingBody()));
+  assertEquals(response.status, 500);
+  assertEquals(await response.json(), { error: "Server error" });
+  assertEquals(tables.reflection_generations.length, 0);
+  assertEquals(tables.maat_guidance_deliveries.length, 0);
+});
+
+Deno.test("cron_maat_decan_opening leaves legacy null-key generations untouched", async () => {
+  const legacy = {
+    id: "legacy-generation",
+    user_id: userId,
+    period_type: "decan_opening",
+    period_key: periodKey,
+    generation_key: null,
+    generated_text: "Legacy opening",
+  };
+  const tables: Tables = {
+    profiles: [{ id: userId, timezone: "America/Los_Angeles" }],
+    reflection_generations: [{ ...legacy }],
+    maat_guidance_deliveries: [],
+  };
+  const handler = createCronMaatDecanOpeningHandler({
+    client: createMockClient(tables),
+    now: () => new Date("2026-05-16T18:00:00.000Z"),
+  });
+
+  const response = await handler(authenticatedOpeningRequest(openingBody()));
+  assertEquals(response.status, 200);
+  assertEquals(tables.reflection_generations.length, 2);
+  assertEquals(tables.reflection_generations[0], legacy);
+  assert(tables.reflection_generations[1].generation_key !== null);
 });
 
 Deno.test("cron_maat_decan_opening sends one push for a new opening", async () => {

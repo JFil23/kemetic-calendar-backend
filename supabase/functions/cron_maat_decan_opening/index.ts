@@ -97,6 +97,58 @@ type OpeningPushSender = (params: {
   data: Record<string, unknown>;
 }) => Promise<OpeningPushResult>;
 
+const OPENING_GENERATION_CONTRACT_VERSION = "decan-opening-generation-v1";
+
+function canonicalJson(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "string" || typeof value === "boolean") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error("Opening generation input must be finite");
+    }
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item ?? null)).join(",")}]`;
+  }
+  if (isRecord(value)) {
+    const entries = Object.keys(value)
+      .filter((key) => value[key] !== undefined)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`);
+    return `{${entries.join(",")}}`;
+  }
+  throw new Error("Opening generation input must be JSON-compatible");
+}
+
+function normalizeGenerationInput(value: unknown): unknown {
+  if (typeof value === "string") {
+    return value.replace(/\s+/g, " ").trim();
+  }
+  if (Array.isArray(value)) {
+    return value.map(normalizeGenerationInput);
+  }
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        normalizeGenerationInput(item),
+      ]),
+    );
+  }
+  return value;
+}
+
+async function sha256Hex(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 function createDefaultOpeningPushSender(): OpeningPushSender {
   const supabaseUrl = Deno.env.get("PROJECT_URL") ??
     Deno.env.get("SUPABASE_URL");
@@ -633,6 +685,72 @@ async function expireStaleDeliveries(
   }
 }
 
+async function openingGenerationKey(params: {
+  userId: string;
+  periodKey: string;
+  window: GuidanceWindow;
+  decanContext: DecanContext | null;
+  dayCard: DayCardGuidanceInput | null;
+  emptySnapshot: unknown;
+}) {
+  const input = normalizeGenerationInput({
+    window: {
+      start: params.window.start,
+      end: params.window.end,
+      decan_name: params.window.decanName,
+      decan_theme: params.window.decanTheme ?? null,
+      decan_context_key: params.window.decanContextKey ?? null,
+    },
+    decan_context: params.decanContext
+      ? {
+        detail_description: params.decanContext.detailDescription ?? null,
+        month_key: params.decanContext.monthKey ?? null,
+        month_short: params.decanContext.monthShort ?? null,
+        decan: params.decanContext.decan ?? null,
+        short_name: params.decanContext.shortName ?? null,
+        display_name: params.decanContext.displayName ?? null,
+        default_label: params.decanContext.defaultLabel ?? null,
+      }
+      : null,
+    day_card: params.dayCard
+      ? {
+        date: params.dayCard.date ?? null,
+        maat_principle: params.dayCard.maatPrinciple ?? null,
+        cosmic_context: params.dayCard.cosmicContext ?? null,
+        decan_day_theme: params.dayCard.decanDayTheme ?? null,
+        decan_day_action: params.dayCard.decanDayAction ?? null,
+        decan_day_reflection: params.dayCard.decanDayReflection ?? null,
+      }
+      : null,
+    empty_snapshot: params.emptySnapshot,
+  });
+  const inputFingerprint = await sha256Hex(canonicalJson(input));
+  const digest = await sha256Hex(canonicalJson({
+    kind: "decan_opening",
+    contract_version: OPENING_GENERATION_CONTRACT_VERSION,
+    user_id: params.userId,
+    period_key: params.periodKey,
+    input_fingerprint: inputFingerprint,
+  }));
+  return `decan_opening:${OPENING_GENERATION_CONTRACT_VERSION}:${digest}`;
+}
+
+async function existingOpeningGenerationId(
+  client: SupabaseClientLike,
+  generationKey: string,
+) {
+  const { data, error } = await client
+    .from("reflection_generations")
+    .select("id")
+    .eq("generation_key", generationKey)
+    .maybeSingle();
+  if (error) {
+    console.error("opening generation lookup error", error);
+    throw new Error("Generation persist error");
+  }
+  return typeof data?.id === "string" && data.id ? data.id : null;
+}
+
 async function buildAndPersistOpeningDraft(params: {
   client: SupabaseClientLike;
   userId: string;
@@ -658,6 +776,22 @@ async function buildAndPersistOpeningDraft(params: {
     dayCard,
     snapshot: emptySnapshot,
   });
+  const generationKey = await openingGenerationKey({
+    userId,
+    periodKey,
+    window,
+    decanContext,
+    dayCard,
+    emptySnapshot,
+  });
+
+  const existingGenerationId = await existingOpeningGenerationId(
+    client,
+    generationKey,
+  );
+  if (existingGenerationId) {
+    return { draft, generationId: existingGenerationId };
+  }
 
   const { data: generation, error: generationError } = await client
     .from("reflection_generations")
@@ -687,6 +821,7 @@ async function buildAndPersistOpeningDraft(params: {
       },
       generated_text: draft.bodyText,
       model_version: "local-maat-guidance-v1",
+      generation_key: generationKey,
       metadata: {
         notification_track: DECAN_CONTEXT_OPENING_TRACK,
         delivery_track: DECAN_CONTEXT_OPENING_TRACK,
@@ -709,6 +844,15 @@ async function buildAndPersistOpeningDraft(params: {
     .select("id")
     .single();
   if (generationError) {
+    if (isRecord(generationError) && generationError.code === "23505") {
+      const winnerGenerationId = await existingOpeningGenerationId(
+        client,
+        generationKey,
+      );
+      if (winnerGenerationId) {
+        return { draft, generationId: winnerGenerationId };
+      }
+    }
     console.error("opening generation insert error", generationError);
     throw new Error("Generation persist error");
   }

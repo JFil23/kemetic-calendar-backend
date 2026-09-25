@@ -1707,6 +1707,60 @@ class MigrationSourceContractsTest(unittest.TestCase):
 
 
 class EdgeFunctionSourceContractsTest(unittest.TestCase):
+    def test_decan_opening_generation_is_keyed_get_or_create_only(self) -> None:
+        body = source(
+            "supabase/functions/cron_maat_decan_opening/index.ts"
+        )
+        generation_body = body.split(
+            "async function buildAndPersistOpeningDraft", 1
+        )[1].split("async function ensureOpeningForUser", 1)[0]
+        require_all(
+            self,
+            body,
+            [
+                '"decan-opening-generation-v1"',
+                "Object.keys(value)",
+                ".sort()",
+                'kind: "decan_opening"',
+                "user_id: params.userId",
+                "period_key: params.periodKey",
+                "empty_snapshot: params.emptySnapshot",
+                "input_fingerprint: inputFingerprint",
+                '.eq("generation_key", generationKey)',
+            ],
+        )
+        require_all(
+            self,
+            generation_body,
+            [
+                "generation_key: generationKey",
+                'generationError.code === "23505"',
+                "winnerGenerationId",
+                'throw new Error("Generation persist error")',
+            ],
+        )
+        self.assertNotIn(".update(", generation_body)
+
+        refresh_body = body.split(
+            "function existingOpeningNeedsRefresh", 1
+        )[1].split("function jsonResponse", 1)[0]
+        require_all(
+            self,
+            refresh_body,
+            [
+                "if (!existingOpeningCanBeUpdated(existing)) return false",
+                'ctaType !== "flow_template"',
+                "!ctaRef.trim()",
+                "!nodeRef.trim()",
+                "deliveryTrack !== DECAN_CONTEXT_OPENING_TRACK",
+                "contentSource !== DECAN_CONTEXT_OPENING_SOURCE",
+                "payload.profile_personalization_used !== false",
+                'compiledPackage?.package_version !== "compiled_output_package_v1"',
+                'teaser.includes("Today\'s card names")',
+                'body.includes("Today\'s card names")',
+            ],
+        )
+
     def test_cron_scheduled_no_token_lifecycle_uses_fixed_event_checkpoints(self) -> None:
         body = source("supabase/functions/cron_reminder_push/index.ts")
         require_all(
