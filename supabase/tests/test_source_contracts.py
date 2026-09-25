@@ -1684,6 +1684,114 @@ class MigrationSourceContractsTest(unittest.TestCase):
             ],
         )
 
+    def test_canonical_opening_truth_migration_is_view_only(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260925034753_canonicalize_decan_opening_truth.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace view public.maat_output_truth_loop",
+                "with (security_invoker = true) as",
+                "from public.maat_guidance_output_truth_loop g",
+                "union all",
+                "from public.reflection_generations r",
+                "where r.metadata ? 'output_control'",
+                "r.period_type is distinct from 'decan_opening'",
+                "or exists (",
+                "from public.maat_guidance_deliveries d",
+                "d.kind = 'decan_opening'",
+                "d.generation_id = r.id",
+                "d.user_id = r.user_id",
+                "d.decan_period_key = r.period_key",
+            ],
+        )
+        self.assertEqual(
+            body.lower().count(
+                "create or replace view public.maat_output_truth_loop"
+            ),
+            1,
+        )
+        for forbidden in [
+            r"^\s*(?:insert|update|delete)\s+",
+            r"^\s*(?:create|alter|drop)\s+table\b",
+            r"^\s*create\s+(?:unique\s+)?index\b",
+            r"^\s*create\s+materialized\s+view\b",
+            r"^\s*(?:create|alter|drop)\s+policy\b",
+            r"^\s*(?:grant|revoke)\b",
+            r"\bowner\s+to\b",
+            r"generation_key\s+is\s+(?:not\s+)?null",
+            r"max\s*\(\s*(?:r\.)?created_at",
+            r"distinct\s+on\s*\(",
+        ]:
+            with self.subTest(forbidden=forbidden):
+                self.assertIsNone(
+                    re.search(forbidden, body, re.IGNORECASE | re.MULTILINE)
+                )
+
+    def test_canonical_opening_truth_smoke_covers_authority_contract(self) -> None:
+        body = source(
+            "supabase/dev/canonical_decan_opening_truth_smoke.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "Cut 9 ordinary decan truth row.",
+                "Cut 9 canonical legacy opening.",
+                "Cut 9 canonical keyed opening.",
+                "Cut 9 historical duplicate one.",
+                "Cut 9 historical duplicate two.",
+                "Cut 9 mismatched-user opening.",
+                "Cut 9 mismatched-period opening.",
+                "generation_key is null",
+                "cut9:keyed-canonical-generation",
+                "A duplicate or mismatched opening leaked into truth output",
+                "Opening truth output escaped canonical pointer authority",
+                "EXISTS canonicalization multiplied opening truth rows",
+                "Guidance truth branch semantics changed",
+                "Cut 9 changed the maat_output_truth_loop column contract",
+                "Cut 9 changed the maat_output_truth_loop column types",
+                "Cut 9 changed view ownership or security behavior",
+                "Cut 9 changed the view SELECT ACL",
+                "rollback;",
+            ],
+        )
+
+    def test_canonical_opening_truth_rollback_restores_prior_view_only(self) -> None:
+        body = source(
+            "supabase/dev/rollback_canonical_decan_opening_truth.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace view public.maat_output_truth_loop",
+                "with (security_invoker = true) as",
+                "from public.maat_guidance_output_truth_loop g",
+                "union all",
+                "from public.reflection_generations r",
+                "where r.metadata ? 'output_control';",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "maat_guidance_deliveries d",
+                "generation_key",
+                "insert into",
+                "update public.",
+                "delete from",
+                "drop table",
+                "drop view",
+                "grant ",
+                "revoke ",
+            ],
+        )
+
     def test_social_safety_migration(self) -> None:
         body = source(
             "supabase/migrations/20260602090000_social_safety_controls.sql"
