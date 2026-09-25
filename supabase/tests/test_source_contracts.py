@@ -1792,6 +1792,109 @@ class MigrationSourceContractsTest(unittest.TestCase):
             ],
         )
 
+    def test_manifest_v2_reader_migration_is_view_only(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260925064822_reflection_generation_manifest_v2_readers.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace view public.maat_output_truth_loop",
+                "with (security_invoker = true) as",
+                "from public.maat_guidance_output_truth_loop g",
+                "union all",
+                "from public.reflection_generations r",
+                "reflection_generation_manifest_v2",
+                "{manifest,truth,surface}",
+                "{manifest,truth,speech_act}",
+                "{manifest,truth,delivery_channel}",
+                "{manifest,truth,grade,guidance_worthiness_score}",
+                "{manifest,truth,grade,action_clarity_score}",
+                "{manifest,truth,repair,pre_repair_text}",
+                "{manifest,truth,repair,post_repair_text}",
+                "r.metadata ? 'output_control'",
+                "r.period_type is distinct from 'decan_opening'",
+                "from public.maat_guidance_deliveries d",
+                "d.kind = 'decan_opening'",
+                "d.generation_id = r.id",
+                "d.user_id = r.user_id",
+                "d.decan_period_key = r.period_key",
+            ],
+        )
+        self.assertEqual(
+            body.lower().count(
+                "create or replace view public.maat_output_truth_loop"
+            ),
+            1,
+        )
+        for forbidden in [
+            r"^\s*(?:insert|update|delete)\s+",
+            r"^\s*(?:create|alter|drop)\s+table\b",
+            r"^\s*create\s+(?:unique\s+)?index\b",
+            r"^\s*create\s+materialized\s+view\b",
+            r"^\s*(?:create|alter|drop)\s+policy\b",
+            r"^\s*(?:grant|revoke)\b",
+            r"\bowner\s+to\b",
+        ]:
+            with self.subTest(forbidden=forbidden):
+                self.assertIsNone(
+                    re.search(forbidden, body, re.IGNORECASE | re.MULTILINE)
+                )
+
+    def test_manifest_v2_reader_preserves_guidance_branch_exactly(self) -> None:
+        cut9 = source(
+            "supabase/migrations/"
+            "20260925045707_canonicalize_decan_opening_truth.sql"
+        )
+        cut11 = source(
+            "supabase/migrations/"
+            "20260925064822_reflection_generation_manifest_v2_readers.sql"
+        )
+        cut9_view = cut9[cut9.lower().index("create or replace view") :]
+        cut11_view = cut11[cut11.lower().index("create or replace view") :]
+        self.assertEqual(
+            cut11_view.lower().split("union all", 1)[0].strip(),
+            cut9_view.lower().split("union all", 1)[0].strip(),
+        )
+
+    def test_manifest_v2_reader_smoke_covers_equivalence_contract(self) -> None:
+        body = source(
+            "supabase/dev/"
+            "reflection_generation_manifest_v2_readers_smoke.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "reflection_generation_manifest_v2",
+                "Pure v2 fixture retained a bulky v1 output_control tree",
+                "Paired v1/v2 truth projections are not equivalent",
+                "Mixed v1/v2 truth row did not prefer Manifest v2",
+                "Unknown manifest version masqueraded as supported v2",
+                "V1 output_control projection changed",
+                "V2 compact output_control lost review pre-repair text",
+                "V2 compact output_control lost review post-repair text",
+                "rollback;",
+            ],
+        )
+
+    def test_manifest_v2_reader_rollback_restores_cut9_exactly(self) -> None:
+        cut9 = source(
+            "supabase/migrations/"
+            "20260925045707_canonicalize_decan_opening_truth.sql"
+        )
+        rollback = source(
+            "supabase/dev/"
+            "rollback_reflection_generation_manifest_v2_readers.sql"
+        )
+        cut9_view = cut9[cut9.lower().index("create or replace view") :]
+        rollback_view = rollback[
+            rollback.lower().index("create or replace view") :
+        ]
+        self.assertEqual(rollback_view, cut9_view)
+
     def test_social_safety_migration(self) -> None:
         body = source(
             "supabase/migrations/20260602090000_social_safety_controls.sql"
