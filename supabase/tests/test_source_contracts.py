@@ -1795,7 +1795,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
     def test_manifest_v2_reader_migration_is_view_only(self) -> None:
         body = source(
             "supabase/migrations/"
-            "20260925064822_reflection_generation_manifest_v2_readers.sql"
+            "20260925151516_reflection_generation_manifest_v2_readers.sql"
         )
         require_all(
             self,
@@ -1850,7 +1850,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
         )
         cut11 = source(
             "supabase/migrations/"
-            "20260925064822_reflection_generation_manifest_v2_readers.sql"
+            "20260925151516_reflection_generation_manifest_v2_readers.sql"
         )
         cut9_view = cut9[cut9.lower().index("create or replace view") :]
         cut11_view = cut11[cut11.lower().index("create or replace view") :]
