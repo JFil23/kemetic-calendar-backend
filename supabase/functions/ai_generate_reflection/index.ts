@@ -56,9 +56,9 @@ import {
 } from "../_shared/output_compiler.ts";
 import {
   compiledDestinationForPackage,
-  destinationPayload,
   resolveReflectionDestination,
 } from "../_shared/maat_destination_resolver.ts";
+import { buildReflectionGenerationManifestV2Storage } from "./reflection_generation_manifest_v2.ts";
 import {
   buildReflectionAlignmentMap,
   buildReflectionArcPlan,
@@ -4966,6 +4966,16 @@ serve(async (req) => {
         }
 
         try {
+          const generationStorage = buildReflectionGenerationManifestV2Storage({
+            reflectionId,
+            leadAxis: maatSnapshot.leadAxis,
+            plan: reflectionOutputPlan,
+            grade: reflectionOutputGrade,
+            repair: reflectionOutputRepair,
+            renderer: rendererDiagnostics,
+            destination: reflectionDestination,
+            compiledOutputPackage: reflectionOutputPackage,
+          });
           const { data: generationData, error: generationErr } = await client
             .from("reflection_generations")
             .insert({
@@ -4973,126 +4983,10 @@ serve(async (req) => {
               period_type: "decan",
               period_key: decanPeriodKey,
               anchor_nodes: decisionMatrix?.anchorNodes ?? [],
-              source_snapshot: {
-                decan_name: payload.decan_name,
-                decan_theme: payload.decan_theme ?? null,
-                decan_context_key: payload.decan_context_key ?? null,
-                decan_start: currentWindow.start,
-                decan_end: currentWindow.end,
-                badge_count: currentBadges.length,
-                evidence_count: evidenceLines.length,
-                top_tags: topTagList,
-                planner_summary: plannerSummary,
-                history_windows: historySummaries.length,
-                decan_reflection_id: reflectionId,
-                maturity_level: guidanceMaturity.level,
-                maturity_confidence: guidanceMaturity.confidence,
-                gate_policy: shapingFingerprint.gate_policy,
-                shaping_fingerprint: shapingFingerprint,
-                memory_brief: {
-                  context_quality: memoryBrief.contextQuality,
-                  anchor_labels: memoryBrief.anchorLabels,
-                  tension_labels: memoryBrief.tensionLabels,
-                  evidence_phrases: memoryBrief.evidencePhrases,
-                },
-                renderer: rendererDiagnostics.renderer,
-                used_llm: rendererDiagnostics.used_llm,
-                llm_cost: rendererDiagnostics.llm_cost,
-                spectrum_flow_key: rendererDiagnostics.spectrum_flow_key,
-                maat_flow_decan_pattern: maatFlowDecanPattern,
-                maat_flow_do_not_say: maatFlowDoNotSay,
-                maat_flow_evidence_metadata: maatFlowBadgeMetadata,
-                output_control: {
-                  policy_version: reflectionOutputPlan.policyVersion,
-                  constitution_version:
-                    reflectionOutputPlan.constitutionVersion ??
-                      MAAT_CONSTITUTION_VERSION,
-                  north_star: reflectionOutputPlan.northStar ??
-                    MAAT_OUTPUT_NORTH_STAR,
-                  force_principle: reflectionOutputPlan.forcePrinciple ??
-                    MAAT_OUTPUT_FORCE_PRINCIPLE,
-                  plan: reflectionOutputPlan,
-                  validation: reflectionOutputValidation,
-                  grade: reflectionOutputGrade,
-                  repair: reflectionOutputRepair,
-                  renderer: rendererDiagnostics,
-                  reflection_moral_portrait: reflectionMoralPortrait,
-                  reflection_judgment: reflectionJudgment,
-                  reflection_thesis_gate: reflectionThesisGate,
-                  reflection_destination: destinationPayload(
-                    reflectionDestination,
-                  ).destination,
-                  profile_snapshot:
-                    reflectionOutputPlan.reflectionProfileSnapshot,
-                  profile_context: translatedProfileContext,
-                  profile_facts: profileFactsForDiagnostics,
-                  maat_flow_decan_pattern: maatFlowDecanPattern,
-                  maat_flow_do_not_say: maatFlowDoNotSay,
-                  maat_flow_evidence_metadata: maatFlowBadgeMetadata,
-                  output_compiler: reflectionOutputCompiler,
-                  compiled_output_package: reflectionOutputPackage,
-                },
-              },
+              source_snapshot: generationStorage.sourceSnapshot,
               generated_text: reflectionText,
               model_version: modelUsed,
-              metadata: {
-                policy_version: "decan_maat_dm_v1",
-                guidance_policy_version: MAAT_GUIDANCE_POLICY_VERSION,
-                use_knowledge_graph: useKnowledgeGraph,
-                use_decision_matrix: useDecisionMatrix,
-                maturity_level: guidanceMaturity.level,
-                maturity_label: guidanceMaturity.label,
-                maturity_confidence: guidanceMaturity.confidence,
-                gate_policy: shapingFingerprint.gate_policy,
-                shaping_fingerprint: shapingFingerprint,
-                maat_dimensions: maatSnapshot.dimensions,
-                maat_dimension_score: maatSnapshot.score,
-                maat_dimension_band: maatSnapshot.band,
-                reflection_move: maatSnapshot.reflectionMove,
-                lead_axis: maatSnapshot.leadAxis,
-                correction_axes: maatSnapshot.correctionAxes,
-                hard_gates: maatSnapshot.hardGates,
-                dimension_source: maatSnapshot.source,
-                decision_matrix: decisionMatrix?.fingerprint ?? null,
-                memory_context_quality: memoryBrief.contextQuality,
-                renderer: rendererDiagnostics.renderer,
-                used_llm: rendererDiagnostics.used_llm,
-                llm_cost: rendererDiagnostics.llm_cost,
-                spectrum_flow_key: rendererDiagnostics.spectrum_flow_key,
-                maat_flow_decan_pattern: maatFlowDecanPattern,
-                maat_flow_do_not_say: maatFlowDoNotSay,
-                maat_flow_evidence_metadata: maatFlowBadgeMetadata,
-                output_control: {
-                  policy_version: reflectionOutputPlan.policyVersion,
-                  constitution_version:
-                    reflectionOutputPlan.constitutionVersion ??
-                      MAAT_CONSTITUTION_VERSION,
-                  north_star: reflectionOutputPlan.northStar ??
-                    MAAT_OUTPUT_NORTH_STAR,
-                  force_principle: reflectionOutputPlan.forcePrinciple ??
-                    MAAT_OUTPUT_FORCE_PRINCIPLE,
-                  plan: reflectionOutputPlan,
-                  validation: reflectionOutputValidation,
-                  grade: reflectionOutputGrade,
-                  repair: reflectionOutputRepair,
-                  renderer: rendererDiagnostics,
-                  reflection_moral_portrait: reflectionMoralPortrait,
-                  reflection_judgment: reflectionJudgment,
-                  reflection_thesis_gate: reflectionThesisGate,
-                  reflection_destination: destinationPayload(
-                    reflectionDestination,
-                  ).destination,
-                  profile_snapshot:
-                    reflectionOutputPlan.reflectionProfileSnapshot,
-                  profile_context: translatedProfileContext,
-                  profile_facts: profileFactsForDiagnostics,
-                  maat_flow_decan_pattern: maatFlowDecanPattern,
-                  maat_flow_do_not_say: maatFlowDoNotSay,
-                  maat_flow_evidence_metadata: maatFlowBadgeMetadata,
-                  output_compiler: reflectionOutputCompiler,
-                  compiled_output_package: reflectionOutputPackage,
-                },
-              },
+              metadata: generationStorage.metadata,
             })
             .select("id")
             .single();

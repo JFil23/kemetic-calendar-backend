@@ -1895,6 +1895,95 @@ class MigrationSourceContractsTest(unittest.TestCase):
         ]
         self.assertEqual(rollback_view, cut9_view)
 
+    def test_manifest_v2_writer_is_ordinary_decan_persistence_only(self) -> None:
+        writer = source("supabase/functions/ai_generate_reflection/index.ts")
+        helper = source(
+            "supabase/functions/ai_generate_reflection/"
+            "reflection_generation_manifest_v2.ts"
+        )
+        persist_start = writer.index("if (payload.persist)")
+        response_start = writer.index("return new Response", persist_start)
+        persistence = writer[persist_start:response_start]
+        response_end = writer.index("// Legacy fallback", response_start)
+        response = writer[response_start:response_end]
+
+        require_all(
+            self,
+            persistence,
+            [
+                'from("decan_reflections")',
+                'from("reflection_generations")',
+                'period_type: "decan"',
+                "buildReflectionGenerationManifestV2Storage({",
+                "source_snapshot: generationStorage.sourceSnapshot",
+                "metadata: generationStorage.metadata",
+                '.select("id")',
+                ".single()",
+            ],
+        )
+        reject_all(
+            self,
+            persistence,
+            [
+                "output_control:",
+                'period_type: "decan_opening"',
+                ".update(",
+                ".delete(",
+            ],
+        )
+        require_all(
+            self,
+            helper,
+            [
+                '"reflection_generation_manifest_v2"',
+                "decan_reflection_id: input.reflectionId",
+                "render:",
+                "graph:",
+                "truth:",
+                "guidance_worthiness_score:",
+                "action_clarity_score:",
+                "pre_repair_text:",
+                "post_repair_text:",
+            ],
+        )
+        reject_all(
+            self,
+            helper,
+            [
+                "output_control:",
+                "shaping_fingerprint",
+                "memory_brief",
+                "maat_flow_decan_pattern",
+            ],
+        )
+        require_all(
+            self,
+            response,
+            [
+                "success: true",
+                "reflection: reflectionText",
+                "modelUsed",
+                "reflection_id: reflectionId",
+                "reflection_generation_id: reflectionGenerationId",
+                "outputControl:",
+            ],
+        )
+
+    def test_manifest_v2_writer_does_not_change_opening_persistence(self) -> None:
+        opening = source(
+            "supabase/functions/cron_maat_decan_opening/index.ts"
+        )
+        require_all(
+            self,
+            opening,
+            [
+                'period_type: "decan_opening"',
+                "generation_key: generationKey",
+                'from("reflection_generations")',
+            ],
+        )
+        self.assertNotIn("reflection_generation_manifest_v2", opening)
+
     def test_social_safety_migration(self) -> None:
         body = source(
             "supabase/migrations/20260602090000_social_safety_controls.sql"
