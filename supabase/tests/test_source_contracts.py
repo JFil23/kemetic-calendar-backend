@@ -1687,7 +1687,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
     def test_canonical_opening_truth_migration_is_view_only(self) -> None:
         body = source(
             "supabase/migrations/"
-            "20260925034753_canonicalize_decan_opening_truth.sql"
+            "20260925045707_canonicalize_decan_opening_truth.sql"
         )
         require_all(
             self,
