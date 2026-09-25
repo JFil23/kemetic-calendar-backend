@@ -2006,6 +2006,106 @@ class MigrationSourceContractsTest(unittest.TestCase):
         )
 
 
+    def test_unique_grain_delivery_ledger_is_additive_and_reader_neutral(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260925214532_create_unique_grain_delivery_ledger.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create table public.maat_delivery_ledger (",
+                "delivery_key text primary key",
+                "raw_event_count bigint not null default 0",
+                "duplicate_sent_count bigint generated always as",
+                "sent_latency_sum_seconds bigint not null default 0",
+                "late_sent_count bigint not null default 0",
+                "alter table public.maat_delivery_ledger enable row level security",
+                "revoke all privileges on table public.maat_delivery_ledger",
+                "grant all privileges on table public.maat_delivery_ledger to service_role",
+                "create table private.maat_delivery_ledger_live_event_ids",
+                "create unlogged table private.maat_delivery_ledger_backfill_batch",
+                "create or replace function private.sync_maat_delivery_ledger_from_raw()",
+                "security definer\nset search_path = pg_catalog, public, private",
+                "create trigger maat_delivery_ledger_sync",
+                "after insert on public.maat_delivery_timing_events",
+                "on conflict (delivery_key) do update",
+                "maat delivery ledger identity drift",
+                "create or replace function private.backfill_maat_delivery_ledger()",
+                "not exists (\n    select 1\n    from private.maat_delivery_ledger_live_event_ids",
+                "backfill_completed_at",
+                "already_completed",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "create or replace view public.maat_delivery_recent_events",
+                "create or replace view public.maat_delivery_timing_health",
+                "create or replace view public.maat_delivery_receipt_health",
+                "create or replace view public.maat_delivery_alerts",
+                "update public.maat_delivery_timing_events",
+                "delete from public.maat_delivery_timing_events",
+                "truncate public.maat_delivery_timing_events",
+                "alter table public.maat_delivery_timing_events add column",
+            ],
+        )
+
+        rollback = source(
+            "supabase/dev/rollback_unique_grain_delivery_ledger.sql"
+        )
+        require_all(
+            self,
+            rollback,
+            [
+                "drop trigger if exists maat_delivery_ledger_sync",
+                "drop function if exists private.sync_maat_delivery_ledger_from_raw()",
+                "drop function if exists private.backfill_maat_delivery_ledger()",
+                "drop table if exists private.maat_delivery_ledger_live_event_ids",
+                "drop table if exists private.maat_delivery_ledger_backfill_batch",
+                "drop table if exists private.maat_delivery_ledger_backfill_state",
+                "drop table if exists public.maat_delivery_ledger",
+            ],
+        )
+        reject_all(
+            self,
+            rollback,
+            [
+                "drop table public.maat_delivery_timing_events",
+                "delete from public.maat_delivery_timing_events",
+                "truncate public.maat_delivery_timing_events",
+                "create or replace view",
+            ],
+        )
+
+    def test_unique_grain_delivery_ledger_has_parity_and_concurrency_gates(self) -> None:
+        workflow = source(".github/workflows/supabase-functions.yml")
+        require_all(
+            self,
+            workflow,
+            [
+                "supabase/dev/maat_delivery_ledger_smoke.sql",
+                "supabase/dev/maat_delivery_ledger_concurrency_smoke.sh",
+            ],
+        )
+
+        parity = source("supabase/dev/maat_delivery_ledger_parity.sql")
+        require_all(
+            self,
+            parity,
+            [
+                "raw_by_key as materialized",
+                "mismatched_delivery_keys",
+                "one_row_per_delivery_key",
+                "sent_latency_sum_seconds",
+                "duplicate_sent_keys",
+                "pg_current_snapshot()::text",
+            ],
+        )
+
+
 class EdgeFunctionSourceContractsTest(unittest.TestCase):
     def test_decan_opening_generation_is_keyed_get_or_create_only(self) -> None:
         body = source(
