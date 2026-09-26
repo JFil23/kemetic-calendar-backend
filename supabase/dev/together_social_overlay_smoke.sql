@@ -272,10 +272,13 @@ do $test$
 declare
   v_room_id uuid;
   v_access jsonb;
+  v_identity jsonb;
   v_message jsonb;
   v_entry jsonb;
   v_quote jsonb;
   v_snapshot jsonb;
+  v_room_ctid_before tid;
+  v_room_ctid_after tid;
 begin
   select room.id
     into v_room_id
@@ -284,6 +287,45 @@ begin
     and room.source_flow_id = 990000001
     and room.calendar_id is null
     and room.status = 'active';
+
+  if exists (
+    select 1
+    from public.shared_practice_room_members member
+    where member.room_id = v_room_id
+      and member.user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+      and member.public_identity is true
+  ) then
+    raise exception 'new generic Together host was public by default';
+  end if;
+
+  v_identity := public.set_shared_practice_public_identity(v_room_id, true);
+  if coalesce((v_identity ->> 'public_identity')::boolean, false) is not true
+  then
+    raise exception 'host public identity opt-in did not persist: %',
+      v_identity;
+  end if;
+  v_identity := public.set_shared_practice_public_identity(v_room_id, false);
+  if coalesce((v_identity ->> 'public_identity')::boolean, true) is not false
+  then
+    raise exception 'host public identity opt-out did not persist: %',
+      v_identity;
+  end if;
+
+  select room.ctid
+    into v_room_ctid_before
+  from public.shared_practice_rooms room
+  where room.id = v_room_id;
+  update public.user_events event
+     set ends_at = event.ends_at + interval '1 minute'
+   where event.id = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+     and event.user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  select room.ctid
+    into v_room_ctid_after
+  from public.shared_practice_rooms room
+  where room.id = v_room_id;
+  if v_room_ctid_after is not distinct from v_room_ctid_before then
+    raise exception 'host position change did not signal the Together room';
+  end if;
 
   v_access := public.set_shared_practice_access(
     v_room_id,
@@ -523,7 +565,7 @@ begin
   from public.shared_practice_room_members member
   where member.room_id = v_room_id;
 
-  if v_visible_members <> 1 then
+  if v_visible_members <> 0 then
     raise exception 'public viewer saw non-opted-in member identities: %', v_visible_members;
   end if;
 
@@ -540,7 +582,11 @@ begin
 
   if v_card is null
       or (v_card ->> 'member_count')::integer <> 2
-      or jsonb_array_length(v_card -> 'public_members') <> 1
+      or jsonb_array_length(v_card -> 'public_members') <> 0
+      or v_card ->> 'created_by' is not null
+      or v_card ->> 'owner_handle' is not null
+      or v_card ->> 'owner_display_name' is not null
+      or v_card ->> 'owner_avatar_url' is not null
       or coalesce((v_card ->> 'viewer_can_request_join')::boolean, false)
         is not true then
     raise exception 'Commons did not expose the bounded public-group card: %', v_card;
@@ -576,8 +622,8 @@ begin
     into v_public_quote_authors, v_private_quote_authors
   from jsonb_array_elements(v_quote_posts) item;
   if jsonb_array_length(v_quote_posts) <> 2
-      or v_public_quote_authors <> 1
-      or v_private_quote_authors <> 1 then
+      or v_public_quote_authors <> 0
+      or v_private_quote_authors <> 2 then
     raise exception 'public quotes did not honor member identity choices: %',
       v_quote_posts;
   end if;
@@ -596,10 +642,62 @@ begin
   if v_quote_comment ->> 'body_text' <> 'This stayed with me.' then
     raise exception 'quote comment was not created: %', v_quote_comment;
   end if;
+
+  v_request := public.request_join_shared_practice(v_room_id);
+  if v_request ->> 'status' <> 'pending' then
+    raise exception 'blocked-approval request setup failed: %', v_request;
+  end if;
 end;
 $test$;
 
 reset role;
+insert into public.user_blocks (blocker_user_id, blocked_user_id)
+values (
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+)
+on conflict do nothing;
+
+select set_config(
+  'request.jwt.claim.sub',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  true
+);
+set local role authenticated;
+
+do $test$
+declare
+  v_request_id uuid;
+begin
+  select request.id
+    into v_request_id
+  from public.shared_practice_join_requests request
+  where request.requester_id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+    and request.status = 'pending'
+  order by request.created_at desc
+  limit 1;
+
+  begin
+    perform public.respond_to_join_request(v_request_id, 'approved');
+    raise exception 'expected JOIN_REQUEST_NOT_ALLOWED';
+  exception
+    when others then
+      if sqlerrm not like '%JOIN_REQUEST_NOT_ALLOWED%' then
+        raise;
+      end if;
+  end;
+
+  if not exists (
+    select 1
+    from public.shared_practice_join_requests request
+    where request.id = v_request_id
+      and request.status = 'pending'
+  ) then
+    raise exception 'blocked approval changed the pending request';
+  end if;
+end;
+$test$;
+
 select set_config(
   'request.jwt.claim.sub',
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -650,6 +748,155 @@ begin
         raise;
       end if;
   end;
+end;
+$test$;
+
+reset role;
+
+insert into public.flows (
+  id,
+  user_id,
+  calendar_id,
+  name,
+  active,
+  start_date,
+  end_date,
+  is_hidden
+)
+values (
+  990000002,
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  'Together Flow Studio source',
+  true,
+  current_date,
+  current_date + 4,
+  false
+);
+
+insert into public.user_events (
+  id,
+  user_id,
+  calendar_id,
+  client_event_id,
+  title,
+  all_day,
+  starts_at,
+  ends_at,
+  flow_local_id,
+  category,
+  behavior_payload
+)
+values (
+  'f3333333-3333-4333-8333-333333333333',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  'together-smoke-flow-990000002-day-1',
+  'Flow Studio invitation day one',
+  true,
+  current_date::timestamp + interval '10 hours',
+  current_date::timestamp + interval '11 hours',
+  990000002,
+  'flow',
+  '{}'::jsonb
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  true
+);
+set local role authenticated;
+
+do $test$
+declare
+  v_calendar_count_before integer;
+  v_calendar_count_after integer;
+  v_result jsonb;
+  v_room_id uuid;
+begin
+  select count(*)::integer
+    into v_calendar_count_before
+  from public.shared_calendars;
+
+  v_result := public.create_together_overlay_for_flow(
+    990000002,
+    array['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid]
+  );
+  v_room_id := (v_result ->> 'room_id')::uuid;
+
+  select count(*)::integer
+    into v_calendar_count_after
+  from public.shared_calendars;
+
+  if v_calendar_count_after <> v_calendar_count_before
+      or not exists (
+        select 1
+        from public.shared_practice_rooms room
+        where room.id = v_room_id
+          and room.source_flow_id = 990000002
+          and room.created_by =
+            'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+          and room.calendar_id is null
+          and room.shared_flow_id is null
+      )
+      or not exists (
+        select 1
+        from public.shared_practice_room_members member
+        where member.room_id = v_room_id
+          and member.user_id =
+            'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+          and member.status = 'invited'
+      ) then
+    raise exception 'Flow Studio invite did not preserve the creator flow: %',
+      v_result;
+  end if;
+end;
+$test$;
+
+reset role;
+select set_config(
+  'request.jwt.claim.sub',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  true
+);
+set local role authenticated;
+
+do $test$
+declare
+  v_room_id uuid;
+  v_inbox jsonb;
+  v_response jsonb;
+  v_snapshot jsonb;
+begin
+  v_inbox := public.get_together_inbox();
+  v_room_id := (v_inbox #>> '{invitations,0,room_id}')::uuid;
+
+  if auth.uid() is distinct from
+      'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'::uuid
+      or jsonb_array_length(v_inbox -> 'invitations') <> 1
+      or not exists (
+        select 1
+        from public.shared_practice_room_members member
+        where member.room_id = v_room_id
+          and member.user_id = auth.uid()
+          and member.status = 'invited'
+      ) then
+    raise exception 'Flow Studio invitation was not visible to invitee';
+  end if;
+
+  v_response := public.respond_to_together_invitation(v_room_id, true);
+  v_snapshot := public.get_shared_practice_room(v_room_id, current_date);
+  if v_response ->> 'status' <> 'accepted'
+      or (v_response ->> 'member_count')::integer <> 2
+      or coalesce((v_snapshot ->> 'viewer_is_member')::boolean, false)
+        is not true
+      or v_snapshot #>> '{today_step,client_event_id}' <>
+        'together-smoke-flow-990000002-day-1' then
+    raise exception 'Flow Studio invitation happy path failed: %, %',
+      v_response,
+      v_snapshot;
+  end if;
 end;
 $test$;
 

@@ -2657,6 +2657,39 @@ class MigrationSourceContractsTest(unittest.TestCase):
             ],
         )
 
+    def test_together_core_repairs_are_narrow_and_realtime_scoped(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260926211948_repair_together_core_pipeline.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "private.ensure_together_overlay_for_flow",
+                "p_creator_id,\n    false,",
+                "host_identity.public_identity",
+                "'owner_handle', case",
+                "'owner_display_name', case",
+                "v_decision = 'approved' and exists",
+                "from public.user_blocks block",
+                "raise exception 'JOIN_REQUEST_NOT_ALLOWED'",
+                "private.touch_together_rooms_for_host_event",
+                "add table public.shared_practice_rooms",
+                "add table public.shared_practice_room_members",
+                "add table public.shared_practice_join_requests",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "insert into public.flows",
+                "insert into public.user_events",
+                "auth.role()",
+            ],
+        )
+
 
 class EdgeFunctionSourceContractsTest(unittest.TestCase):
     def test_decan_opening_generation_is_keyed_get_or_create_only(self) -> None:
