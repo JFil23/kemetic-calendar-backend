@@ -2407,7 +2407,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
     ) -> None:
         body = source(
             "supabase/migrations/"
-            "20260926062542_prevent_stale_restoration_snapshot_updates.sql"
+            "20260926063608_prevent_stale_restoration_snapshot_updates.sql"
         )
         require_all(
             self,
