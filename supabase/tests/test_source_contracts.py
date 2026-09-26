@@ -2346,7 +2346,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
     def test_cut_17_bounds_only_pg_cron_run_history(self) -> None:
         body = source(
             "supabase/migrations/"
-            "20260926055234_bound_cron_job_run_details_history.sql"
+            "20260926060109_bound_cron_job_run_details_history.sql"
         )
         require_all(
             self,
