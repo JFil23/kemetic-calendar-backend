@@ -31,6 +31,23 @@ begin
     raise exception 'Cut 14 raw-insert synchronization trigger is missing';
   end if;
 
+  if not exists (
+    select 1
+    from pg_trigger
+    where tgrelid = 'public.maat_delivery_timing_events'::regclass
+      and tgname = 'zz_maat_delivery_ledger_handoff_cleanup'
+      and not tgisinternal
+  ) then
+    raise exception 'Cut 14 post-finalization handoff cleanup trigger is missing';
+  end if;
+
+  if to_regprocedure('private.backfill_maat_delivery_ledger(integer)') is null
+     or to_regprocedure(
+       'private.finalize_maat_delivery_ledger_backfill()'
+     ) is null then
+    raise exception 'Cut 14 resumable backfill functions are missing';
+  end if;
+
   if (
     select backfill_completed_at is not null
     from private.maat_delivery_ledger_backfill_state
@@ -98,6 +115,42 @@ insert into public.maat_delivery_timing_events (
     null,
     '{"cut14":"historical-sent"}'::jsonb,
     '2026-01-01 01:01:20+00'
+  ),
+  (
+    'cut14:historical-b',
+    'scheduled_notification',
+    'scheduled_notifications',
+    'cut14-historical-b-target',
+    null,
+    '2026-01-01 01:10:00+00',
+    null,
+    '2026-01-01 01:10:05+00',
+    null,
+    'cut14_smoke_cron_b',
+    1,
+    'failed',
+    null,
+    'cut14-historical-b-failed',
+    '{"cut14":"historical-b"}'::jsonb,
+    '2026-01-01 01:10:10+00'
+  ),
+  (
+    'cut14:historical-c',
+    'scheduled_notification',
+    'scheduled_notifications',
+    'cut14-historical-c-target',
+    null,
+    '2026-01-01 01:20:00+00',
+    '2026-01-01 01:20:10+00',
+    '2026-01-01 01:20:05+00',
+    null,
+    'cut14_smoke_cron_c',
+    1,
+    'picked',
+    null,
+    null,
+    '{"cut14":"historical-c"}'::jsonb,
+    '2026-01-01 01:20:10+00'
   );
 
 alter table public.maat_delivery_timing_events
@@ -259,24 +312,170 @@ insert into public.maat_delivery_timing_events (
 );
 
 create temporary table cut14_raw_before on commit drop as
-select
-  count(*)::bigint as row_count,
-  md5(coalesce(string_agg(row_to_json(e)::text, E'\n' order by e.id), ''))
-    as fingerprint
+select e.id, md5(row_to_json(e)::text) as fingerprint
 from public.maat_delivery_timing_events e
 where e.delivery_key like 'cut14:%';
 
-select private.backfill_maat_delivery_ledger();
+-- Reject invalid bounds without changing state.
+do $$
+begin
+  begin
+    perform private.backfill_maat_delivery_ledger(0);
+    raise exception 'zero-sized delivery-ledger batch unexpectedly succeeded';
+  exception
+    when others then
+      if position('between 1 and 250' in sqlerrm) = 0 then
+        raise;
+      end if;
+  end;
+end
+$$;
 
-create temporary table cut14_ledger_after_first_backfill on commit drop as
+-- Batch A: one whole key advances the cursor only after parity passes.
+select private.backfill_maat_delivery_ledger(1);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from private.maat_delivery_ledger_backfill_state
+    where singleton
+      and backfill_cursor_delivery_key = 'cut14:historical'
+      and backfill_batches_completed = 1
+      and baseline_delivery_keys_added = 1
+      and baseline_raw_events_added = 2
+      and last_batch_delivery_keys = 1
+      and last_batch_raw_events = 2
+  ) then
+    raise exception 'first bounded batch state is incorrect';
+  end if;
+
+  if exists (
+    select 1 from private.maat_delivery_ledger_backfill_batch
+  ) then
+    raise exception 'successful first batch left staging rows behind';
+  end if;
+end
+$$;
+
+-- A conflicting live identity makes the next batch fail. The exception
+-- subtransaction rolls the fixture insert back; cursor, ledger, and stage
+-- must remain exactly at the last proven boundary.
+do $$
+declare
+  v_cursor_before text;
+  v_batches_before bigint;
+  v_ledger_before text;
+begin
+  select backfill_cursor_delivery_key, backfill_batches_completed
+    into v_cursor_before, v_batches_before
+  from private.maat_delivery_ledger_backfill_state
+  where singleton;
+
+  select md5(coalesce(string_agg(row_to_json(l)::text, E'\n'
+    order by l.delivery_key), ''))
+    into v_ledger_before
+  from public.maat_delivery_ledger l;
+
+  begin
+    insert into public.maat_delivery_timing_events (
+      delivery_key,
+      delivery_kind,
+      target_table,
+      target_id,
+      cron_job_name,
+      delivery_status,
+      created_at
+    ) values (
+      'cut14:historical-b',
+      'scheduled_notification',
+      'scheduled_notifications',
+      'cut14-historical-b-conflict',
+      'cut14_smoke_cron_b',
+      'picked',
+      '2026-01-01 01:10:20+00'
+    );
+
+    perform private.backfill_maat_delivery_ledger(1);
+    raise exception 'conflicting bounded batch unexpectedly succeeded';
+  exception
+    when others then
+      if position('conflicts with a live ledger identity' in sqlerrm) = 0 then
+        raise;
+      end if;
+  end;
+
+  if exists (
+    select 1
+    from private.maat_delivery_ledger_backfill_state
+    where singleton
+      and (
+        backfill_cursor_delivery_key is distinct from v_cursor_before
+        or backfill_batches_completed is distinct from v_batches_before
+      )
+  ) then
+    raise exception 'failed batch advanced resumable state';
+  end if;
+
+  if v_ledger_before is distinct from (
+    select md5(coalesce(string_agg(row_to_json(l)::text, E'\n'
+      order by l.delivery_key), ''))
+    from public.maat_delivery_ledger l
+  ) then
+    raise exception 'failed batch changed the ledger';
+  end if;
+
+  if exists (
+    select 1 from private.maat_delivery_ledger_backfill_batch
+  ) then
+    raise exception 'failed batch left staging rows behind';
+  end if;
+end
+$$;
+
+-- Batch B retries the exact cursor boundary successfully.
+select private.backfill_maat_delivery_ledger(1);
+
+-- A live event for an already-processed key, while the global backfill is
+-- still pending, is counted exactly once and remains in the handoff set.
+insert into public.maat_delivery_timing_events (
+  delivery_key,
+  delivery_kind,
+  target_table,
+  target_id,
+  scheduled_for,
+  delivered_at,
+  cron_job_name,
+  delivery_attempt,
+  delivery_status,
+  metadata,
+  created_at
+) values (
+  'cut14:historical-b',
+  'scheduled_notification',
+  'scheduled_notifications',
+  'cut14-historical-b-target',
+  '2026-01-01 01:10:00+00',
+  '2026-01-01 01:10:30+00',
+  'cut14_smoke_cron_b',
+  2,
+  'sent',
+  '{"cut14":"historical-b-live"}'::jsonb,
+  '2026-01-01 01:10:30+00'
+);
+
+-- Batch C proves the next whole key and completes the bounded baseline.
+select private.backfill_maat_delivery_ledger(1);
+
+create temporary table cut14_ledger_after_batches on commit drop as
 select
   count(*)::bigint as row_count,
   md5(coalesce(string_agg(row_to_json(l)::text, E'\n' order by l.delivery_key), ''))
     as fingerprint
 from public.maat_delivery_ledger l;
 
--- Idempotent retry must be a no-op.
-select private.backfill_maat_delivery_ledger();
+-- Exhausted retry is a no-op and does not implicitly finalize.
+select private.backfill_maat_delivery_ledger(1);
 
 do $$
 declare
@@ -333,11 +532,38 @@ begin
       row_to_json(v_row);
   end if;
 
+  select * into strict v_row
+  from public.maat_delivery_ledger
+  where delivery_key = 'cut14:historical-b';
+
+  if v_row.raw_event_count <> 2
+     or v_row.failed_count <> 1
+     or v_row.sent_count <> 1
+     or v_row.sent_latency_count <> 1
+     or v_row.sent_latency_sum_seconds <> 30 then
+    raise exception 'processed-key live handoff is incorrect: %',
+      row_to_json(v_row);
+  end if;
+
+  select * into strict v_row
+  from public.maat_delivery_ledger
+  where delivery_key = 'cut14:historical-c';
+
+  if v_row.raw_event_count <> 1 or v_row.picked_count <> 1 then
+    raise exception 'third bounded batch is incorrect: %', row_to_json(v_row);
+  end if;
+
   if (
     select count(*)
     from public.maat_delivery_ledger
-    where delivery_key in ('cut14:aggregate', 'cut14:historical', 'cut14:other')
-  ) <> 3 then
+    where delivery_key in (
+      'cut14:aggregate',
+      'cut14:historical',
+      'cut14:historical-b',
+      'cut14:historical-c',
+      'cut14:other'
+    )
+  ) <> 5 then
     raise exception 'one-row-per-delivery-key grain was not preserved';
   end if;
 
@@ -352,7 +578,7 @@ begin
 
   if exists (
     select 1
-    from cut14_ledger_after_first_backfill before
+    from cut14_ledger_after_batches before
     cross join lateral (
       select
         count(*)::bigint as row_count,
@@ -363,24 +589,94 @@ begin
     where before.row_count is distinct from after.row_count
        or before.fingerprint is distinct from after.fingerprint
   ) then
-    raise exception 'idempotent backfill retry changed the ledger';
+    raise exception 'exhausted batch retry changed the ledger';
+  end if;
+
+  if not exists (
+    select 1
+    from private.maat_delivery_ledger_backfill_state
+    where singleton
+      and backfill_completed_at is null
+      and backfill_cursor_delivery_key = 'cut14:historical-c'
+      and backfill_batches_completed = 3
+      and baseline_delivery_keys_added = 3
+      and baseline_raw_events_added = 4
+      and last_batch_delivery_keys = 1
+      and last_batch_raw_events = 1
+  ) then
+    raise exception 'resumable batch counters or cursor are incorrect';
+  end if;
+
+  if (
+    select count(*)
+    from private.maat_delivery_ledger_live_event_ids
+    where delivery_key = 'cut14:historical-b'
+  ) <> 1 then
+    raise exception 'processed-key live event was not handed off exactly once';
   end if;
 
   if exists (
     select 1
     from cut14_raw_before before
+    left join public.maat_delivery_timing_events event
+      on event.id = before.id
+    where event.id is null
+       or md5(row_to_json(event)::text) is distinct from before.fingerprint
+  ) then
+    raise exception 'Cut 14 batch processing modified an existing raw row';
+  end if;
+end
+$$;
+
+select private.finalize_maat_delivery_ledger_backfill();
+
+create temporary table cut14_ledger_after_finalize on commit drop as
+select
+  count(*)::bigint as row_count,
+  md5(coalesce(string_agg(row_to_json(l)::text, E'\n' order by l.delivery_key), ''))
+    as fingerprint
+from public.maat_delivery_ledger l;
+
+-- Finalization is separately idempotent.
+select private.finalize_maat_delivery_ledger_backfill();
+
+do $$
+begin
+  if not exists (
+    select 1
+    from private.maat_delivery_ledger_backfill_state
+    where singleton
+      and backfill_completed_at is not null
+      and backfill_cursor_delivery_key = 'cut14:historical-c'
+      and backfill_batches_completed = 3
+      and baseline_delivery_keys_added = 3
+      and baseline_raw_events_added = 4
+  ) then
+    raise exception 'bounded finalization state is incorrect';
+  end if;
+
+  if exists (
+    select 1 from private.maat_delivery_ledger_backfill_batch
+    union all
+    select 1 from private.maat_delivery_ledger_live_event_ids
+  ) then
+    raise exception 'finalization did not clear stage and handoff rows';
+  end if;
+
+  if exists (
+    select 1
+    from cut14_ledger_after_finalize before
     cross join lateral (
       select
         count(*)::bigint as row_count,
-        md5(coalesce(string_agg(row_to_json(e)::text, E'\n'
-          order by e.id), '')) as fingerprint
-      from public.maat_delivery_timing_events e
-      where e.delivery_key like 'cut14:%'
+        md5(coalesce(string_agg(row_to_json(l)::text, E'\n'
+          order by l.delivery_key), '')) as fingerprint
+      from public.maat_delivery_ledger l
     ) after
     where before.row_count is distinct from after.row_count
        or before.fingerprint is distinct from after.fingerprint
   ) then
-    raise exception 'Cut 14 backfill modified raw timing rows';
+    raise exception 'idempotent finalization changed the ledger';
   end if;
 end
 $$;
@@ -423,7 +719,7 @@ begin
     select count(*)
     from private.maat_delivery_ledger_live_event_ids
     where delivery_key = 'cut14:historical'
-  ) <> 1 then
+  ) <> 0 then
     raise exception 'post-backfill event incorrectly entered handoff table';
   end if;
 end

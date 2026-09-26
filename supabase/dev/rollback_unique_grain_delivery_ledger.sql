@@ -4,9 +4,14 @@ begin;
 -- raw timing table and all pre-existing delivery readers remain untouched.
 drop trigger if exists maat_delivery_ledger_sync
   on public.maat_delivery_timing_events;
+drop trigger if exists zz_maat_delivery_ledger_handoff_cleanup
+  on public.maat_delivery_timing_events;
 
 drop function if exists private.sync_maat_delivery_ledger_from_raw();
 drop function if exists private.backfill_maat_delivery_ledger();
+drop function if exists private.backfill_maat_delivery_ledger(integer);
+drop function if exists private.finalize_maat_delivery_ledger_backfill();
+drop function if exists private.cleanup_maat_delivery_ledger_live_event_id();
 
 drop table if exists private.maat_delivery_ledger_backfill_batch;
 drop table if exists private.maat_delivery_ledger_live_event_ids;

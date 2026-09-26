@@ -73,7 +73,7 @@ locker_pid=$!
 sleep 0.2
 
 psql "$database_url" -v ON_ERROR_STOP=1 >"$backfill_output" <<'SQL' &
-select private.backfill_maat_delivery_ledger();
+select private.backfill_maat_delivery_ledger(1);
 SQL
 backfill_pid=$!
 
@@ -135,8 +135,86 @@ end
 $$;
 SQL
 
-# Concurrent inserts for one key serialize through the primary-key upsert and
-# must both increment the single ledger row.
+# A live event for an already-processed key while the global backfill remains
+# pending must still be counted once and remain in the handoff set.
+psql "$database_url" -v ON_ERROR_STOP=1 <<'SQL'
+insert into public.maat_delivery_timing_events (
+  delivery_key,
+  delivery_kind,
+  target_table,
+  target_id,
+  scheduled_for,
+  delivered_at,
+  cron_job_name,
+  delivery_status,
+  created_at
+) values (
+  'cut14-concurrency:handoff',
+  'scheduled_notification',
+  'scheduled_notifications',
+  'cut14-concurrency-handoff-target',
+  '2026-01-02 00:00:00+00',
+  '2026-01-02 00:00:45+00',
+  'cut14_concurrency_cron',
+  'sent',
+  '2026-01-02 00:00:45+00'
+);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from public.maat_delivery_ledger
+    where delivery_key = 'cut14-concurrency:handoff'
+      and raw_event_count = 3
+      and picked_count = 1
+      and sent_count = 2
+      and sent_latency_count = 2
+      and sent_latency_sum_seconds = 75
+  ) then
+    raise exception 'processed-key live event was lost or double-counted';
+  end if;
+
+  if (
+    select count(*)
+    from private.maat_delivery_ledger_live_event_ids
+    where delivery_key = 'cut14-concurrency:handoff'
+  ) <> 2 then
+    raise exception 'pending handoff did not retain both live event ids';
+  end if;
+end
+$$;
+
+select private.backfill_maat_delivery_ledger(1);
+select private.finalize_maat_delivery_ledger_backfill();
+
+do $$
+begin
+  if not exists (
+    select 1
+    from private.maat_delivery_ledger_backfill_state
+    where singleton
+      and backfill_completed_at is not null
+      and backfill_batches_completed = 1
+      and baseline_delivery_keys_added = 1
+      and baseline_raw_events_added = 1
+  ) then
+    raise exception 'concurrency fixture did not finalize correctly';
+  end if;
+
+  if exists (
+    select 1 from private.maat_delivery_ledger_backfill_batch
+    union all
+    select 1 from private.maat_delivery_ledger_live_event_ids
+  ) then
+    raise exception 'finalization did not empty concurrency handoff state';
+  end if;
+end
+$$;
+SQL
+
+# After finalization, concurrent inserts for one key serialize through the
+# primary-key upsert, increment one row, and leave no handoff residue.
 psql "$database_url" -v ON_ERROR_STOP=1 <<'SQL' &
 insert into public.maat_delivery_timing_events (
   delivery_key, delivery_kind, target_table, target_id,
@@ -184,6 +262,14 @@ begin
       and failed_count = 1
   ) then
     raise exception 'concurrent same-key inserts were lost or double-counted';
+  end if;
+
+  if exists (
+    select 1
+    from private.maat_delivery_ledger_live_event_ids
+    where delivery_key = 'cut14-concurrency:same-key'
+  ) then
+    raise exception 'post-finalization concurrent inserts left handoff rows';
   end if;
 end
 $$;

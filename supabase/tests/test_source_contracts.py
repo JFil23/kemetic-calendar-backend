@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import unittest
 from pathlib import Path
@@ -2009,7 +2010,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
     def test_unique_grain_delivery_ledger_is_additive_and_reader_neutral(self) -> None:
         body = source(
             "supabase/migrations/"
-            "20260925214532_create_unique_grain_delivery_ledger.sql"
+            "20260925222052_create_unique_grain_delivery_ledger.sql"
         )
         require_all(
             self,
@@ -2061,8 +2062,12 @@ class MigrationSourceContractsTest(unittest.TestCase):
             rollback,
             [
                 "drop trigger if exists maat_delivery_ledger_sync",
+                "drop trigger if exists zz_maat_delivery_ledger_handoff_cleanup",
                 "drop function if exists private.sync_maat_delivery_ledger_from_raw()",
                 "drop function if exists private.backfill_maat_delivery_ledger()",
+                "drop function if exists private.backfill_maat_delivery_ledger(integer)",
+                "drop function if exists private.finalize_maat_delivery_ledger_backfill()",
+                "drop function if exists private.cleanup_maat_delivery_ledger_live_event_id()",
                 "drop table if exists private.maat_delivery_ledger_live_event_ids",
                 "drop table if exists private.maat_delivery_ledger_backfill_batch",
                 "drop table if exists private.maat_delivery_ledger_backfill_state",
@@ -2077,6 +2082,70 @@ class MigrationSourceContractsTest(unittest.TestCase):
                 "delete from public.maat_delivery_timing_events",
                 "truncate public.maat_delivery_timing_events",
                 "create or replace view",
+            ],
+        )
+
+    def test_delivery_ledger_backfill_is_bounded_resumable_and_reader_neutral(
+        self,
+    ) -> None:
+        old_receipt = ROOT / (
+            "supabase/migrations/"
+            "20260925214532_create_unique_grain_delivery_ledger.sql"
+        )
+        self.assertFalse(old_receipt.exists())
+        renamed_receipt = ROOT / (
+            "supabase/migrations/"
+            "20260925222052_create_unique_grain_delivery_ledger.sql"
+        )
+        self.assertEqual(
+            hashlib.sha256(renamed_receipt.read_bytes()).hexdigest(),
+            "5a8250d2b944fd9877a0684ee11888408cce3744f550c5e01b214a2fd1dcff70",
+        )
+
+        body = source(
+            "supabase/migrations/"
+            "20260925235741_resumable_delivery_ledger_backfill.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "backfill_cursor_delivery_key text",
+                "backfill_batches_completed bigint not null default 0",
+                "last_batch_started_at timestamp with time zone",
+                "last_batch_completed_at timestamp with time zone",
+                "last_batch_delivery_keys integer",
+                "last_batch_raw_events bigint",
+                "create function private.backfill_maat_delivery_ledger(",
+                "p_batch_size integer default 200",
+                "p_batch_size > 250",
+                "event.delivery_key > v_state.backfill_cursor_delivery_key",
+                "array_agg(next_key.delivery_key order by next_key.delivery_key)",
+                "limit p_batch_size",
+                "select distinct on (event.delivery_key)",
+                "order by event.delivery_key, event.created_at desc, event.id desc",
+                "maat delivery ledger batch parity failed",
+                "backfill_batches_completed = backfill_batches_completed + 1",
+                "create function private.finalize_maat_delivery_ledger_backfill()",
+                "maat delivery ledger finalization found an unprocessed baseline key",
+                "truncate table private.maat_delivery_ledger_live_event_ids",
+                "create trigger zz_maat_delivery_ledger_handoff_cleanup",
+                "execute function private.cleanup_maat_delivery_ledger_live_event_id()",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "create or replace view public.maat_delivery_recent_events",
+                "create or replace view public.maat_delivery_timing_health",
+                "create or replace view public.maat_delivery_receipt_health",
+                "create or replace view public.maat_delivery_alerts",
+                "update public.maat_delivery_timing_events",
+                "delete from public.maat_delivery_timing_events",
+                "truncate public.maat_delivery_timing_events",
+                "alter table public.maat_delivery_timing_events add column",
+                "offset ",
             ],
         )
 
