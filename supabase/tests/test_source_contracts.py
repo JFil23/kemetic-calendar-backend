@@ -2402,6 +2402,107 @@ class MigrationSourceContractsTest(unittest.TestCase):
             ],
         )
 
+    def test_cut_18_rejects_only_strictly_stale_restoration_updates(
+        self,
+    ) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260926062542_prevent_stale_restoration_snapshot_updates.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function "
+                "private.prevent_stale_restoration_snapshot_update()",
+                "returns trigger",
+                "security invoker",
+                "set search_path = pg_catalog",
+                "if new.updated_at < old.updated_at then",
+                "return null",
+                "return new",
+                "revoke all on function "
+                "private.prevent_stale_restoration_snapshot_update()",
+                "create trigger user_app_restoration_prevent_stale_update",
+                "before update on public.user_app_restoration_snapshots",
+                "for each row",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "new.updated_at <=",
+                "security definer",
+                "alter table ",
+                "create policy ",
+                "grant ",
+                "insert into ",
+                "update public.",
+                "delete from ",
+                "truncate ",
+                " cascade",
+            ],
+        )
+
+        workflow = source(".github/workflows/supabase-functions.yml")
+        require_all(
+            self,
+            workflow,
+            [
+                "supabase/dev/"
+                "cut18_restoration_stale_write_smoke.sql",
+                "supabase/dev/"
+                "cut18_restoration_stale_write_concurrency_smoke.sh",
+            ],
+        )
+
+        sequential = source(
+            "supabase/dev/cut18_restoration_stale_write_smoke.sql"
+        )
+        require_all(
+            self,
+            sequential,
+            [
+                "stale write replaced window or latest state",
+                "cross-device row independence changed",
+                "equal/newer restoration upsert behavior changed",
+                "ownership policy allowed another user write",
+                "existing rows, RLS policies, or grants changed",
+            ],
+        )
+
+        concurrent = source(
+            "supabase/dev/"
+            "cut18_restoration_stale_write_concurrency_smoke.sh"
+        )
+        require_all(
+            self,
+            concurrent,
+            [
+                "concurrent-newer",
+                "concurrent-stale",
+                "pg_advisory_xact_lock(218, 18)",
+                "stale interleaved transaction replaced a newer row",
+                "fixture cleanup changed the row baseline",
+            ],
+        )
+
+        rollback = source(
+            "supabase/dev/"
+            "rollback_cut18_restoration_stale_write_guard.sql"
+        )
+        require_all(
+            self,
+            rollback,
+            [
+                "drop trigger if exists "
+                "user_app_restoration_prevent_stale_update",
+                "drop function if exists",
+                "private.prevent_stale_restoration_snapshot_update()",
+            ],
+        )
+
 
 class EdgeFunctionSourceContractsTest(unittest.TestCase):
     def test_decan_opening_generation_is_keyed_get_or_create_only(self) -> None:
