@@ -66,6 +66,7 @@ jobs:
           supabase db reset
           DB_URL="$(supabase status -o env | sed -n 's/^DB_URL="\(.*\)"$/\1/p')"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/maat_delivery_ledger_smoke.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/cut14_history_containment_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/maat_output_truth_loop_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/canonical_decan_opening_truth_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/reflection_generation_manifest_v2_readers_smoke.sql

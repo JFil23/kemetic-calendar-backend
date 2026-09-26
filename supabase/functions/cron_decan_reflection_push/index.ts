@@ -89,6 +89,8 @@ type SupabaseClientLike = {
   };
 };
 
+type HasEligiblePushToken = (userId: string) => Promise<boolean>;
+
 type RuntimeConfig = {
   claimLimit: number;
   claimLeaseSeconds: number;
@@ -495,6 +497,23 @@ async function generateReflection(
   };
 }
 
+async function hasActivePushToken(
+  client: SupabaseClientLike,
+  userId: string,
+) {
+  const { data, error } = await client
+    .from("push_tokens")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`Push token eligibility error: ${errorMessage(error)}`);
+  }
+  return data != null;
+}
+
 async function findExistingReflectionId(
   client: SupabaseClientLike,
   userId: string,
@@ -743,8 +762,21 @@ async function processScheduleRow(
   row: ScheduleRow,
   now: Date,
   functionStartedAt: string,
+  hasEligiblePushToken: HasEligiblePushToken,
 ): Promise<ProcessOutcome> {
   try {
+    if (!(await hasEligiblePushToken(row.user_id))) {
+      await markNoPushToken(client, row, now);
+      await recordScheduleDeliveryEvent(client, row, {
+        status: "skipped",
+        functionStartedAt,
+        deliveredAt: now.toISOString(),
+        skipReason: "no_tokens_for_recipients",
+        metadata: { generation_skipped: true },
+      });
+      return "no_push_token";
+    }
+
     const decanName = row.decan_name?.trim() ||
       fallbackDecanLabel(row.decan_context_key) ||
       `Decan starting ${row.decan_start}`;
@@ -860,6 +892,7 @@ async function processScheduleRow(
 export function createCronDecanReflectionPushHandler(options?: {
   client?: SupabaseClientLike;
   config?: Partial<RuntimeConfig>;
+  hasEligiblePushToken?: HasEligiblePushToken;
   now?: () => Date;
 }) {
   const client = options?.client ?? createDefaultClient();
@@ -867,6 +900,10 @@ export function createCronDecanReflectionPushHandler(options?: {
     ...createDefaultConfig(),
     ...(options?.config ?? {}),
   };
+  const tokenIsEligible = options?.hasEligiblePushToken ??
+    (options?.client
+      ? async () => true
+      : (userId: string) => hasActivePushToken(client, userId));
   const nowFn = options?.now ?? (() => new Date());
 
   return async (req: Request): Promise<Response> => {
@@ -947,6 +984,7 @@ export function createCronDecanReflectionPushHandler(options?: {
             row,
             nowFn(),
             functionStartedAt,
+            tokenIsEligible,
           );
           totals.processed += 1;
           if (outcome === "delivered") totals.delivered += 1;

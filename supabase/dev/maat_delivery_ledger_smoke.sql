@@ -48,15 +48,36 @@ begin
     raise exception 'Cut 14 resumable backfill functions are missing';
   end if;
 
-  if (
-    select backfill_completed_at is not null
+  if not exists (
+    select 1
     from private.maat_delivery_ledger_backfill_state
     where singleton
+      and backfill_completed_at is not null
+      and backfill_cursor_delivery_key is null
+      and backfill_batches_completed = 0
+      and baseline_delivery_keys_added = 0
+      and baseline_raw_events_added = 0
   ) then
-    raise exception 'Cut 14 clean-replay ledger must begin pending backfill';
+    raise exception 'Cut 14 clean replay must abandon and complete history';
   end if;
 end
 $$;
+
+-- The production baseline is deliberately complete. Reopen only this
+-- rollback-only smoke transaction to keep the legacy backfill mechanics
+-- covered without reviving historical production work.
+update private.maat_delivery_ledger_backfill_state
+set backfill_started_at = null,
+  backfill_completed_at = null,
+  baseline_raw_events_added = 0,
+  baseline_delivery_keys_added = 0,
+  backfill_cursor_delivery_key = null,
+  backfill_batches_completed = 0,
+  last_batch_started_at = null,
+  last_batch_completed_at = null,
+  last_batch_delivery_keys = null,
+  last_batch_raw_events = null
+where singleton;
 
 -- Historical rows simulate raw history that predates trigger activation.
 alter table public.maat_delivery_timing_events

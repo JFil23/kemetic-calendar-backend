@@ -14,6 +14,7 @@ class MockSupabaseQuery {
   private orderColumn: string | null = null;
   private orderAscending = true;
   private payload: Row | Row[] | null = null;
+  private filters: Array<(row: Row) => boolean> = [];
 
   constructor(
     private readonly tables: Tables,
@@ -27,6 +28,11 @@ class MockSupabaseQuery {
   insert(payload: Row | Row[]) {
     this.op = "insert";
     this.payload = payload;
+    return this;
+  }
+
+  in(column: string, values: unknown[]) {
+    this.filters.push((row) => values.includes(row[column]));
     return this;
   }
 
@@ -62,7 +68,9 @@ class MockSupabaseQuery {
       return { data: inserted, error: null };
     }
 
-    let rows = [...(this.tables[this.table] ?? [])];
+    let rows = [...(this.tables[this.table] ?? [])].filter((row) =>
+      this.filters.every((filter) => filter(row))
+    );
     if (this.orderColumn) {
       rows = rows.sort((a, b) => {
         const left = a[this.orderColumn!];
@@ -227,6 +235,42 @@ Deno.test("cron_evaluate_maat_guidance force evaluates all users and reports fai
     assertEquals(body.evaluated, 1);
     assertEquals(body.failed, 1);
     assertEquals(body.skipped, 0);
+  } finally {
+    if (previousSecret === undefined) {
+      Deno.env.delete("MAAT_CRON_SECRET");
+    } else {
+      Deno.env.set("MAAT_CRON_SECRET", previousSecret);
+    }
+  }
+});
+
+Deno.test("cron_evaluate_maat_guidance limits scheduled work to active users", async () => {
+  const previousSecret = Deno.env.get("MAAT_CRON_SECRET");
+  Deno.env.set("MAAT_CRON_SECRET", "test-secret");
+  const calls: string[] = [];
+  try {
+    const handler = createCronEvaluateMaatGuidanceHandler({
+      client: createMockClient({
+        profiles: [
+          { id: "user-active", timezone: "America/Los_Angeles" },
+          { id: "user-inactive", timezone: "America/Los_Angeles" },
+        ],
+      }),
+      listActiveUserIds: async () => ["user-active"],
+      now: () => new Date("2026-05-18T07:10:00.000Z"),
+      evaluateUser: async ({ userId }) => {
+        calls.push(userId);
+        return { status: 200, data: {} };
+      },
+    });
+
+    const res = await handler(request({ local_hour: 0 }));
+    const body = await res.json();
+
+    assertEquals(res.status, 200);
+    assertEquals(body.processed, 1);
+    assertEquals(body.active_user_count, 1);
+    assertEquals(calls, ["user-active"]);
   } finally {
     if (previousSecret === undefined) {
       Deno.env.delete("MAAT_CRON_SECRET");

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
+import { listActiveMaatUserIds } from "../_shared/maat_active_users.ts";
 import { normalizeTimeZone } from "../_shared/decan_schedule.ts";
 import {
   recordMaatDeliveryTimingEvent,
@@ -228,10 +229,15 @@ async function recordEvaluationDeliveryOutcome(params: {
 export function createCronEvaluateMaatGuidanceHandler(options?: {
   client?: SupabaseClientLike;
   evaluateUser?: EvaluateUser;
+  listActiveUserIds?: (now: Date) => Promise<string[]>;
   now?: () => Date;
 }) {
   const client = options?.client ?? createDefaultClient();
   const evaluateUser = options?.evaluateUser ?? createDefaultEvaluateUser();
+  const listEligibleUsers = options?.listActiveUserIds ??
+    (options?.client
+      ? null
+      : (now: Date) => listActiveMaatUserIds(client, now));
   const nowFn = options?.now ?? (() => new Date());
 
   return async (req: Request): Promise<Response> => {
@@ -269,6 +275,25 @@ export function createCronEvaluateMaatGuidanceHandler(options?: {
         : now.toISOString();
 
       const results = [];
+      const activeUserIds = !force && listEligibleUsers
+        ? await listEligibleUsers(now)
+        : null;
+      if (activeUserIds?.length === 0) {
+        return jsonResponse({
+          request_id: requestId,
+          processed: 0,
+          evaluated: 0,
+          skipped: 0,
+          failed: 0,
+          batches: 0,
+          drained: true,
+          exhausted_runtime: false,
+          exhausted_limit: false,
+          active_user_count: 0,
+          duration_ms: Date.now() - startedAt,
+          results: [],
+        });
+      }
       let offset = 0;
       let batches = 0;
       let drained = false;
@@ -282,9 +307,13 @@ export function createCronEvaluateMaatGuidanceHandler(options?: {
 
         const remaining = maxProfiles - results.length;
         const pageSize = Math.min(batchSize, remaining);
-        const { data: profileRows, error: profileError } = await client
+        let profileQuery = client
           .from("profiles")
-          .select("id,timezone")
+          .select("id,timezone");
+        if (activeUserIds) {
+          profileQuery = profileQuery.in("id", activeUserIds);
+        }
+        const { data: profileRows, error: profileError } = await profileQuery
           .order("id", { ascending: true })
           .range(offset, offset + pageSize - 1);
         if (profileError) {
@@ -411,6 +440,7 @@ export function createCronEvaluateMaatGuidanceHandler(options?: {
         drained,
         exhausted_runtime: exhaustedRuntime,
         exhausted_limit: results.length >= maxProfiles && !drained,
+        active_user_count: activeUserIds?.length ?? null,
         duration_ms: Date.now() - startedAt,
         results,
       }, failed ? 207 : 200);

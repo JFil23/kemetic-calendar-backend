@@ -19,15 +19,33 @@ trap cleanup EXIT
 psql "$database_url" -v ON_ERROR_STOP=1 <<'SQL'
 do $$
 begin
-  if (
-    select backfill_completed_at is not null
+  if not exists (
+    select 1
     from private.maat_delivery_ledger_backfill_state
     where singleton
+      and backfill_completed_at is not null
+      and backfill_cursor_delivery_key is null
+      and backfill_batches_completed = 0
+      and baseline_delivery_keys_added = 0
+      and baseline_raw_events_added = 0
   ) then
-    raise exception 'concurrency smoke requires a pending clean-replay backfill';
+    raise exception 'clean replay did not abandon historical backfill';
   end if;
 end
 $$;
+
+update private.maat_delivery_ledger_backfill_state
+set backfill_started_at = null,
+  backfill_completed_at = null,
+  baseline_raw_events_added = 0,
+  baseline_delivery_keys_added = 0,
+  backfill_cursor_delivery_key = null,
+  backfill_batches_completed = 0,
+  last_batch_started_at = null,
+  last_batch_completed_at = null,
+  last_batch_delivery_keys = null,
+  last_batch_raw_events = null
+where singleton;
 
 alter table public.maat_delivery_timing_events
   disable trigger maat_delivery_ledger_sync;

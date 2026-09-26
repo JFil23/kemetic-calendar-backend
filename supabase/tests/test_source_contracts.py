@@ -2104,7 +2104,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
 
         body = source(
             "supabase/migrations/"
-            "20260925235741_resumable_delivery_ledger_backfill.sql"
+            "20260926002638_resumable_delivery_ledger_backfill.sql"
         )
         require_all(
             self,
@@ -2174,6 +2174,88 @@ class MigrationSourceContractsTest(unittest.TestCase):
             ],
         )
 
+    def test_cut_14_cleanup_is_explicit_bounded_and_preserves_live_writers(
+        self,
+    ) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260926042453_contain_test_era_history.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function public.active_maat_user_ids(",
+                "revoke all on function public.active_maat_user_ids",
+                "create or replace function private.prune_bounded_history()",
+                "clock_timestamp() - interval '14 days'",
+                "clock_timestamp() - interval '90 days'",
+                "clock_timestamp() - interval '30 days'",
+                "drop trigger if exists trg_audit_app_events",
+                "drop trigger if exists trg_audit_user_events",
+                "drop trigger if exists trg_audit_flows",
+                "drop trigger if exists trg_log_flow_inserts",
+                "public.maat_delivery_timing_events,",
+                "public.maat_delivery_ledger,",
+                "backfill_completed_at,",
+                "public.reflection_generations,",
+                "public.decan_reflections,",
+                "public.maat_snapshots,",
+                "public.maat_guidance_evaluations,",
+                "truncate table public.audit_log restart identity",
+                "truncate table public.app_events",
+                "haw_bounded_history_retention",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                " cascade",
+                "vacuum full",
+                "truncate table public.admin_audit_log",
+                "delete from public.admin_audit_log",
+                "truncate table public.user_events",
+                "truncate table public.flows",
+                "truncate table public.profiles",
+                "truncate table auth.users",
+            ],
+        )
+
+        evaluation = source(
+            "supabase/functions/cron_evaluate_maat_guidance/index.ts"
+        )
+        opening = source(
+            "supabase/functions/cron_maat_decan_opening/index.ts"
+        )
+        reflection_push = source(
+            "supabase/functions/cron_decan_reflection_push/index.ts"
+        )
+        require_all(
+            self,
+            evaluation,
+            [
+                "listActiveMaatUserIds",
+                'profileQuery.in("id", activeUserIds)',
+            ],
+        )
+        require_all(
+            self,
+            opening,
+            [
+                "listActiveMaatUserIds",
+                'profileQuery.in("id", activeUserIds)',
+            ],
+        )
+        require_all(
+            self,
+            reflection_push,
+            [
+                "hasActivePushToken",
+                "generation_skipped: true",
+                "hasEligiblePushToken(row.user_id)",
+            ],
+        )
 
 class EdgeFunctionSourceContractsTest(unittest.TestCase):
     def test_decan_opening_generation_is_keyed_get_or_create_only(self) -> None:

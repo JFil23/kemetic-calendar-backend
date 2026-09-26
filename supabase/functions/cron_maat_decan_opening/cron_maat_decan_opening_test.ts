@@ -1523,3 +1523,36 @@ Deno.test("cron_maat_decan_opening pages through cron profile batches", async ()
     }
   });
 });
+
+Deno.test("cron_maat_decan_opening limits scheduled work to active users", async () => {
+  const activeId = "00000000-0000-4000-8000-000000000011";
+  const inactiveId = "00000000-0000-4000-8000-000000000012";
+  const tables: Tables = {
+    profiles: [activeId, inactiveId].map((id) => ({
+      id,
+      timezone: "America/Los_Angeles",
+    })),
+    reflection_profiles: [],
+    reflection_generations: [],
+    maat_guidance_deliveries: [],
+    maat_delivery_timing_events: [],
+  };
+
+  await withCronSecret(async () => {
+    const handler = createCronMaatDecanOpeningHandler({
+      client: createMockClient(tables),
+      listActiveUserIds: async () => [activeId],
+      now: () => new Date("2026-05-16T18:00:00.000Z"),
+      sendPush: async () => ({ ok: true, sent: 1, delivered: true }),
+    });
+
+    const response = await handler(cronRequest(openingBody()));
+    const body = await response.json();
+
+    assertEquals(response.status, 200);
+    assertEquals(body.processed, 1);
+    assertEquals(body.active_user_count, 1);
+    assertEquals(tables.maat_guidance_deliveries.length, 1);
+    assertEquals(tables.maat_guidance_deliveries[0].user_id, activeId);
+  });
+});

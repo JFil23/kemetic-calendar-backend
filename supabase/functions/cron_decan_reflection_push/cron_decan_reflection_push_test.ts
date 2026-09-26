@@ -733,3 +733,34 @@ Deno.test("cron_decan_reflection_push returns a failing cron result on claim err
   assert(String(body.error).includes("Claim error"));
   assertEquals(tables.decan_reflection_schedule[0].status, "pending");
 });
+
+Deno.test("cron_decan_reflection_push skips generation before AI when no token is eligible", async () => {
+  const tables: Tables = {
+    profiles: [],
+    decan_reflection_schedule: [scheduleRow("schedule-1", "user-1")],
+    decan_reflections: [],
+    maat_delivery_timing_events: [],
+  };
+  const { client, stats } = createMockClient(tables);
+  const handler = createCronDecanReflectionPushHandler({
+    client,
+    config: baseConfig,
+    hasEligiblePushToken: async () => false,
+    now: () => new Date(nowIso),
+  });
+
+  const response = await handler(
+    cronRequest({ "x-cron-secret": "cron-secret" }),
+  );
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertEquals(body.no_push_token, 1);
+  assertEquals(stats.invoked, []);
+  assertEquals(tables.decan_reflections.length, 0);
+  assertEquals(tables.decan_reflection_schedule[0].status, "no_push_token");
+  const skipped = tables.maat_delivery_timing_events.find((row) =>
+    row.delivery_status === "skipped"
+  );
+  assertEquals(skipped?.metadata.generation_skipped, true);
+});
