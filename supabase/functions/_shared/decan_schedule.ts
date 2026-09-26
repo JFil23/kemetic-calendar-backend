@@ -274,7 +274,7 @@ export function computeDecanWindowForGregorianDate(
   return {
     start: formatDateOnly(start),
     end: formatDateOnly(end),
-    sendAt: zonedDateTimeToUtcIso(end, normalizedTimeZone, 20, 0),
+    sendAt: zonedDateTimeToUtcIso(end, normalizedTimeZone, 18, 0),
     decanName,
     decanTheme,
     decanContextKey,
@@ -365,5 +365,5 @@ export function computeWindowSendAt(
 ) {
   const normalizedTimeZone = normalizeTimeZone(timeZone);
   const [year, month, day] = decanEnd.split("-").map((value) => Number(value));
-  return zonedDateTimeToUtcIso({ year, month, day }, normalizedTimeZone, 20, 0);
+  return zonedDateTimeToUtcIso({ year, month, day }, normalizedTimeZone, 18, 0);
 }

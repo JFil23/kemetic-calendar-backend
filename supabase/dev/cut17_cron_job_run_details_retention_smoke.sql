@@ -60,7 +60,7 @@ using cron.job job
 where detail.jobid = job.jobid
   and job.jobname in (
     'cron_reminder_push_1m',
-    'decan_reflection_push_5m',
+    'decan_reflection_reconcile_daily',
     'maat_guidance_evaluate_hourly'
   );
 
@@ -112,21 +112,21 @@ join (
       now() - interval '59 seconds'
     ),
     (
-      'decan_reflection_push_5m',
+      'decan_reflection_reconcile_daily',
       -170004,
       'failed',
       now() - interval '15 days',
       now() - interval '15 days' + interval '1 second'
     ),
     (
-      'decan_reflection_push_5m',
+      'decan_reflection_reconcile_daily',
       -170005,
       'failed',
       now() - interval '4 minutes',
       now() - interval '239 seconds'
     ),
     (
-      'decan_reflection_push_5m',
+      'decan_reflection_reconcile_daily',
       -170006,
       'succeeded',
       now() - interval '30 seconds',
@@ -186,7 +186,7 @@ begin
 
   select * into strict v_reflection
   from public.maat_delivery_cron_health
-  where job_name = 'decan_reflection_push_5m';
+  where job_name = 'decan_reflection_reconcile_daily';
 
   if v_reflection.last_status <> 'succeeded'
      or v_reflection.success_count <> 1

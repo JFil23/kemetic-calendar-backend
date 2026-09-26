@@ -2231,6 +2231,9 @@ class MigrationSourceContractsTest(unittest.TestCase):
         reflection_push = source(
             "supabase/functions/cron_decan_reflection_push/index.ts"
         )
+        reflection_reconcile = source(
+            "supabase/functions/cron_decan_reflection_reconcile/index.ts"
+        )
         require_all(
             self,
             evaluation,
@@ -2254,8 +2257,24 @@ class MigrationSourceContractsTest(unittest.TestCase):
                 "hasActivePushToken",
                 "generation_skipped: true",
                 "hasEligiblePushToken(row.user_id)",
+                'cronJobName: "decan_reflection_one_shot"',
+            ],
+        )
+        reject_all(
+            self,
+            reflection_push,
+            [
                 "listActiveMaatUserIds",
-                "active_user_count: activeUserIds?.length ?? null",
+                "seedMissingSchedules",
+            ],
+        )
+        require_all(
+            self,
+            reflection_reconcile,
+            [
+                "listActiveMaatUserIds",
+                "reconcileDecanReflectionSchedules",
+                '"reconcile_decan_reflection_scheduler"',
             ],
         )
 

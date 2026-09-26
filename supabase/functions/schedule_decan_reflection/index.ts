@@ -131,6 +131,7 @@ serve(async (req) => {
         decan_start: decanStartDate,
         decan_end: decanEndDate,
         send_at: sendAt.toISOString(),
+        next_attempt_at: sendAt.toISOString(),
         decan_name: decanName,
         decan_theme: decanTheme,
         decan_context_key: decanContextKey,
@@ -151,6 +152,7 @@ serve(async (req) => {
         .update({
           decan_end: decanEndDate,
           send_at: sendAt.toISOString(),
+          next_attempt_at: sendAt.toISOString(),
           decan_name: decanName,
           decan_theme: decanTheme,
           decan_context_key: decanContextKey,

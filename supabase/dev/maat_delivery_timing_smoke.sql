@@ -32,7 +32,7 @@ insert into public.maat_delivery_timing_events (
     now() - interval '10 minutes',
     now() - interval '5 minutes',
     now(),
-    'decan_reflection_push_5m',
+    'decan_reflection_one_shot',
     'sent',
     '{"smoke": true}'::jsonb
   ),
@@ -56,7 +56,7 @@ select
   failed_count,
   late_count
 from public.maat_delivery_timing_health
-where cron_job_name in ('cron_reminder_push_1m', 'decan_reflection_push_5m')
+where cron_job_name in ('cron_reminder_push_1m', 'decan_reflection_one_shot')
 order by cron_job_name, delivery_kind;
 
 select

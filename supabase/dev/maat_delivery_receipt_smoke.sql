@@ -32,7 +32,7 @@ insert into public.maat_delivery_timing_events (
     now() - interval '30 minutes',
     now() - interval '29 minutes',
     now() - interval '29 minutes',
-    'decan_reflection_push_5m',
+    'decan_reflection_one_shot',
     'sent',
     '{"smoke": true}'::jsonb
   );

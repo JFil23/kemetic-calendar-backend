@@ -2,11 +2,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
-import { listActiveMaatUserIds } from "../_shared/maat_active_users.ts";
 import { fallbackDecanLabel } from "../_shared/decan_context.ts";
-import {
-  computePreviousCurrentAndNextDecanWindows,
-} from "../_shared/decan_schedule.ts";
 import {
   recordMaatDeliveryTimingEvent,
 } from "../_shared/maat_delivery_timing.ts";
@@ -30,20 +26,6 @@ type ScheduleRow = {
   decan_context_key: string | null;
   attempt_count: number;
   claim_token: string | null;
-};
-
-type EligibleUserRow = {
-  id: string;
-  timezone: string | null;
-};
-
-type ExistingScheduleSeedRow = {
-  id: string;
-  user_id: string;
-  decan_start: string;
-  status: string;
-  send_at: string;
-  sent_at: string | null;
 };
 
 type ReflectionResult = {
@@ -98,7 +80,6 @@ type RuntimeConfig = {
   maxAttempts: number;
   maxBatches: number;
   maxRuntimeMs: number;
-  seedBatchSize: number;
   internalFunctionKey: string;
   cronSecret: string;
 };
@@ -150,7 +131,7 @@ async function recordScheduleDeliveryEvent(
     cronPickedAt: params.status === "picked" ? params.functionStartedAt : null,
     functionStartedAt: params.functionStartedAt,
     deliveredAt: params.deliveredAt ?? null,
-    cronJobName: "decan_reflection_push_5m",
+    cronJobName: "decan_reflection_one_shot",
     deliveryAttempt: (row.attempt_count ?? 0) + 1,
     deliveryStatus: params.status,
     skipReason: params.skipReason ?? null,
@@ -208,7 +189,6 @@ function createDefaultConfig(): RuntimeConfig {
       5_000,
       300_000,
     ),
-    seedBatchSize: readIntEnv("DECAN_REFLECTION_SEED_BATCH_SIZE", 500, 1, 1000),
     internalFunctionKey: Deno.env.get("INTERNAL_FUNCTION_KEY") ?? "",
     cronSecret: Deno.env.get("DECAN_REFLECTION_CRON_SECRET") ??
       Deno.env.get("CRON_SECRET") ?? "",
@@ -224,199 +204,6 @@ function jsonResponse(body: unknown, status = 200) {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
-}
-
-export function timestampsEqualAtSchedulerPrecision(
-  existing: string | null | undefined,
-  scheduled: string | null | undefined,
-) {
-  const existingMs = typeof existing === "string"
-    ? Date.parse(existing)
-    : Number.NaN;
-  const scheduledMs = typeof scheduled === "string"
-    ? Date.parse(scheduled)
-    : Number.NaN;
-
-  return Number.isFinite(existingMs) &&
-    Number.isFinite(scheduledMs) &&
-    existingMs === scheduledMs;
-}
-
-async function fetchEligibleUsers(
-  client: SupabaseClientLike,
-  from: number,
-  to: number,
-  activeUserIds: string[] | null,
-): Promise<EligibleUserRow[]> {
-  if (activeUserIds?.length === 0) return [];
-
-  let query = client
-    .from("profiles")
-    .select("id, timezone");
-  if (activeUserIds) {
-    query = query.in("id", activeUserIds);
-  }
-  const { data, error } = await query
-    .order("id", { ascending: true })
-    .range(from, to);
-
-  if (error) {
-    throw new Error(`Eligible user fetch error: ${errorMessage(error)}`);
-  }
-
-  return (data ?? []) as EligibleUserRow[];
-}
-
-async function fetchExistingSeedSchedules(
-  client: SupabaseClientLike,
-  userIds: string[],
-  decanStarts: string[],
-): Promise<ExistingScheduleSeedRow[]> {
-  if (!userIds.length || !decanStarts.length) return [];
-
-  const { data, error } = await client
-    .from("decan_reflection_schedule")
-    .select("id, user_id, decan_start, status, send_at, sent_at")
-    .in("user_id", userIds)
-    .in("decan_start", decanStarts);
-
-  if (error) {
-    throw new Error(
-      `Existing schedule seed fetch error: ${errorMessage(error)}`,
-    );
-  }
-
-  return (data ?? []) as ExistingScheduleSeedRow[];
-}
-
-async function updateExistingSeedSchedule(
-  client: SupabaseClientLike,
-  id: string,
-  values: Record<string, unknown>,
-) {
-  const { error } = await client
-    .from("decan_reflection_schedule")
-    .update(values)
-    .eq("id", id);
-
-  if (error) {
-    throw new Error(`Existing schedule update error: ${errorMessage(error)}`);
-  }
-}
-
-async function seedMissingSchedules(
-  client: SupabaseClientLike,
-  config: RuntimeConfig,
-  now: Date,
-  activeUserIds: string[] | null,
-) {
-  let from = 0;
-
-  while (true) {
-    const users = await fetchEligibleUsers(
-      client,
-      from,
-      from + config.seedBatchSize - 1,
-      activeUserIds,
-    );
-    if (!users.length) break;
-
-    const userWindows = users.map((user) => ({
-      userId: user.id,
-      windows: computePreviousCurrentAndNextDecanWindows(now, user.timezone),
-    }));
-
-    const rows = userWindows.flatMap(({ userId, windows }) =>
-      windows.map((window) => ({
-        user_id: userId,
-        decan_start: window.start,
-        decan_end: window.end,
-        send_at: window.sendAt,
-        decan_name: window.decanName,
-        decan_theme: window.decanTheme,
-        decan_context_key: window.decanContextKey,
-        status: "pending",
-      }))
-    );
-
-    const existingRows = await fetchExistingSeedSchedules(
-      client,
-      users.map((user) => user.id),
-      Array.from(new Set(rows.map((row) => row.decan_start))),
-    );
-    const existingByKey = new Map(
-      existingRows.map((row) => [`${row.user_id}::${row.decan_start}`, row]),
-    );
-
-    const inserts = rows.filter((row) =>
-      !existingByKey.has(`${row.user_id}::${row.decan_start}`)
-    );
-
-    if (inserts.length) {
-      const { error } = await client
-        .from("decan_reflection_schedule")
-        .upsert(inserts, {
-          onConflict: "user_id,decan_start",
-          ignoreDuplicates: true,
-        });
-
-      if (error) {
-        throw new Error(`Schedule seed error: ${errorMessage(error)}`);
-      }
-    }
-
-    for (const { userId, windows } of userWindows) {
-      for (let index = 0; index < windows.length; index += 1) {
-        const window = windows[index];
-        const existing = existingByKey.get(`${userId}::${window.start}`);
-        if (!existing) continue;
-
-        const desiredFields = {
-          decan_end: window.end,
-          send_at: window.sendAt,
-          decan_name: window.decanName,
-          decan_theme: window.decanTheme,
-          decan_context_key: window.decanContextKey,
-        };
-
-        if (
-          existing.status === "pending" &&
-          !timestampsEqualAtSchedulerPrecision(
-            existing.send_at,
-            window.sendAt,
-          )
-        ) {
-          await updateExistingSeedSchedule(client, existing.id, desiredFields);
-          continue;
-        }
-
-        const shouldMakeGood = index === 0 &&
-          ["sent", "failed", "no_push_token"].includes(existing.status) &&
-          new Date(existing.send_at).getTime() <
-            new Date(window.sendAt).getTime() &&
-          now.getTime() >= new Date(window.sendAt).getTime() &&
-          (!existing.sent_at ||
-            new Date(existing.sent_at).getTime() <
-              new Date(window.sendAt).getTime());
-
-        if (shouldMakeGood) {
-          await updateExistingSeedSchedule(client, existing.id, {
-            ...desiredFields,
-            status: "pending",
-            claimed_at: null,
-            claim_token: null,
-            sent_at: null,
-            last_error: null,
-            attempt_count: 0,
-            last_attempt_at: null,
-          });
-        }
-      }
-    }
-
-    if (users.length < config.seedBatchSize) break;
-    from += config.seedBatchSize;
-  }
 }
 
 async function claimDueSchedules(
@@ -524,7 +311,13 @@ async function hasActivePushToken(
   return data != null;
 }
 
-async function findExistingReflectionId(
+type ExistingReflection = {
+  id: string;
+  reflection_text: string | null;
+  badge_count: number | null;
+};
+
+async function findExistingReflection(
   client: SupabaseClientLike,
   userId: string,
   decanStart: string,
@@ -532,7 +325,7 @@ async function findExistingReflectionId(
 ) {
   const { data, error } = await client
     .from("decan_reflections")
-    .select("id")
+    .select("id, reflection_text, badge_count")
     .eq("user_id", userId)
     .eq("decan_start", decanStart)
     .eq("decan_end", decanEnd)
@@ -542,7 +335,7 @@ async function findExistingReflectionId(
   if (error) {
     throw new Error(`Existing reflection lookup error: ${errorMessage(error)}`);
   }
-  return (data as { id?: string } | null)?.id ?? null;
+  return (data as ExistingReflection | null) ?? null;
 }
 
 async function storeReflection(
@@ -555,13 +348,13 @@ async function storeReflection(
   badgeCount: number,
   reflection: string,
 ) {
-  const existingId = await findExistingReflectionId(
+  const existing = await findExistingReflection(
     client,
     userId,
     decanStart,
     decanEnd,
   );
-  if (existingId) return existingId;
+  if (existing?.id) return existing.id;
 
   const { data, error } = await client
     .from("decan_reflections")
@@ -584,13 +377,13 @@ async function storeReflection(
 
   const message = errorMessage(error);
   if (message.includes("duplicate") || message.includes("23505")) {
-    const racedId = await findExistingReflectionId(
+    const raced = await findExistingReflection(
       client,
       userId,
       decanStart,
       decanEnd,
     );
-    if (racedId) return racedId;
+    if (raced?.id) return raced.id;
   }
   throw new Error(`Reflection persist error: ${message}`);
 }
@@ -709,6 +502,7 @@ async function markSent(
     attempt_count: 0,
     claimed_at: null,
     claim_token: null,
+    next_attempt_at: null,
   });
 }
 
@@ -724,6 +518,7 @@ async function markNoPushToken(
     last_attempt_at: now.toISOString(),
     claimed_at: null,
     claim_token: null,
+    next_attempt_at: null,
   });
 }
 
@@ -740,6 +535,7 @@ async function markPushBlocked(
     last_attempt_at: now.toISOString(),
     claimed_at: null,
     claim_token: null,
+    next_attempt_at: null,
   });
 }
 
@@ -752,6 +548,11 @@ async function markFailed(
 ) {
   const attempts = (row.attempt_count ?? 0) + 1;
   const nextStatus = attempts >= config.maxAttempts ? "failed" : "pending";
+  const nextAttemptAt = nextStatus === "pending"
+    ? new Date(
+      now.getTime() + (attempts === 1 ? 15 : 60) * 60 * 1000,
+    ).toISOString()
+    : null;
   try {
     await updateClaimedSchedule(client, row, {
       status: nextStatus,
@@ -760,6 +561,7 @@ async function markFailed(
       last_attempt_at: now.toISOString(),
       claimed_at: null,
       claim_token: null,
+      next_attempt_at: nextAttemptAt,
     });
   } catch (error) {
     console.error("Failed to mark failed:", error);
@@ -791,23 +593,38 @@ async function processScheduleRow(
       fallbackDecanLabel(row.decan_context_key) ||
       `Decan starting ${row.decan_start}`;
     const decanTheme = row.decan_theme?.trim() || null;
+    const existingReflection = await findExistingReflection(
+      client,
+      row.user_id,
+      row.decan_start,
+      row.decan_end,
+    );
+    const generated = existingReflection
+      ? {
+        reflection: existingReflection.reflection_text ?? "",
+        badgeCount: existingReflection.badge_count ?? 0,
+        compiledOutputPackage: null,
+        anchorNodes: [] as string[],
+        leadAxis: null,
+      }
+      : await generateReflection(
+        client,
+        row.user_id,
+        decanName,
+        decanTheme,
+        row.decan_context_key,
+        row.decan_start,
+        row.decan_end,
+      );
     const {
       reflection,
       badgeCount,
       compiledOutputPackage,
       anchorNodes,
       leadAxis,
-    } = await generateReflection(
-      client,
-      row.user_id,
-      decanName,
-      decanTheme,
-      row.decan_context_key,
-      row.decan_start,
-      row.decan_end,
-    );
+    } = generated;
 
-    const reflectionId = await storeReflection(
+    const reflectionId = existingReflection?.id ?? await storeReflection(
       client,
       row.user_id,
       decanName,
@@ -903,7 +720,6 @@ export function createCronDecanReflectionPushHandler(options?: {
   client?: SupabaseClientLike;
   config?: Partial<RuntimeConfig>;
   hasEligiblePushToken?: HasEligiblePushToken;
-  listActiveUserIds?: (now: Date) => Promise<string[]>;
   now?: () => Date;
 }) {
   const client = options?.client ?? createDefaultClient();
@@ -913,12 +729,8 @@ export function createCronDecanReflectionPushHandler(options?: {
   };
   const tokenIsEligible = options?.hasEligiblePushToken ??
     (options?.client
-      ? async () => true
+      ? () => Promise.resolve(true)
       : (userId: string) => hasActivePushToken(client, userId));
-  const listEligibleUsers = options?.listActiveUserIds ??
-    (options?.client
-      ? null
-      : (now: Date) => listActiveMaatUserIds(client, now));
   const nowFn = options?.now ?? (() => new Date());
 
   return async (req: Request): Promise<Response> => {
@@ -945,11 +757,6 @@ export function createCronDecanReflectionPushHandler(options?: {
 
       const startedAtMs = Date.now();
       const functionStartedAt = new Date(startedAtMs).toISOString();
-      const activeUserIds = listEligibleUsers
-        ? await listEligibleUsers(nowFn())
-        : null;
-      await seedMissingSchedules(client, config, nowFn(), activeUserIds);
-
       const totals = {
         success: true,
         processed: 0,
@@ -962,7 +769,6 @@ export function createCronDecanReflectionPushHandler(options?: {
         drained: false,
         exhausted_runtime: false,
         exhausted_batches: false,
-        active_user_count: activeUserIds?.length ?? null,
       };
 
       for (let batch = 0; batch < config.maxBatches; batch += 1) {

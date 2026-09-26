@@ -5,13 +5,10 @@ import {
   assertEquals,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
+import { createCronDecanReflectionPushHandler } from "./index.ts";
 import {
-  createCronDecanReflectionPushHandler,
   timestampsEqualAtSchedulerPrecision,
-} from "./index.ts";
-import {
-  computePreviousCurrentAndNextDecanWindows,
-} from "../_shared/decan_schedule.ts";
+} from "../_shared/decan_reflection_reconcile.ts";
 
 type Row = Record<string, any>;
 type Tables = Record<string, Row[]>;
@@ -46,7 +43,6 @@ const baseConfig = {
   maxAttempts: 3,
   maxBatches: 5,
   maxRuntimeMs: 300_000,
-  seedBatchSize: 500,
 };
 
 class MockSupabaseQuery {
@@ -206,6 +202,7 @@ function scheduleRow(id: string, userId: string): Row {
     decan_start: "2026-05-06",
     decan_end: "2026-05-15",
     send_at: "2026-05-16T03:00:00.000Z",
+    next_attempt_at: "2026-05-16T03:00:00.000Z",
     status: "pending",
     decan_name: "Peret - Measure",
     decan_theme: "Measure",
@@ -244,8 +241,10 @@ function createMockClient(
       const pNow = String(args.p_now);
       const claimToken = `claim-${stats.rpcCalls}`;
       const due = (tables.decan_reflection_schedule ?? [])
-        .filter((row) => row.status === "pending" && row.send_at <= pNow)
-        .sort((a, b) => a.send_at.localeCompare(b.send_at))
+        .filter((row) =>
+          row.status === "pending" && row.next_attempt_at <= pNow
+        )
+        .sort((a, b) => a.next_attempt_at.localeCompare(b.next_attempt_at))
         .slice(0, limit);
       for (const row of due) {
         row.status = "claimed";
@@ -354,6 +353,18 @@ function noPushToken(): SendPushResult {
   };
 }
 
+function transientFailure(): SendPushResult {
+  return {
+    sent: 0,
+    failed: 1,
+    stale: 0,
+    matchedTokens: 1,
+    delivered: false,
+    reason: "temporary_provider_failure",
+    failedReasons: ["temporary_provider_failure"],
+  };
+}
+
 function cronRequest(headers: Record<string, string> = {}) {
   return new Request("http://localhost/cron_decan_reflection_push", {
     method: "POST",
@@ -415,100 +426,6 @@ Deno.test("timestamp equality matches canonical scheduler millisecond precision"
     timestampsEqualAtSchedulerPrecision(null, scheduled),
     false,
   );
-});
-
-Deno.test("cron_decan_reflection_push leaves equivalent seeded schedule instants unchanged", async () => {
-  const now = new Date(nowIso);
-  const windows = computePreviousCurrentAndNextDecanWindows(
-    now,
-    "America/Los_Angeles",
-  );
-  const equivalentSendAt = (sendAt: string) =>
-    sendAt.replace(".000Z", "+00:00");
-  const tables: Tables = {
-    profiles: [{ id: "user-1", timezone: "America/Los_Angeles" }],
-    decan_reflection_schedule: windows.map((window, index) => ({
-      ...scheduleRow(`schedule-${index + 1}`, "user-1"),
-      decan_start: window.start,
-      decan_end: window.end,
-      send_at: equivalentSendAt(window.sendAt),
-      decan_name: window.decanName,
-      decan_theme: window.decanTheme,
-      decan_context_key: window.decanContextKey,
-    })),
-  };
-  const before = tables.decan_reflection_schedule.map((row) => row.send_at);
-  const { client } = createMockClient(tables);
-  const handler = createCronDecanReflectionPushHandler({
-    client,
-    config: { ...baseConfig, maxBatches: 0 },
-    now: () => now,
-  });
-
-  const response = await handler(
-    cronRequest({ "x-cron-secret": "cron-secret" }),
-  );
-
-  assertEquals(response.status, 200);
-  assertEquals(
-    tables.decan_reflection_schedule.map((row) => row.send_at),
-    before,
-  );
-});
-
-Deno.test("cron_decan_reflection_push updates genuine changes and preserves make-good behavior", async () => {
-  const now = new Date(nowIso);
-  const windows = computePreviousCurrentAndNextDecanWindows(
-    now,
-    "America/Los_Angeles",
-  );
-  assert(windows.length >= 3);
-  const rows: Row[] = windows.map((window, index) => ({
-    ...scheduleRow(`schedule-${index + 1}`, "user-1"),
-    decan_start: window.start,
-    decan_end: window.end,
-    send_at: window.sendAt,
-    decan_name: window.decanName,
-    decan_theme: window.decanTheme,
-    decan_context_key: window.decanContextKey,
-  }));
-  rows[0] = {
-    ...rows[0],
-    status: "sent",
-    send_at: new Date(Date.parse(windows[0].sendAt) - 60 * 60 * 1000)
-      .toISOString(),
-    sent_at: new Date(Date.parse(windows[0].sendAt) - 30 * 60 * 1000)
-      .toISOString(),
-    attempt_count: 2,
-    last_error: "previous failure",
-    last_attempt_at: nowIso,
-  };
-  rows[1].send_at = new Date(
-    Date.parse(windows[1].sendAt) + 60 * 60 * 1000,
-  ).toISOString();
-  const tables: Tables = {
-    profiles: [{ id: "user-1", timezone: "America/Los_Angeles" }],
-    decan_reflection_schedule: rows,
-  };
-  const { client } = createMockClient(tables);
-  const handler = createCronDecanReflectionPushHandler({
-    client,
-    config: { ...baseConfig, maxBatches: 0 },
-    now: () => now,
-  });
-
-  const response = await handler(
-    cronRequest({ "x-cron-secret": "cron-secret" }),
-  );
-
-  assertEquals(response.status, 200);
-  assertEquals(rows[0].send_at, windows[0].sendAt);
-  assertEquals(rows[0].status, "pending");
-  assertEquals(rows[0].sent_at, null);
-  assertEquals(rows[0].attempt_count, 0);
-  assertEquals(rows[0].last_error, null);
-  assertEquals(rows[0].last_attempt_at, null);
-  assertEquals(rows[1].send_at, windows[1].sendAt);
 });
 
 Deno.test("cron_decan_reflection_push drains due batches and keeps no-token rows out of sent", async () => {
@@ -745,7 +662,7 @@ Deno.test("cron_decan_reflection_push skips generation before AI when no token i
   const handler = createCronDecanReflectionPushHandler({
     client,
     config: baseConfig,
-    hasEligiblePushToken: async () => false,
+    hasEligiblePushToken: () => Promise.resolve(false),
     now: () => new Date(nowIso),
   });
 
@@ -765,35 +682,86 @@ Deno.test("cron_decan_reflection_push skips generation before AI when no token i
   assertEquals(skipped?.metadata.generation_skipped, true);
 });
 
-Deno.test("cron_decan_reflection_push seeds schedules only for active users", async () => {
+Deno.test("cron_decan_reflection_push schedules bounded one-shot retries without moving send_at", async () => {
+  const row = scheduleRow("schedule-1", "user-1");
   const tables: Tables = {
-    profiles: [
-      { id: "user-active", timezone: "America/Los_Angeles" },
-      { id: "user-inactive", timezone: "America/Los_Angeles" },
-    ],
-    decan_reflection_schedule: [],
+    decan_reflection_schedule: [row],
     decan_reflections: [],
     maat_delivery_timing_events: [],
   };
-  const { client } = createMockClient(tables);
+  const { client } = createMockClient(tables, {
+    pushResults: [transientFailure()],
+  });
   const handler = createCronDecanReflectionPushHandler({
     client,
     config: baseConfig,
-    listActiveUserIds: async () => ["user-active"],
     now: () => new Date(nowIso),
   });
 
   const response = await handler(
     cronRequest({ "x-cron-secret": "cron-secret" }),
   );
-  const body = await response.json();
-
   assertEquals(response.status, 200);
-  assertEquals(body.active_user_count, 1);
-  assert(tables.decan_reflection_schedule.length > 0);
-  assert(
-    tables.decan_reflection_schedule.every((row) =>
-      row.user_id === "user-active"
-    ),
+  assertEquals(row.status, "pending");
+  assertEquals(row.attempt_count, 1);
+  assertEquals(row.send_at, "2026-05-16T03:00:00.000Z");
+  assertEquals(row.next_attempt_at, "2026-05-19T12:15:00.000Z");
+});
+
+Deno.test("cron_decan_reflection_push stops after the final bounded failure", async () => {
+  const row: Row = {
+    ...scheduleRow("schedule-1", "user-1"),
+    attempt_count: 2,
+  };
+  const tables: Tables = {
+    decan_reflection_schedule: [row],
+    decan_reflections: [],
+    maat_delivery_timing_events: [],
+  };
+  const { client } = createMockClient(tables, {
+    pushResults: [transientFailure()],
+  });
+  const handler = createCronDecanReflectionPushHandler({
+    client,
+    config: baseConfig,
+    now: () => new Date(nowIso),
+  });
+
+  await handler(cronRequest({ "x-cron-secret": "cron-secret" }));
+  assertEquals(row.status, "failed");
+  assertEquals(row.attempt_count, 3);
+  assertEquals(row.next_attempt_at, null);
+});
+
+Deno.test("cron_decan_reflection_push reuses a persisted reflection on push retry", async () => {
+  const tables: Tables = {
+    decan_reflection_schedule: [scheduleRow("schedule-1", "user-1")],
+    decan_reflections: [{
+      id: "reflection-existing",
+      user_id: "user-1",
+      decan_start: "2026-05-06",
+      decan_end: "2026-05-15",
+      reflection_text: "Persisted canonical reflection.",
+      badge_count: 2,
+      created_at: nowIso,
+    }],
+    maat_delivery_timing_events: [],
+  };
+  const { client, stats } = createMockClient(tables);
+  const handler = createCronDecanReflectionPushHandler({
+    client,
+    config: baseConfig,
+    now: () => new Date(nowIso),
+  });
+
+  const response = await handler(
+    cronRequest({ "x-cron-secret": "cron-secret" }),
+  );
+  assertEquals(response.status, 200);
+  assertEquals(stats.invoked, ["send_push"]);
+  assertEquals(tables.decan_reflections.length, 1);
+  assertEquals(
+    stats.pushBodies[0].data?.reflectionId,
+    "reflection-existing",
   );
 });
