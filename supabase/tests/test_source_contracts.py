@@ -2262,7 +2262,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
     def test_cut_15_moves_only_aggregate_health_readers_to_ledger(self) -> None:
         body = source(
             "supabase/migrations/"
-            "20260926050832_move_delivery_health_to_ledger.sql"
+            "20260926051956_move_delivery_health_to_ledger.sql"
         )
         require_all(
             self,
