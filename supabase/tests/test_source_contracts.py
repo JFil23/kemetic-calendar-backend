@@ -2523,6 +2523,141 @@ class MigrationSourceContractsTest(unittest.TestCase):
         )
 
 
+    def test_together_is_a_social_overlay_not_a_flow_fork(self) -> None:
+        social = source(
+            "supabase/migrations/"
+            "20260926171359_together_social_overlay_contract.sql"
+        )
+        commons = source(
+            "supabase/migrations/"
+            "20260926171845_together_commons_contract.sql"
+        )
+        require_all(
+            self,
+            social,
+            [
+                "alter column calendar_id drop not null",
+                "private.ensure_together_overlay_for_flow",
+                "room.calendar_id is null",
+                "public.users_are_mutual_follows",
+                "public.request_together_on_flow_post",
+                "public.cancel_together_request",
+                "public.get_together_inbox",
+                "'active_rooms', v_active_rooms",
+                "public.set_shared_practice_access",
+                "public.set_shared_practice_public_identity",
+                "request_audience",
+                "policy_confirmed_at",
+                "revoke insert, update, delete",
+            ],
+        )
+        reject_all(
+            self,
+            social,
+            [
+                "insert into public.flows",
+                "insert into public.user_events",
+                "create_shared_practice_from_flow(",
+                "grant execute on function public.users_are_mutual_follows",
+                "grant execute on function public.shared_practice_can_request_room",
+            ],
+        )
+        require_all(
+            self,
+            commons,
+            [
+                "public.shared_practice_accepted_member_count",
+                "room.visibility = 'public'",
+                "public.shared_practice_accepted_member_count(room.id) >= 2",
+                "public.shared_practice_can_request_room",
+                "public.cancel_join_shared_practice",
+                "public.toggle_shared_practice_room_like",
+            ],
+        )
+
+    def test_together_group_chat_follows_host_position_and_is_member_only(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260926172548_together_group_room_chat.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create table if not exists public.shared_practice_messages",
+                "public.shared_practice_is_room_member(room_id",
+                "private.together_host_step",
+                "public.get_together_room_for_flow",
+                "public.shared_practice_accepted_member_count(room.id) >= 2",
+                "event.user_id = room_flow.created_by",
+                "public.user_event_matches_flow",
+                "public.send_shared_practice_message",
+                "v_room.calendar_id is null",
+                "if v_uid = v_room.created_by then",
+                "perform public.record_event_completion(",
+                "public.get_shared_practice_room",
+                "'messages', v_messages",
+                "'appearance', v_flow.appearance",
+                "alter publication supabase_realtime",
+                "revoke all on table public.shared_practice_messages",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "insert into public.flows",
+                "insert into public.user_events",
+                "grant execute on function private.together_host_step",
+            ],
+        )
+
+    def test_together_quote_posts_require_author_approval_and_bound_reads(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260926173052_together_quote_posts.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create table if not exists public.shared_practice_quote_posts",
+                "create table if not exists public.shared_practice_quote_likes",
+                "create table if not exists public.shared_practice_quote_comments",
+                "v_approved := v_message.user_id = v_uid",
+                "post.quoted_user_id = v_uid",
+                "post.status = 'pending'",
+                "public.get_together_quote_approvals",
+                "public.toggle_shared_practice_quote_like",
+                "public.add_shared_practice_quote_comment",
+                "public.shared_practice_accepted_member_count(room.id) >= 2",
+                "limit 30",
+                "limit v_limit",
+                "revoke all on table public.shared_practice_quote_posts",
+            ],
+        )
+
+    def test_together_requester_decisions_and_solo_feed_state_are_explicit(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260926173904_together_request_decision_inbox.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "add column if not exists requester_seen_at",
+                "private.reset_together_request_decision_seen",
+                "public.get_together_request_decisions",
+                "public.mark_together_request_decision_seen",
+                "request.status in ('approved', 'denied')",
+                "request.requester_seen_at is null",
+                "coalesce((select member_count from accepted), 1) < 2",
+                "'viewer_can_request_together'",
+            ],
+        )
+
+
 class EdgeFunctionSourceContractsTest(unittest.TestCase):
     def test_decan_opening_generation_is_keyed_get_or_create_only(self) -> None:
         body = source(
