@@ -818,13 +818,6 @@ begin
     raise exception 'Cut 14 changed an existing delivery reader definition';
   end if;
 
-  if exists (
-    select 1
-    from cut14_reader_definitions_before before
-    where before.definition like '%maat_delivery_ledger%'
-  ) then
-    raise exception 'Cut 14 moved a reader to the ledger before Cut 15';
-  end if;
 end
 $$;
 

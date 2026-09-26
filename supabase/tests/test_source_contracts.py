@@ -2259,6 +2259,90 @@ class MigrationSourceContractsTest(unittest.TestCase):
             ],
         )
 
+    def test_cut_15_moves_only_aggregate_health_readers_to_ledger(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260926050832_move_delivery_health_to_ledger.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace view public.maat_delivery_timing_health",
+                "create or replace view public.maat_delivery_receipt_health",
+                "with (security_invoker = true)",
+                "from public.maat_delivery_ledger ledger",
+                "ledger.last_event_at >= now() - interval '14 days'",
+                "sum(ledger.picked_count)::bigint",
+                "sum(ledger.sent_count)::bigint",
+                "count(*) filter (where ledger.sent_count > 1)",
+                "sum(ledger.sent_latency_sum_seconds)::numeric",
+                "nullif(sum(ledger.sent_latency_count), 0)",
+                "ledger.first_delivered_at as sent_at",
+                "ledger.min_sent_latency_seconds as server_delivery_latency_seconds",
+                "from public.maat_delivery_receipt_events receipt",
+                "interval '15 minutes'",
+                "interval '1 hour'",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "create or replace view public.maat_delivery_recent_events",
+                "create or replace view public.maat_delivery_push_release_blockers",
+                "create or replace view public.maat_delivery_alerts",
+                "create or replace view public.maat_delivery_cron_health",
+                "public.maat_delivery_timing_events",
+                "insert into ",
+                "update public.",
+                "delete from ",
+                "truncate ",
+                "grant ",
+                "revoke ",
+            ],
+        )
+
+        workflow = source(".github/workflows/supabase-functions.yml")
+        self.assertIn(
+            "supabase/dev/cut15_delivery_health_ledger_readers_smoke.sql",
+            workflow,
+        )
+
+        smoke = source(
+            "supabase/dev/cut15_delivery_health_ledger_readers_smoke.sql"
+        )
+        require_all(
+            self,
+            smoke,
+            [
+                "cut15_raw_timing_expected",
+                "cut15_raw_receipt_expected",
+                "raw and ledger timing-health aggregates differ",
+                "raw and ledger receipt-health results differ",
+                "receipt status transition contract changed",
+                "ledger-backed alert behavior changed",
+                "recent events no longer uses raw timing events",
+                "push release blockers lost recent-events authority",
+                "ledger became directly visible to a client role",
+            ],
+        )
+
+        rollback = source(
+            "supabase/dev/rollback_cut15_delivery_health_to_raw.sql"
+        )
+        require_all(
+            self,
+            rollback,
+            [
+                "create or replace view public.maat_delivery_timing_health",
+                "create or replace view public.maat_delivery_receipt_health",
+                "from public.maat_delivery_timing_events event",
+                "left join duplicate_sent_keys duplicate",
+                "from public.maat_delivery_receipt_events receipt",
+            ],
+        )
+
 class EdgeFunctionSourceContractsTest(unittest.TestCase):
     def test_decan_opening_generation_is_keyed_get_or_create_only(self) -> None:
         body = source(
