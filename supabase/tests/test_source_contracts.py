@@ -2343,6 +2343,66 @@ class MigrationSourceContractsTest(unittest.TestCase):
             ],
         )
 
+    def test_cut_17_bounds_only_pg_cron_run_history(self) -> None:
+        body = source(
+            "supabase/migrations/"
+            "20260926055234_bound_cron_job_run_details_history.sql"
+        )
+        require_all(
+            self,
+            body,
+            [
+                "create or replace function "
+                "private.prune_cron_job_run_details()",
+                "delete from cron.job_run_details run",
+                "run.start_time < clock_timestamp() - interval '14 days'",
+                "revoke all on function "
+                "private.prune_cron_job_run_details()",
+                "grant execute on function "
+                "private.prune_cron_job_run_details()",
+                "to service_role",
+                "v_cron_job_run_details := "
+                "private.prune_cron_job_run_details()",
+                "'cron_job_run_details', v_cron_job_run_details",
+            ],
+        )
+        reject_all(
+            self,
+            body,
+            [
+                "truncate ",
+                "vacuum full",
+                " cascade",
+                "create or replace view public.maat_delivery_cron_health",
+                "update cron.",
+                "delete from cron.job ",
+            ],
+        )
+
+        workflow = source(".github/workflows/supabase-functions.yml")
+        self.assertIn(
+            "supabase/dev/cut17_cron_job_run_details_retention_smoke.sql",
+            workflow,
+        )
+
+        smoke = source(
+            "supabase/dev/cut17_cron_job_run_details_retention_smoke.sql"
+        )
+        require_all(
+            self,
+            smoke,
+            [
+                "expected two expired cron rows",
+                "recent/current cron rows were removed",
+                "cron run-detail retention is not idempotent",
+                "reminder cron-health projection changed",
+                "reflection cron-health projection changed",
+                "daily bounded-history cleanup did not report cron delete",
+                "cron definitions or health-view contract changed",
+            ],
+        )
+
+
 class EdgeFunctionSourceContractsTest(unittest.TestCase):
     def test_decan_opening_generation_is_keyed_get_or_create_only(self) -> None:
         body = source(
