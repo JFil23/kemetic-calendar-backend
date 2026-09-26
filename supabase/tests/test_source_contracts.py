@@ -2179,7 +2179,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
     ) -> None:
         body = source(
             "supabase/migrations/"
-            "20260926042453_contain_test_era_history.sql"
+            "20260926044418_contain_test_era_history.sql"
         )
         require_all(
             self,
