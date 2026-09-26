@@ -2254,6 +2254,8 @@ class MigrationSourceContractsTest(unittest.TestCase):
                 "hasActivePushToken",
                 "generation_skipped: true",
                 "hasEligiblePushToken(row.user_id)",
+                "listActiveMaatUserIds",
+                "active_user_count: activeUserIds?.length ?? null",
             ],
         )
 

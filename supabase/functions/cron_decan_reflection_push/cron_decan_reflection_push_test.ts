@@ -764,3 +764,36 @@ Deno.test("cron_decan_reflection_push skips generation before AI when no token i
   );
   assertEquals(skipped?.metadata.generation_skipped, true);
 });
+
+Deno.test("cron_decan_reflection_push seeds schedules only for active users", async () => {
+  const tables: Tables = {
+    profiles: [
+      { id: "user-active", timezone: "America/Los_Angeles" },
+      { id: "user-inactive", timezone: "America/Los_Angeles" },
+    ],
+    decan_reflection_schedule: [],
+    decan_reflections: [],
+    maat_delivery_timing_events: [],
+  };
+  const { client } = createMockClient(tables);
+  const handler = createCronDecanReflectionPushHandler({
+    client,
+    config: baseConfig,
+    listActiveUserIds: async () => ["user-active"],
+    now: () => new Date(nowIso),
+  });
+
+  const response = await handler(
+    cronRequest({ "x-cron-secret": "cron-secret" }),
+  );
+  const body = await response.json();
+
+  assertEquals(response.status, 200);
+  assertEquals(body.active_user_count, 1);
+  assert(tables.decan_reflection_schedule.length > 0);
+  assert(
+    tables.decan_reflection_schedule.every((row) =>
+      row.user_id === "user-active"
+    ),
+  );
+});

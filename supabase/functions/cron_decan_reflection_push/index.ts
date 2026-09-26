@@ -2,6 +2,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
+import { listActiveMaatUserIds } from "../_shared/maat_active_users.ts";
 import { fallbackDecanLabel } from "../_shared/decan_context.ts";
 import {
   computePreviousCurrentAndNextDecanWindows,
@@ -245,10 +246,17 @@ async function fetchEligibleUsers(
   client: SupabaseClientLike,
   from: number,
   to: number,
+  activeUserIds: string[] | null,
 ): Promise<EligibleUserRow[]> {
-  const { data, error } = await client
+  if (activeUserIds?.length === 0) return [];
+
+  let query = client
     .from("profiles")
-    .select("id, timezone")
+    .select("id, timezone");
+  if (activeUserIds) {
+    query = query.in("id", activeUserIds);
+  }
+  const { data, error } = await query
     .order("id", { ascending: true })
     .range(from, to);
 
@@ -300,6 +308,7 @@ async function seedMissingSchedules(
   client: SupabaseClientLike,
   config: RuntimeConfig,
   now: Date,
+  activeUserIds: string[] | null,
 ) {
   let from = 0;
 
@@ -308,6 +317,7 @@ async function seedMissingSchedules(
       client,
       from,
       from + config.seedBatchSize - 1,
+      activeUserIds,
     );
     if (!users.length) break;
 
@@ -893,6 +903,7 @@ export function createCronDecanReflectionPushHandler(options?: {
   client?: SupabaseClientLike;
   config?: Partial<RuntimeConfig>;
   hasEligiblePushToken?: HasEligiblePushToken;
+  listActiveUserIds?: (now: Date) => Promise<string[]>;
   now?: () => Date;
 }) {
   const client = options?.client ?? createDefaultClient();
@@ -904,6 +915,10 @@ export function createCronDecanReflectionPushHandler(options?: {
     (options?.client
       ? async () => true
       : (userId: string) => hasActivePushToken(client, userId));
+  const listEligibleUsers = options?.listActiveUserIds ??
+    (options?.client
+      ? null
+      : (now: Date) => listActiveMaatUserIds(client, now));
   const nowFn = options?.now ?? (() => new Date());
 
   return async (req: Request): Promise<Response> => {
@@ -930,7 +945,10 @@ export function createCronDecanReflectionPushHandler(options?: {
 
       const startedAtMs = Date.now();
       const functionStartedAt = new Date(startedAtMs).toISOString();
-      await seedMissingSchedules(client, config, nowFn());
+      const activeUserIds = listEligibleUsers
+        ? await listEligibleUsers(nowFn())
+        : null;
+      await seedMissingSchedules(client, config, nowFn(), activeUserIds);
 
       const totals = {
         success: true,
@@ -944,6 +962,7 @@ export function createCronDecanReflectionPushHandler(options?: {
         drained: false,
         exhausted_runtime: false,
         exhausted_batches: false,
+        active_user_count: activeUserIds?.length ?? null,
       };
 
       for (let batch = 0; batch < config.maxBatches; batch += 1) {
