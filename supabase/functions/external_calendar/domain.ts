@@ -27,7 +27,7 @@ export class Deadline {
   ): Promise<T> {
     const budget = Math.min(this.remaining(), perRequest);
     const controller = new AbortController();
-    let timer: number | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([
         operation(controller.signal),

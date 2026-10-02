@@ -148,11 +148,11 @@ begin
   end if;
   if p_action='due' then
     return coalesce((select jsonb_agg(jsonb_build_object('user_id',q.user_id,'lane',q.lane)) from (
-      select user_id,lane from private.external_calendar_connections c
-      where c.lane=p_lane and c.status='connected' and c.automatic
-      and c.next_refresh_at<=now() and (c.lease_until is null or c.lease_until<now())
-      and exists(select 1 from private.external_calendar_sources s where s.connection_id=c.id and s.selected)
-      order by next_refresh_at,id limit 5
+      select due_connection.user_id,due_connection.lane from private.external_calendar_connections due_connection
+      where due_connection.lane=p_lane and due_connection.status='connected' and due_connection.automatic
+      and due_connection.next_refresh_at<=now() and (due_connection.lease_until is null or due_connection.lease_until<now())
+      and exists(select 1 from private.external_calendar_sources s where s.connection_id=due_connection.id and s.selected)
+      order by due_connection.next_refresh_at,due_connection.id limit 5
     ) q),'[]'::jsonb);
   end if;
   if p_action='housekeeping' then
@@ -253,7 +253,13 @@ begin
     return '{}'::jsonb;
   end if;
   if p_action='claim' then
-    if c.status<>'connected' and not(c.status='paused' and coalesce((p_payload->>'catalog')::boolean,false)) then raise invalid_parameter_value using message=c.status; end if;
+    -- Explicit authenticated refreshes may import once without re-enabling the
+    -- schedule. Workers never request manual permission; every claim still uses
+    -- the same generation/lease fence, invalidated by a later pause or resume.
+    if c.status<>'connected' and not(c.status='paused' and (
+      coalesce((p_payload->>'catalog')::boolean,false) or
+      coalesce((p_payload->>'manual')::boolean,false))) then
+      raise invalid_parameter_value using message=c.status; end if;
     if c.lease_until>now() then raise lock_not_available using message='sync_busy'; end if;
     token:=gen_random_uuid();
     update private.external_calendar_connections set lease_token=token,lease_until=now()+interval '120 seconds',

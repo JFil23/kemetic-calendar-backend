@@ -73,6 +73,8 @@ async function fixture(
     failAction?: string;
     expired?: boolean;
     deadlineMs?: number;
+    paused?: boolean;
+    workerDue?: boolean;
   } = {},
 ) {
   const calls: { action: string; user: string | null; payload: Json }[] = [];
@@ -91,6 +93,11 @@ async function fixture(
         return Promise.reject({ message: "sync_busy" });
       }
       if (action === "claim") {
+        if (
+          options.paused && payload.manual !== true && payload.catalog !== true
+        ) {
+          return Promise.reject({ message: "paused" });
+        }
         return Promise.resolve({
           id: "connection-one",
           user_id: "user-one",
@@ -107,10 +114,10 @@ async function fixture(
           connection: {
             id: "connection-one",
             provider: "google",
-            status: "connected",
+            status: options.paused ? "paused" : "connected",
             revision: 7,
             account_label: "Fixture",
-            automatic: true,
+            automatic: !options.paused,
             last_synced_at: null,
             error_code: null,
           },
@@ -120,7 +127,11 @@ async function fixture(
         });
       }
       if (action === "apply") return Promise.resolve({ changed: 1 });
-      if (action === "due") return Promise.resolve([]);
+      if (action === "due") {
+        return Promise.resolve(
+          options.workerDue ? [{ user_id: "user-one", lane: "staging" }] : [],
+        );
+      }
       return Promise.resolve({});
     },
   };
@@ -379,6 +390,47 @@ Deno.test("successful refresh commits only after all pages and validates immutab
   assertEquals(f.calls[1].payload.generation, 7);
   assertEquals((f.calls[1].payload.sources as Json[])[0].id, source.id);
 });
+Deno.test("explicit authenticated refresh imports once while preserving paused status", async () => {
+  const f = await fixture({ paused: true });
+  const response = await f.handler(request({ action: "refresh", ...window }));
+  assertEquals(response.status, 200);
+  const body = await response.json();
+  assertEquals(body.changed, 1);
+  assertEquals(body.connection.status, "paused");
+  assertEquals(body.connection.automatic, false);
+  assertEquals(f.calls.map((x) => x.action), ["claim", "apply", "status"]);
+  assertEquals(f.calls[0].payload.manual, true);
+  assertEquals(f.calls[1].payload.generation, 7);
+  assertEquals(f.calls[1].payload.lease_token, "test-lease");
+});
+
+Deno.test("worker cannot import a connection paused after its due query, even with a forged manual body", async () => {
+  let providerReads = 0;
+  const f = await fixture({
+    paused: true,
+    workerDue: true,
+    fetcher: (() => {
+      providerReads++;
+      return Promise.resolve(fetchResponse({}));
+    }) as typeof fetch,
+  });
+  const response = await f.handler(
+    new Request(
+      "https://backend.test/functions/v1/external_calendar/worker",
+      {
+        method: "POST",
+        headers: { "x-external-calendar-secret": config.workerSecret },
+        body: JSON.stringify({ manual: true }),
+      },
+    ),
+  );
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), { completed: 0, failed: 1 });
+  assertEquals(f.calls.map((x) => x.action), ["due", "claim", "housekeeping"]);
+  assertEquals(f.calls[1].payload.manual, false);
+  assertEquals(providerReads, 0);
+});
+
 Deno.test("second-page failure preserves old data and releases bounded lease with error", async () => {
   let pages = 0;
   const f = await fixture({

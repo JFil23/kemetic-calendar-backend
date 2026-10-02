@@ -27,6 +27,7 @@ begin
  source_id:=(result->'sources'->0->>'id')::uuid;revision:=(result->'connection'->>'revision')::bigint;
  perform pg_temp.require(result->'sources'->0->>'selected'='false','Consent does not select calendars');
  perform public.external_calendar_service_v1('select_sources',uid,'staging',jsonb_build_object('expected_revision',revision,'source_ids',jsonb_build_array(source_id)));
+ perform pg_temp.require(jsonb_array_length(public.external_calendar_service_v1('due',null,'staging','{}'))=1,'Selected connected calendar is scheduled when due');
  cl:=public.external_calendar_service_v1('claim',uid,'staging','{}');
  payload:=cl||jsonb_build_object('start','2026-10-01T00:00:00Z','end','2026-11-01T00:00:00Z','sources',jsonb_build_array(jsonb_build_object('id',source_id,'events',jsonb_build_array(event))));
  perform public.external_calendar_service_v1('apply',uid,'staging',payload);
@@ -50,6 +51,40 @@ begin
  perform public.external_calendar_service_v1('pause',uid,'staging',jsonb_build_object('expected_revision',revision));
  begin perform public.external_calendar_service_v1('select_sources',uid,'staging',jsonb_build_object('expected_revision',revision,'source_ids','[]'::jsonb));raise exception 'Late selection overwrote pause';exception when invalid_parameter_value then null;end;
  perform pg_temp.require((select count(*)=1 from public.external_calendar_events_v1 where user_id=uid),'Pause retains copies');
+ perform pg_temp.require(jsonb_array_length(public.external_calendar_service_v1('due',null,'staging','{}'))=0,'Paused connections are never scheduled even when due');
+ begin
+   perform public.external_calendar_service_v1('claim',uid,'staging','{}');
+   raise exception 'Worker claimed paused connection';
+ exception when invalid_parameter_value then
+   if sqlerrm<>'paused' then raise; end if;
+ end;
+ cl:=public.external_calendar_service_v1('claim',uid,'staging','{"manual":true}');
+ perform public.external_calendar_service_v1('apply',uid,'staging',payload||cl||jsonb_build_object('sources',jsonb_build_array(jsonb_build_object('id',source_id,'events',jsonb_build_array(event||'{"title":"Manual import while paused"}')))));
+ result:=public.external_calendar_service_v1('status',uid,'staging','{}');
+ perform pg_temp.require(result->'connection'->>'status'='paused' and result->'connection'->>'automatic'='false','Manual import never resumes automatic imports');
+ perform pg_temp.require((select title='Manual import while paused' from public.external_calendar_events_v1 where user_id=uid),'Paused manual import updates its projection');
+ cl:=public.external_calendar_service_v1('claim',uid,'staging','{"manual":true}');
+ perform public.external_calendar_service_v1('pause',uid,'staging',jsonb_build_object('expected_revision',result->'connection'->'revision'));
+ begin
+   perform public.external_calendar_service_v1('apply',uid,'staging',payload||cl);
+   raise exception 'Late paused manual result crossed new pause fence';
+ exception when invalid_parameter_value then
+   if sqlerrm<>'stale_attempt' then raise; end if;
+ end;
+ result:=public.external_calendar_service_v1('status',uid,'staging','{}');
+ perform public.external_calendar_service_v1('resume',uid,'staging',jsonb_build_object('expected_revision',result->'connection'->'revision'));
+ cl:=public.external_calendar_service_v1('claim',uid,'staging','{}');
+ perform public.external_calendar_service_v1('pause',uid,'staging',jsonb_build_object('expected_revision',cl->'generation'));
+ begin
+   perform public.external_calendar_service_v1('apply',uid,'staging',payload||cl);
+   raise exception 'Late worker result crossed pause fence';
+ exception when invalid_parameter_value then
+   if sqlerrm<>'stale_attempt' then raise; end if;
+ end;
+ perform pg_temp.require((select title='Manual import while paused' from public.external_calendar_events_v1 where user_id=uid),'Pause fences preserve last good manual snapshot');
+ perform pg_temp.require(jsonb_array_length(public.external_calendar_service_v1('due',null,'staging','{}'))=0,'Paused worker remains excluded after manual import');
+ result:=public.external_calendar_service_v1('status',uid,'staging','{}');
+ revision:=(result->'connection'->>'revision')::bigint-1;
  begin perform public.external_calendar_service_v1('connect',uid,'staging',jsonb_build_object('provider_subject','different-sub','account_label','Different','credentials','{}'::jsonb,'expected_connection',con->>'id','expected_generation',revision+1));raise exception 'Account switch accepted';exception when invalid_parameter_value then null;end;
  perform public.external_calendar_service_v1('connect',uid,'production','{"provider_subject":"google-sub-one","account_label":"Fixture","credentials":{"sealed":true}}');
  perform pg_temp.as_user(uid);

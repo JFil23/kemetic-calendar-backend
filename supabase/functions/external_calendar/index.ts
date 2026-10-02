@@ -178,11 +178,13 @@ export function createExternalCalendarHandler(
     lane: Lane,
     body: Json,
     deadline: Deadline,
+    manual: boolean,
   ) => {
     configured(lane);
     const window = requestedWindow(body, now());
     const claim = await call("claim", user, lane, {
       time_zone: window.time_zone,
+      manual,
     }, deadline) as Claim;
     try {
       const fresh = await credentials(claim, deadline);
@@ -347,7 +349,13 @@ export function createExternalCalendarHandler(
             }
             const account = queue[cursor++];
             try {
-              await synchronize(account.user_id, account.lane, {}, deadline);
+              await synchronize(
+                account.user_id,
+                account.lane,
+                {},
+                deadline,
+                false,
+              );
               completed++;
             } catch {
               failed++;
@@ -501,7 +509,7 @@ export function createExternalCalendarHandler(
       }
       if (action === "refresh") {
         return json({
-          ...await synchronize(user, lane, body, deadline),
+          ...await synchronize(user, lane, body, deadline, true),
           ...await status(user, lane, deadline),
         });
       }

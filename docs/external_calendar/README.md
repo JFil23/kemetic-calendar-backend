@@ -46,7 +46,10 @@ last_synced_at,error_code}`. Sources always exist as an array. Failure bodies ar
 
 Google consent selects **zero calendars**. Only explicitly selected calendars
 are imported. Hidden Google calendars remain available to select. Pause retains
-copies. Deselect removes only that source's copies. Disconnect deletes only this
+copies and stops scheduled imports. An explicit Import now request can refresh
+once while leaving the connection paused; its lease is still invalidated by any
+subsequent pause, resume, selection change or disconnect. Deselect removes only
+that source's copies. Disconnect deletes only this
 lane's connection, encrypted credentials and projections, invalidating in-flight
 work; it does **not** revoke project-wide Google grants or modify Hꜣw sign-in.
 
