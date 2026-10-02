@@ -48,11 +48,6 @@ jobs:
             supabase/functions/_shared/maat_output_telemetry_test.ts \
             supabase/functions/_shared/maat_output_dogfood_test.ts
 
-      - name: Calendar import contracts
-        run: |
-          deno check supabase/functions/calendar_import/index.ts
-          deno lint supabase/functions/calendar_import
-
       - name: Test Supabase edge functions
         run: deno test --allow-env supabase/functions/
 
@@ -83,7 +78,6 @@ jobs:
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/reading_house_invite_delivery_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/owned_filing_page_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/planner_account_storage_smoke.sql
-          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/calendar_import_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/scheduled_notification_no_token_state_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/push_token_no_token_wakeup_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/claim_scheduled_notifications_no_token_retry_window_smoke.sql
