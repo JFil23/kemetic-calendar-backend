@@ -150,7 +150,7 @@ export async function handler(request: Request): Promise<Response> {
                 record.generation,
               ).select("id"),
           );
-          if (updated.length === 1) outcome = "connected";
+          if (updated?.length === 1) outcome = "connected";
         } catch { /* OAuth diagnostics never include codes or tokens. */ }
       }
       return new Response(null, {
@@ -271,8 +271,8 @@ export async function handler(request: Request): Promise<Response> {
       ).eq("user_id", auth.user.id).eq("generation", status.generation)
         .single(),
     );
-    if (!connection.credentials) throw new ImportError("reconnect_required");
     failedConnection = { id: status.id, generation: status.generation };
+    if (!connection?.credentials) throw new ImportError("reconnect_required");
     let credentials: Credentials;
     try {
       credentials = await unseal(connection.credentials);
