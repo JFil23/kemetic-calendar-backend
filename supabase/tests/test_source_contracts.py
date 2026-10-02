@@ -2885,5 +2885,23 @@ class EdgeFunctionSourceContractsTest(unittest.TestCase):
         )
 
 
+class ExternalCalendarIsolationContract(unittest.TestCase):
+    def test_fresh_projection_has_no_authored_event_mutation(self):
+        sql = (Path(__file__).resolve().parents[1] / "migrations" / "20261002183053_external_calendar_read_projection.sql").read_text()
+        self.assertNotIn("user_events", sql)
+        self.assertNotIn("alter table auth.", sql.lower())
+        for fragment in [
+            "grant select on public.external_calendar_events_v1 to authenticated",
+            "for select to authenticated using ((select auth.uid()) = user_id)",
+            "revoke all on function public.external_calendar_service_v1(text,uuid,text,jsonb) from public,anon,authenticated",
+            "revoke all on function public.external_calendar_device_service_v1(text,uuid,text,jsonb) from public,anon,authenticated",
+            "c.generation is distinct from (p_payload->>'expected_revision')::bigint",
+            "provider='device' and connection_id is null and source_id is null",
+            "owned_by text not null default 'device'",
+            "external_calendar_worker_secret",
+        ]:
+            self.assertIn(fragment, sql)
+
+
 if __name__ == "__main__":
     unittest.main()

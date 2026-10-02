@@ -16,6 +16,8 @@ __pycache__/
 docs/*
 !docs/calendar_geometry_refactor/
 !docs/calendar_geometry_refactor/**
+!docs/external_calendar/
+!docs/external_calendar/**
 scripts/*
 !scripts/test-maat-output-pipeline.sh
 !scripts/generate_all_maat_flows_full_text.py
