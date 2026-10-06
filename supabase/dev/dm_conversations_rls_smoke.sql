@@ -37,6 +37,20 @@ begin
 end;
 $$;
 
+-- Live inbox/message subscriptions must cover all three persisted owners.
+do $$
+begin
+  perform pg_temp.assert_true(
+    (select count(*) = 3 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public'
+        and tablename in (
+          'dm_conversations', 'dm_conversation_members', 'dm_messages'
+        )),
+    'Group DM tables must be enabled for realtime'
+  );
+end;
+$$;
+
 insert into auth.users (
   id,
   aud,

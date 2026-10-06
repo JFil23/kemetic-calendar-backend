@@ -81,6 +81,7 @@ jobs:
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/reflection_generation_manifest_v2_readers_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/maat_delivery_push_release_gate_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/reading_house_invite_delivery_smoke.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/dm_conversations_rls_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/owned_filing_page_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/planner_account_storage_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/external_calendar_projection_smoke.sql
@@ -111,6 +112,10 @@ jobs:
           end
           \$\$;
           "
+
+      - name: Verify group DM runtime
+        run: |
+          supabase status -o env | deno run --allow-env --allow-net supabase/dev/group_dm_runtime_smoke.ts
 
       - name: Stop Supabase local services
         if: always()
