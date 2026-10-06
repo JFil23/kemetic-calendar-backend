@@ -117,6 +117,10 @@ jobs:
         run: |
           supabase status -o env | deno run --allow-env --allow-net supabase/dev/group_dm_runtime_smoke.ts
 
+      - name: Verify flow sharing runtime
+        run: |
+          supabase status -o env | deno run --allow-env --allow-net supabase/dev/flow_share_runtime_smoke.ts
+
       - name: Stop Supabase local services
         if: always()
         run: supabase stop --no-backup || true
