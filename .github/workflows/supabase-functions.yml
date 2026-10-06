@@ -86,6 +86,7 @@ jobs:
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/external_calendar_projection_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/calendar_delete_archive_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/posted_flow_appearance_smoke.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/commons_following_public_answers_smoke.sql
           python3 supabase/dev/posted_flow_appearance_concurrency_smoke.py "$DB_URL"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/scheduled_notification_no_token_state_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/push_token_no_token_wakeup_smoke.sql
