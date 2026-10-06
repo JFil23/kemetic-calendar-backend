@@ -135,7 +135,37 @@ try {
   await b.client.realtime.setAuth(b.token);
   let received!: (id: string) => void;
   const incoming = new Promise<string>((resolve) => received = resolve);
-  const channel = b.client.channel(`dm-smoke-${crypto.randomUUID()}`)
+  // A channel join can finish before its PostgreSQL replication subscription.
+  // Wait for the server's explicit system acknowledgement before the one send.
+  let postgresReady!: () => void;
+  let postgresFailed!: (reason: Error) => void;
+  const replicationReady = new Promise<void>((resolve, reject) => {
+    postgresReady = resolve;
+    postgresFailed = reject;
+  });
+  const channel = b.client.channel(`dm-smoke-${crypto.randomUUID()}`);
+  // realtime-js 2.10.2 dispatches the protocol's system event through on(),
+  // but its TypeScript overloads omit it. Keep this narrow adapter test-local.
+  const systemEvents = channel as unknown as {
+    on(
+      event: "system",
+      filter: Record<string, never>,
+      callback: (payload: {
+        extension?: string;
+        status?: string;
+        message?: string;
+      }) => void,
+    ): void;
+  };
+  systemEvents.on("system", {}, (payload) => {
+    console.log("Realtime replication:", payload.status, payload.message);
+    if (payload.extension !== "postgres_changes") return;
+    if (payload.status === "ok") postgresReady();
+    if (payload.status === "error") {
+      postgresFailed(new Error(String(payload.message)));
+    }
+  });
+  channel
     .on("postgres_changes", {
       event: "INSERT",
       schema: "public",
@@ -143,16 +173,19 @@ try {
       filter: `conversation_id=eq.${conversationId}`,
     }, (payload) => received(payload.new.id));
   await deadline(
-    new Promise<void>((resolve, reject) => {
-      channel.subscribe((status, error) => {
-        console.log("Realtime subscription:", status, error?.message ?? "");
-        if (status === "SUBSCRIBED") resolve();
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          reject(error ?? new Error(status));
-        }
-      });
-    }),
-    "subscribe",
+    Promise.all([
+      replicationReady,
+      new Promise<void>((resolve, reject) => {
+        channel.subscribe((status, error) => {
+          console.log("Realtime subscription:", status, error?.message ?? "");
+          if (status === "SUBSCRIBED") resolve();
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            reject(error ?? new Error(status));
+          }
+        });
+      }),
+    ]),
+    "subscribe and PostgreSQL readiness",
   );
   const payload = {
     conversationId,

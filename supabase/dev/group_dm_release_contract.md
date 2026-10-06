@@ -68,3 +68,20 @@ after initialization passed every existing assertion with no product or test
 changes. Live read-only catalog inspection again confirmed all three publication
 memberships. The prior complete gate receipts remain in /private/tmp/haw-group-dm.
 The final runtime receipt is /tmp/haw-group-dm-finalize-retry.log.
+
+
+## Cold CI replication readiness
+
+The first complete remote gate at 51128f1 exposed a harness race: the channel
+reported SUBSCRIBED before the server's PostgreSQL replication subscription
+was ready, so the single test send was not delivered to that subscription.
+The harness now awaits both the channel join and the protocol's system event
+with extension=postgres_changes and status=ok before sending. The 15-second
+stage deadlines, single-send delivery assertion, idempotency, unread/read,
+fresh-client persistence and outsider isolation assertions are unchanged.
+This is a test readiness fix, with no change to group-DM product behavior.
+The pinned realtime-js 2.10.2 runtime dispatches system events through on(),
+but its public TypeScript overloads omit them, so the harness declares only
+that documented protocol event locally. Protocol reference:
+https://supabase.com/docs/guides/realtime/protocol#system
+Local evidence: /tmp/haw-group-dm-replication-ready.log.
