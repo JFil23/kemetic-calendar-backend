@@ -730,6 +730,33 @@ class MigrationSourceContractsTest(unittest.TestCase):
             ],
         )
 
+    def test_posted_appearance_projection_retains_owner_and_snapshot_boundaries(self) -> None:
+        body = source(
+            "supabase/migrations/20261006013056_sync_posted_flow_appearance.sql"
+        )
+        require_all(self, body, [
+            "private.normalize_posted_flow_appearance()",
+            "private.sync_posted_flow_appearance()",
+            "security invoker",
+            "set search_path = ''",
+            "f.id = new.flow_id and f.user_id = new.user_id",
+            "fp.flow_id = new.id and fp.user_id = new.user_id",
+            "fp.flow_id = f.id and fp.user_id = f.user_id",
+            "when (old.appearance is distinct from new.appearance)",
+            "coalesce(new.appearance, 'null'::jsonb)",
+            "FLOW_POST_PAYLOAD_INVALID",
+            "from public, anon, authenticated",
+        ])
+        reject_all(self, body, [
+            "security definer", "grant ", "update public.user_events",
+            "update public.flow_shares", "set rules", "set notes",
+        ])
+        workflow = source(".github/workflows/supabase-functions.yml")
+        require_all(self, workflow, [
+            "supabase/dev/posted_flow_appearance_smoke.sql",
+            "supabase/dev/posted_flow_appearance_concurrency_smoke.py",
+        ])
+
     def test_user_flow_appearance_has_one_private_storage_contract(self) -> None:
         body = source(
             "supabase/migrations/"
