@@ -15,6 +15,7 @@ type SendDmMessageV2Request = {
   conversationId?: string;
   text?: string;
   clientMessageId?: string;
+  replyToId?: string;
 };
 
 export function createSendDmMessageV2Handler(options: {
@@ -57,6 +58,7 @@ export function createSendDmMessageV2Handler(options: {
         senderId: auth.user.id,
         conversationId: trimString(body.conversationId),
         text: trimString(body.text),
+        replyToId: trimString(body.replyToId) || null,
         clientMessageId: trimString(body.clientMessageId) || null,
         store,
         accessToken: auth.accessToken,

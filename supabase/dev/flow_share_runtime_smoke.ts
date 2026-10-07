@@ -184,6 +184,18 @@ try {
   assertEquals(forwarded.sender_id, recipient.id);
   assertEquals(forwarded.payload_json.events, posted.payload_json.events);
 
+  const inboxForwarded = await send(
+    { source_share_id: direct.id },
+    recipient,
+    sender,
+  );
+  assertEquals(inboxForwarded.sender_id, recipient.id);
+  assertEquals(inboxForwarded.payload_json.events, direct.payload_json.events);
+  assertEquals(
+    inboxForwarded.payload_json.appearance,
+    direct.payload_json.appearance,
+  );
+
   // Save uses the existing inactive/unsaved lifecycle until event and reference
   // writes finish. A hidden row is deleted and would reject these event writes.
   const recipientCalendar = crypto.randomUUID();

@@ -4,6 +4,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
 type SendDmRequest = {
   recipientId?: string;
   text?: string;
+  replyToId?: string;
+  replyToKind?: string;
 };
 
 type AuthenticatedUser = {
@@ -39,6 +41,8 @@ export type SendDmMessageStore = {
     senderId: string;
     recipientId: string;
     text: string;
+    replyToId?: string;
+    replyToKind?: string;
   }) => Promise<InsertedShare>;
   getSenderLabel: (senderId: string) => Promise<string>;
   sendPush: (request: DmPushRequest) => Promise<unknown>;
@@ -99,10 +103,18 @@ async function ensureDmPlaceholderFlow(client: any, senderId: string) {
   const existingId = existing?.id as number | undefined;
   if (existingId != null) return existingId;
 
+  // Create membership in its own statement so flow RLS can see it immediately.
+  const { data: calendarId, error: calendarError } = await client.rpc(
+    "ensure_personal_calendar_for_user",
+    { p_user_id: senderId },
+  );
+  if (calendarError) throw calendarError;
+
   const { data: inserted, error: insertError } = await client
     .from("flows")
     .insert({
       user_id: senderId,
+      calendar_id: calendarId,
       name: "DM Messages",
       color: 0,
       active: false,
@@ -178,9 +190,39 @@ export function createSupabaseDmStore(options: {
     },
     ensureDmPlaceholderFlow: (senderId: string) =>
       ensureDmPlaceholderFlow(options.client, senderId),
-    insertMessageShare: async ({ flowId, senderId, recipientId, text }) => {
+    insertMessageShare: async (
+      { flowId, senderId, recipientId, text, replyToId, replyToKind },
+    ) => {
+      let reply: Record<string, unknown> | null = null;
+      if (replyToId) {
+        const table = replyToKind === "event" ? "event_shares" : "flow_shares";
+        const { data: source, error } = await options.client.from(table)
+          .select("id,sender_id,recipient_id,payload_json,deleted_at").eq(
+            "id",
+            replyToId,
+          ).single();
+        if (
+          error || !source || source.deleted_at ||
+          !((source.sender_id === senderId &&
+            source.recipient_id === recipientId) ||
+            (source.sender_id === recipientId &&
+              source.recipient_id === senderId))
+        ) {
+          throw new Error("Reply message is unavailable");
+        }
+        reply = {
+          id: source.id,
+          kind: replyToKind === "event" ? "event" : "flow",
+          senderId: source.sender_id,
+          text: String(
+            source.payload_json?.text ?? source.payload_json?.name ??
+              source.payload_json?.title ?? "Message",
+          ).slice(0, 1000),
+        };
+      }
       const payload = {
         type: "message",
+        ...(reply ? { reply_to: reply } : {}),
         text,
         name: text,
       };
@@ -328,6 +370,8 @@ export function createSendDmMessageHandler(options: {
         senderId: user.id,
         recipientId,
         text,
+        replyToId: trimString(body.replyToId) || undefined,
+        replyToKind: trimString(body.replyToKind) || undefined,
       });
 
       let push: unknown = null;
@@ -364,9 +408,35 @@ export function createSendDmMessageHandler(options: {
         pushError,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error
+        ? error.message
+        : typeof error === "object" && error !== null && "message" in error
+        ? String(error.message)
+        : String(error);
       return jsonResponse(req, { error: message }, { status: 500 });
     }
+  };
+}
+
+// A separate client per request is essential: getUser(token) authenticates but
+// does not attach that JWT to database writes. First sends create an account-
+// owned placeholder flow, whose calendar trigger requires auth.uid().
+export function createAuthenticatedSendDmHandler(options: {
+  supabaseUrl: string;
+  apiKey: string;
+  internalFunctionKey?: string;
+  fetchImpl?: typeof fetch;
+}) {
+  return (req: Request) => {
+    const client = createClient(options.supabaseUrl, options.apiKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        headers: { Authorization: req.headers.get("authorization") ?? "" },
+      },
+    });
+    return createSendDmMessageHandler({
+      store: createSupabaseDmStore({ ...options, client }),
+    })(req);
   };
 }
 
@@ -389,13 +459,10 @@ if (import.meta.main) {
         })
     );
   } else {
-    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-    serve(createSendDmMessageHandler({
-      store: createSupabaseDmStore({
-        client: supabase,
-        supabaseUrl: SUPABASE_URL,
-        internalFunctionKey: INTERNAL_FUNCTION_KEY,
-      }),
+    serve(createAuthenticatedSendDmHandler({
+      supabaseUrl: SUPABASE_URL,
+      apiKey: SERVICE_ROLE_KEY,
+      internalFunctionKey: INTERNAL_FUNCTION_KEY,
     }));
   }
 }

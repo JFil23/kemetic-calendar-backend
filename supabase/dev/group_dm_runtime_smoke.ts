@@ -232,6 +232,64 @@ try {
     (await read(request(outsider.token, { conversationId }))).status,
     403,
   );
+  const reply = await ok(
+    await send(
+      request(b.token, {
+        conversationId,
+        text: "Quoted reply",
+        replyToId: sent.message.id,
+        clientMessageId: crypto.randomUUID(),
+      }),
+    ),
+  );
+  assertEquals(reply.message.payload_json.reply_to.text, payload.text);
+  assertExists(
+    (await b.client.rpc("inbox_message_action", {
+      p_kind: "dm",
+      p_id: sent.message.id,
+      p_action: "unsend",
+    })).error,
+  );
+  assertExists(
+    (await outsider.client.rpc("inbox_message_action", {
+      p_kind: "dm",
+      p_id: sent.message.id,
+      p_action: "hide",
+    })).error,
+  );
+  const hide = await b.client.rpc("inbox_message_action", {
+    p_kind: "dm",
+    p_id: sent.message.id,
+    p_action: "hide",
+  });
+  assertEquals(hide.error, null);
+  assertEquals(
+    (await b.client.from("dm_conversation_messages_client").select("id").eq(
+      "id",
+      sent.message.id,
+    )).data,
+    [],
+  );
+  assertEquals(
+    (await c.client.from("dm_conversation_messages_client").select("id").eq(
+      "id",
+      sent.message.id,
+    )).data?.length,
+    1,
+  );
+  const unsend = await a.client.rpc("inbox_message_action", {
+    p_kind: "dm",
+    p_id: sent.message.id,
+    p_action: "unsend",
+  });
+  assertEquals(unsend.error, null);
+  assertEquals(
+    (await c.client.from("dm_conversation_messages_client").select("id").eq(
+      "id",
+      sent.message.id,
+    )).data,
+    [],
+  );
   console.log(
     "PASS: create/reuse, CORS/auth, send/retry, member realtime, fresh-client persistence, unread/read, outsider isolation",
   );

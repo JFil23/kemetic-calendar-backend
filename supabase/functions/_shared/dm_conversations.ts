@@ -94,6 +94,7 @@ export type DmConversationStore = {
     senderId: string;
     text: string;
     clientMessageId?: string | null;
+    replyToId?: string | null;
   }) => Promise<DmMessageRow>;
   markConversationRead: (params: {
     conversationId: string;
@@ -374,6 +375,7 @@ export async function sendDmMessageV2(params: {
   conversationId: string;
   text: string;
   clientMessageId?: string | null;
+  replyToId?: string | null;
   store: DmConversationStore;
   accessToken: string;
 }) {
@@ -400,6 +402,7 @@ export async function sendDmMessageV2(params: {
     conversationId,
     senderId: params.senderId,
     text,
+    replyToId: params.replyToId,
     clientMessageId: trimString(params.clientMessageId) || null,
   });
 
@@ -617,7 +620,7 @@ export function createSupabaseDmConversationStore(options: {
       return (data ?? []) as DmConversationMemberRow[];
     },
     insertMessage: async (
-      { conversationId, senderId, text, clientMessageId },
+      { conversationId, senderId, text, clientMessageId, replyToId },
     ) => {
       const payload: Record<string, unknown> = {
         conversation_id: conversationId,
@@ -625,6 +628,26 @@ export function createSupabaseDmConversationStore(options: {
         body: text,
         kind: "text",
       };
+      if (replyToId) {
+        const { data: source, error } = await options.client.from("dm_messages")
+          .select("id,sender_id,body").eq("id", replyToId)
+          .eq("conversation_id", conversationId).is("deleted_at", null)
+          .single();
+        if (error || !source) {
+          throw new DmConversationHttpError(
+            "Reply message is unavailable",
+            403,
+          );
+        }
+        payload.payload_json = {
+          reply_to: {
+            id: source.id,
+            kind: "dm",
+            senderId: source.sender_id,
+            text: source.body.slice(0, 1000),
+          },
+        };
+      }
       if (clientMessageId) payload.client_message_id = clientMessageId;
 
       const { data, error } = await options.client

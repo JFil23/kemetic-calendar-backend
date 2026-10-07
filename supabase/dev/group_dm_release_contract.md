@@ -85,3 +85,29 @@ but its public TypeScript overloads omit them, so the harness declares only
 that documented protocol event locally. Protocol reference:
 https://supabase.com/docs/guides/realtime/protocol#system
 Local evidence: /tmp/haw-group-dm-replication-ready.log.
+
+## October 7 — Inbox message actions and first-send ownership
+
+`send_dm_message` now creates a request-local JWT-scoped database client.
+Authenticating a JWT on the former shared service client did not attach the
+sender identity to writes; first-send placeholder creation failed the personal
+calendar ownership trigger. Calendar membership is acknowledged before the
+placeholder insert so RLS observes it in a separate statement. Ownership checks
+remain intact. `inbox_first_send_runtime_smoke.ts` covers new senders and recipient
+reads against real local auth/RLS, verified reply quotes, fresh-client private
+hiding, sender-only unsending, and outsider denial. The full gate runs this test.
+
+Direct and group replies store a server-resolved quote in the existing payload,
+not client-authored source text. The `inbox_message_action` RPC authorizes the
+actor against the message participants before hiding privately or unsending for
+all participants. Private dismissals live in account-owned database rows, never
+an evictable warm cache. Existing security-invoker Inbox views apply the added
+RLS predicates. Group runtime coverage includes these action semantics alongside
+its original member/outsider, retry, unread and Realtime checks.
+
+Received flow forwarding extends `create_flow_share` with a readable
+`source_share_id`; it reuses the immutable complete snapshot and existing delivery
+pipeline. The flow runtime test verifies appearance/events after forwarding.
+Local checks: 613 Deno tests, 73 source-contract tests and all three real runtime
+checks passed. Local reset used the CI-pinned CLI 2.117.0; the installed 2.84.2
+cannot replay a historical concurrent-index migration.

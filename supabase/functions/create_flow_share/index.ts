@@ -111,11 +111,16 @@ export function createFlowShareHandler({
         });
       }
 
-      const { flow_id, flow_post_id, recipients, suggested_schedule } =
-        await req.json();
+      const {
+        flow_id,
+        flow_post_id,
+        source_share_id,
+        recipients,
+        suggested_schedule,
+      } = await req.json();
 
       if (
-        (!flow_id && !flow_post_id) || !recipients ||
+        (!flow_id && !flow_post_id && !source_share_id) || !recipients ||
         !Array.isArray(recipients) ||
         recipients.length === 0
       ) {
@@ -142,7 +147,20 @@ export function createFlowShareHandler({
 
       let sourceFlowId: number | null;
       let payloadJson: Record<string, unknown>;
-      if (flow_post_id) {
+      if (source_share_id) {
+        const { data: source, error } = await supabaseUser.from("flow_shares")
+          .select("flow_id,sender_id,recipient_id,payload_json,deleted_at")
+          .eq("id", source_share_id).single();
+        if (
+          error || !source || source.deleted_at ||
+          (source.sender_id !== user_id && source.recipient_id !== user_id) ||
+          source.payload_json?.type === "message"
+        ) {
+          throw new Error("Shared flow is unavailable");
+        }
+        sourceFlowId = source.flow_id;
+        payloadJson = source.payload_json;
+      } else if (flow_post_id) {
         // Re-share only the published snapshot the sender can actually read.
         const { data: post, error } = await supabaseUser.from("flow_posts")
           .select(
