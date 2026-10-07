@@ -217,6 +217,19 @@ begin
    raise exception 'rollback compatibility probe' using errcode='Z0001';
  exception when sqlstate 'Z0001' then null; end;
  begin
+   insert into public.journal_entries(user_id,greg_date,body,meta)
+     select user_id,greg_date,jsonb_set(body::jsonb,'{blocks}',(body::jsonb->'blocks')||'[{"id":"upsert-writing","type":"paragraph","ops":[{"insert":"Older app save"}]}]'::jsonb)::text,meta
+       from public.journal_entries where user_id=a and greg_date='2026-10-07'
+     on conflict(user_id,greg_date) do update set body=excluded.body,meta=excluded.meta;
+   perform pg_temp.assert_true((select body like '%New private words%' and body like '%Older app save%' and revision=7 from public.journal_entries where user_id=a and greg_date='2026-10-07'),'actual legacy upsert preserves reflection and advances revision exactly once');
+   raise exception 'rollback compatibility probe' using errcode='Z0001';
+ exception when sqlstate 'Z0001' then null; end;
+ begin
+   insert into public.journal_entries(user_id,greg_date,body) values(a,'2026-10-07','stale older app document')
+     on conflict(user_id,greg_date) do update set body=excluded.body;
+   raise exception 'stale legacy upsert erased reflection';
+ exception when serialization_failure then null; end;
+ begin
    update public.journal_entries set body=(body::jsonb #- '{meta,decan_sources}')::text where user_id=a and greg_date='2026-10-07';
    raise exception 'legacy metadata loss accepted';
  exception when serialization_failure then null; end;

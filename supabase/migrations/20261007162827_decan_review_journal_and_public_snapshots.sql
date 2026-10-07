@@ -100,6 +100,12 @@ begin
     raise exception 'Journal document identity is immutable' using errcode='22023';
   end if;
   perform pg_advisory_xact_lock(hashtextextended('journal:'||v_user::text||':'||v_date::text,0));
+  -- INSERT ... ON CONFLICT runs both BEFORE triggers. An existing date is
+  -- checked and revisioned by the UPDATE trigger; do not mutate the ledger or
+  -- source tombstones during its speculative insert (including DO NOTHING).
+  if tg_op='INSERT' and exists(select 1 from public.journal_entries j where j.user_id=v_user and j.greg_date=v_date) then
+    return new;
+  end if;
   -- Older app versions may edit ordinary writing on the same day. Preserve
   -- linked paragraphs exactly, including their source metadata; reject stale
   -- whole-document writes and resurrection after either paragraph or row deletion.
