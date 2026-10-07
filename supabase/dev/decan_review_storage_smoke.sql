@@ -244,6 +244,21 @@ begin
 end $$;
 reset role;
 reset role;
+savepoint account_cleanup_probe;
+-- Auth-admin deletion must retain its existing cascade behavior. No Journal
+-- revision or source row may block cleanup or reference the removed account.
+reset role;
+select set_config('request.jwt.claim.sub','',true);
+select set_config('request.jwt.claims','{}',true);
+delete from auth.users where id='00000000-0000-4000-8000-00000000ba01';
+select pg_temp.assert_true(not exists(select 1 from public.journal_entries where user_id='00000000-0000-4000-8000-00000000ba01'),'account deletion removes Journal');
+select pg_temp.assert_true(not exists(select 1 from public.journal_document_versions where user_id='00000000-0000-4000-8000-00000000ba01'),'account deletion removes revision ledger');
+select pg_temp.assert_true(not exists(select 1 from public.decan_journal_sources where user_id='00000000-0000-4000-8000-00000000ba01'),'account deletion removes source records');
+select pg_temp.assert_true(not exists(select 1 from public.decan_review_mutation_receipts where user_id='00000000-0000-4000-8000-00000000ba01'),'account deletion removes recovery drafts');
+select pg_temp.assert_true(not exists(select 1 from public.insight_posts where user_id='00000000-0000-4000-8000-00000000ba01'),'account deletion removes public snapshots');
+
+rollback to savepoint account_cleanup_probe;
+release savepoint account_cleanup_probe;
 insert into public.shared_calendars(id,owner_id,name) values ('90000000-0000-4000-8000-00000000ba01','00000000-0000-4000-8000-00000000ba01','Decan fixture');
 insert into public.flows(id,user_id,calendar_id,name,rules) values (99008001,'00000000-0000-4000-8000-00000000ba01','90000000-0000-4000-8000-00000000ba01','My practice','[]');
 insert into public.user_events(user_id,calendar_id,client_event_id,title,starts_at,flow_local_id)
@@ -282,5 +297,6 @@ begin
   perform pg_temp.assert_true(p->'items'='[]'::jsonb,'other account sees no '||source);
  end loop;
 end $$;
+
 
 rollback;

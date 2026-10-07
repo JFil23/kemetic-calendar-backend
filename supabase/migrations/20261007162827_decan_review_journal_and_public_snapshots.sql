@@ -94,6 +94,11 @@ declare
   v_old_blocks jsonb;
   v_new_blocks jsonb;
 begin
+  -- Account deletion owns its FK cascade. The parent is already gone, so
+  -- neither source protection nor a new revision row may recreate its children.
+  if tg_op='DELETE' and not exists(select 1 from auth.users u where u.id=v_user) then
+    return old;
+  end if;
   -- A date and account are the stable document identity. Moves are explicit
   -- copy/delete operations, never an update which escapes the revision fence.
   if tg_op='UPDATE' and (new.user_id<>old.user_id or new.greg_date<>old.greg_date) then
