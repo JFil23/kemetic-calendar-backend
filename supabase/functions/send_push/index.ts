@@ -571,24 +571,6 @@ function buildAppTargetUrl(data?: Record<string, unknown>) {
     }
   }
 
-  if (kind === "decan_reflection") {
-    const start = firstString(data?.decan_start);
-    const end = firstString(data?.decan_end);
-    if (
-      start && end && /^\d{4}-\d{2}-\d{2}$/.test(start) &&
-      /^\d{4}-\d{2}-\d{2}$/.test(end)
-    ) {
-      const params = new URLSearchParams({
-        push_kind: "decan_reflection",
-        decan_start: start,
-        decan_end: end,
-      });
-      const name = firstString(data?.decan_name);
-      if (name) params.set("decan_name", name);
-      return `/?${params.toString()}`;
-    }
-  }
-
   if (kind === "flow_share") {
     const shareId = firstString(data?.share_id) ??
       firstString(data?.shareId);

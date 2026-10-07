@@ -264,6 +264,15 @@ async function sendPush(
   reflectionId: string | null,
   decanName: string,
 ): Promise<SendPushResponse> {
+  // The deployed sender already preserves an explicit root-query destination.
+  // Keep invitation routing with its author and avoid a generic sender rollout.
+  const destination = new URLSearchParams({ push_kind: "decan_reflection" });
+  if (reflectionId) destination.set("reflection_id", reflectionId);
+  else {
+    destination.set("decan_start", row.decan_start);
+    destination.set("decan_end", row.decan_end);
+    destination.set("decan_name", decanName);
+  }
   const { data, error } = await client.functions.invoke("send_push", {
     body: {
       userIds: [row.user_id],
@@ -273,6 +282,7 @@ async function sendPush(
       },
       data: {
         kind: "decan_reflection",
+        url: `/?${destination.toString()}`,
         delivery_key: scheduleDeliveryKey(row),
         ...(reflectionId ? { reflectionId } : {}),
         decan_start: row.decan_start,

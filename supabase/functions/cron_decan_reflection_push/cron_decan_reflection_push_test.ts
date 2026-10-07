@@ -475,6 +475,18 @@ Deno.test("cron_decan_reflection_push drains due batches and keeps no-token rows
     assertEquals(push.data?.reflectionId, undefined);
     assertEquals(push.data?.decan_start, "2026-05-06");
     assertEquals(push.data?.decan_end, "2026-05-15");
+    const destination = new URL(
+      String(push.data?.url),
+      "https://kemet-rc.pages.dev",
+    );
+    assertEquals(destination.pathname, "/");
+    assertEquals(destination.searchParams.get("push_kind"), "decan_reflection");
+    assertEquals(destination.searchParams.get("decan_start"), "2026-05-06");
+    assertEquals(destination.searchParams.get("decan_end"), "2026-05-15");
+    assertEquals(
+      destination.searchParams.get("decan_name"),
+      push.data?.decan_name,
+    );
   }
   const pushBody = firstPushBody(stats.pushBodies);
   assertEquals(
@@ -755,5 +767,9 @@ Deno.test("cron_decan_reflection_push reuses a persisted reflection on push retr
   assertEquals(
     stats.pushBodies[0].data?.reflectionId,
     "reflection-existing",
+  );
+  assertEquals(
+    stats.pushBodies[0].data?.url,
+    "/?push_kind=decan_reflection&reflection_id=reflection-existing",
   );
 });
