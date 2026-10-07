@@ -111,3 +111,13 @@ pipeline. The flow runtime test verifies appearance/events after forwarding.
 Local checks: 613 Deno tests, 73 source-contract tests and all three real runtime
 checks passed. Local reset used the CI-pinned CLI 2.117.0; the installed 2.84.2
 cannot replay a historical concurrent-index migration.
+
+Release receipt: the full backend gate passed for source commit 3a5a3fa
+(run 37700612704). The connected Supabase migration API assigned deployment
+version 20261007231646; the migration filename is reconciled to that receipt
+without changing its gate-tested SQL. The linked CLI read-only dry run did not
+progress and was stopped before using the connected API. Function source was
+uploaded from the verified backend checkout with JWT verification enabled:
+send_dm_message v13, send_dm_message_v2 v2, and create_flow_share v44. Deployed
+function versions are checked against the returned API receipts before final
+release accounting.
