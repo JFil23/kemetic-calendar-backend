@@ -469,42 +469,27 @@ Deno.test("cron_decan_reflection_push drains due batches and keeps no-token rows
     tables.decan_reflection_schedule[1].last_error,
     "no_tokens_for_recipients",
   );
-  assertEquals(tables.decan_reflections.length, 2);
+  assertEquals(tables.decan_reflections.length, 0);
+  assertEquals(stats.invoked, ["send_push", "send_push"]);
   for (const push of stats.pushBodies) {
-    const reflectionId = push.data?.reflectionId;
-    const userId = Array.isArray(push.userIds) ? push.userIds[0] : null;
-    assert(
-      tables.decan_reflections.some((row) =>
-        row.id === reflectionId && row.user_id === userId
-      ),
-    );
+    assertEquals(push.data?.reflectionId, undefined);
+    assertEquals(push.data?.decan_start, "2026-05-06");
+    assertEquals(push.data?.decan_end, "2026-05-15");
   }
   const pushBody = firstPushBody(stats.pushBodies);
   assertEquals(
     pushBody.notification.body,
-    "Compiled reflection push.",
+    "A few moments to return to. Your decan is ready to review.",
   );
-  assertEquals(
-    pushBody.data.push_source,
-    "compiled_package.push_text",
-  );
-  assertEquals(
-    pushBody.data.compiled_output_package.package_version,
-    "compiled_output_package_v1",
-  );
-  assertEquals(pushBody.data.node_ref, "instruction_amenemope");
-  assertEquals(
-    pushBody.data.node_deep_link,
-    "/nodes/instruction_amenemope",
-  );
-  assertEquals(
-    pushBody.data.node_title,
-    "Instruction of Amenemope",
-  );
-  assertEquals(pushBody.data.node_source, "destination.fallback");
+  assertEquals(pushBody.data.push_source, "authored_decan_invitation_v1");
+  assertEquals(pushBody.data.compiled_output_package, undefined);
+  assertEquals(pushBody.data.node_ref, undefined);
+  assertEquals(pushBody.data.node_deep_link, undefined);
+  assertEquals(pushBody.data.node_title, undefined);
+  assertEquals(pushBody.data.node_source, undefined);
 });
 
-Deno.test("cron_decan_reflection_push uses graph anchor for canonical node when destination has no node fallback", async () => {
+Deno.test("cron_decan_reflection_push keeps generated graph recommendations out of review invitations", async () => {
   const tables: Tables = {
     profiles: [],
     decan_reflection_schedule: [scheduleRow("schedule-1", "user-1")],
@@ -546,13 +531,15 @@ Deno.test("cron_decan_reflection_push uses graph anchor for canonical node when 
   assertEquals(response.status, 200);
   assertEquals(stats.pushBodies.length, 1);
   const pushBody = firstPushBody(stats.pushBodies);
-  assertEquals(pushBody.data.node_ref, "renenutet");
-  assertEquals(pushBody.data.node_deep_link, "/nodes/renenutet");
-  assertEquals(pushBody.data.node_title, "Renenutet");
-  assertEquals(pushBody.data.node_source, "graph.anchor");
+  assertEquals(stats.invoked, ["send_push"]);
+  assertEquals(pushBody.data.node_ref, undefined);
+  assertEquals(pushBody.data.node_deep_link, undefined);
+  assertEquals(pushBody.data.node_title, undefined);
+  assertEquals(pushBody.data.node_source, undefined);
+  assertEquals(tables.decan_reflections.length, 0);
 });
 
-Deno.test("cron_decan_reflection_push blocks fallback-quality compiled push text", async () => {
+Deno.test("cron_decan_reflection_push never generates or pushes fallback reflection text", async () => {
   const tables: Tables = {
     profiles: [],
     decan_reflection_schedule: [scheduleRow("schedule-1", "user-1")],
@@ -588,19 +575,24 @@ Deno.test("cron_decan_reflection_push blocks fallback-quality compiled push text
 
   assertEquals(response.status, 200);
   assertEquals(body.processed, 1);
-  assertEquals(body.delivered, 0);
-  assertEquals(body.blocked, 1);
-  assertEquals(tables.decan_reflection_schedule[0].status, "skipped");
+  assertEquals(body.delivered, 1);
+  assertEquals(body.blocked, 0);
+  assertEquals(tables.decan_reflection_schedule[0].status, "sent");
+  assertEquals(tables.decan_reflection_schedule[0].last_error, null);
+  assertEquals(stats.invoked, ["send_push"]);
+  assertEquals(tables.decan_reflections.length, 0);
   assertEquals(
-    tables.decan_reflection_schedule[0].last_error,
-    "compiled_package_not_quality_proof",
+    firstPushBody(stats.pushBodies).notification.body,
+    "A few moments to return to. Your decan is ready to review.",
   );
-  assertEquals(stats.invoked, ["ai_generate_reflection"]);
-  const skipped = tables.maat_delivery_timing_events.find((row) =>
-    row.delivery_status === "skipped"
+  assertEquals(
+    firstPushBody(stats.pushBodies).data.compiled_output_package,
+    undefined,
   );
-  assertEquals(skipped?.skip_reason, "compiled_package_not_quality_proof");
-  assertEquals(skipped?.metadata.push_source, "blocked_fallback");
+  const sent = tables.maat_delivery_timing_events.find((row) =>
+    row.delivery_status === "sent"
+  );
+  assert(sent);
 });
 
 Deno.test("cron_decan_reflection_push rejects calls without the cron secret before claiming rows", async () => {

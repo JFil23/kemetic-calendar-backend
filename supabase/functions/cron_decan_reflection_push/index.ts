@@ -6,15 +6,6 @@ import { fallbackDecanLabel } from "../_shared/decan_context.ts";
 import {
   recordMaatDeliveryTimingEvent,
 } from "../_shared/maat_delivery_timing.ts";
-import {
-  compiledOutputPackageFromPayload,
-  resolveCompiledPackagePushText,
-} from "../_shared/output_compiler.ts";
-import {
-  canonicalLibraryNodePayload,
-  resolveCanonicalLibraryNode,
-} from "../_shared/canonical_library_node.ts";
-
 type ScheduleRow = {
   id: string;
   user_id: string;
@@ -26,15 +17,6 @@ type ScheduleRow = {
   decan_context_key: string | null;
   attempt_count: number;
   claim_token: string | null;
-};
-
-type ReflectionResult = {
-  reflection: string;
-  badgeCount: number;
-  outputControl: Record<string, unknown> | null;
-  compiledOutputPackage: Record<string, unknown> | null;
-  anchorNodes: string[];
-  leadAxis: string | null;
 };
 
 type SendPushResponse = {
@@ -89,21 +71,6 @@ type ProcessOutcome =
   | "no_push_token"
   | "blocked"
   | "failed";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function stringArray(value: unknown) {
-  if (!Array.isArray(value)) return [];
-  const result: string[] = [];
-  for (const item of value) {
-    if (typeof item !== "string") continue;
-    const clean = item.trim();
-    if (clean) result.push(clean);
-  }
-  return result;
-}
 
 function scheduleDeliveryKey(row: ScheduleRow) {
   return `decan_reflection:${row.id}:${row.decan_start}`;
@@ -244,56 +211,6 @@ async function claimDueSchedules(
   }));
 }
 
-async function generateReflection(
-  client: SupabaseClientLike,
-  user_id: string,
-  decan_name: string,
-  decan_theme: string | null,
-  decan_context_key: string | null,
-  decan_start: string,
-  decan_end: string,
-): Promise<ReflectionResult> {
-  const { data, error } = await client.functions.invoke(
-    "ai_generate_reflection",
-    {
-      body: {
-        user_id,
-        decan_name,
-        decan_theme,
-        decan_context_key,
-        decan_start,
-        decan_end,
-        include_history: true,
-        v2: true,
-        persist: true,
-        use_knowledge_graph: true,
-        use_decision_matrix: true,
-      },
-    },
-  );
-  if (error) throw error;
-  const body = (data ?? {}) as {
-    reflection?: string;
-    badgeCount?: number;
-    outputControl?: Record<string, unknown> | null;
-    anchor_nodes?: unknown;
-    lead_axis?: unknown;
-  };
-  const outputControl = isRecord(body.outputControl)
-    ? body.outputControl
-    : null;
-  return {
-    reflection: body.reflection ?? "",
-    badgeCount: body.badgeCount ?? 0,
-    outputControl,
-    compiledOutputPackage: compiledOutputPackageFromPayload(outputControl),
-    anchorNodes: stringArray(body.anchor_nodes),
-    leadAxis: typeof body.lead_axis === "string" && body.lead_axis.trim()
-      ? body.lead_axis.trim()
-      : null,
-  };
-}
-
 async function hasActivePushToken(
   client: SupabaseClientLike,
   userId: string,
@@ -338,138 +255,33 @@ async function findExistingReflection(
   return (data as ExistingReflection | null) ?? null;
 }
 
-async function storeReflection(
-  client: SupabaseClientLike,
-  userId: string,
-  decanName: string,
-  decanTheme: string | null,
-  decanStart: string,
-  decanEnd: string,
-  badgeCount: number,
-  reflection: string,
-) {
-  const existing = await findExistingReflection(
-    client,
-    userId,
-    decanStart,
-    decanEnd,
-  );
-  if (existing?.id) return existing.id;
-
-  const { data, error } = await client
-    .from("decan_reflections")
-    .insert({
-      user_id: userId,
-      decan_name: decanName,
-      decan_theme: decanTheme,
-      decan_start: decanStart,
-      decan_end: decanEnd,
-      badge_count: badgeCount,
-      reflection_text: reflection,
-    })
-    .select("id")
-    .single();
-  if (!error) {
-    const insertedId = (data as { id?: string } | null)?.id;
-    if (insertedId) return insertedId;
-    throw new Error("Reflection persist returned no id");
-  }
-
-  const message = errorMessage(error);
-  if (message.includes("duplicate") || message.includes("23505")) {
-    const raced = await findExistingReflection(
-      client,
-      userId,
-      decanStart,
-      decanEnd,
-    );
-    if (raced?.id) return raced.id;
-  }
-  throw new Error(`Reflection persist error: ${message}`);
-}
-
-function buildExcerpt(reflection: string, maxChars = 120) {
-  const clean = reflection.replace(/\s+/g, " ").trim();
-  if (!clean) return "";
-  if (clean.length <= maxChars) return clean;
-  const slice = clean.slice(0, maxChars);
-  const lastSpace = slice.lastIndexOf(" ");
-  const trimmed = lastSpace > 50 ? slice.slice(0, lastSpace) : slice;
-  return `${trimmed.trim()}…`;
-}
-
+// Scheduling invites the user to review; the account review is created on open.
+// Existing saved reflections retain their identity and are never rewritten.
 async function sendPush(
   client: SupabaseClientLike,
   config: RuntimeConfig,
-  userId: string,
-  reflectionId: string,
+  row: ScheduleRow,
+  reflectionId: string | null,
   decanName: string,
-  reflection: string,
-  compiledOutputPackage: Record<string, unknown> | null,
-  anchorNodes: string[],
-  leadAxis: string | null,
 ): Promise<SendPushResponse> {
-  if (!config.internalFunctionKey) {
-    throw new Error("INTERNAL_FUNCTION_KEY not configured");
-  }
-  const title = "Your decan reflection is ready";
-  const pushResolution = resolveCompiledPackagePushText({
-    compiledPackage: compiledOutputPackage,
-    legacyBodyText: reflection,
-  });
-  if (pushResolution.blocked) {
-    return {
-      sent: 0,
-      failed: 0,
-      stale: 0,
-      matchedTokens: 0,
-      delivered: false,
-      reason: pushResolution.reason ?? pushResolution.source,
-      failedReasons: [],
-      pushSource: pushResolution.source,
-      pushBlocked: true,
-      pushPackageVersion: pushResolution.packageVersion,
-      pushCompilerStatus: pushResolution.compilerStatus,
-    };
-  }
-  const body = pushResolution.text || buildExcerpt(reflection) || decanName;
-  const ctaType = typeof compiledOutputPackage?.cta_type === "string"
-    ? compiledOutputPackage.cta_type
-    : null;
-  const ctaRef = typeof compiledOutputPackage?.cta_ref === "string"
-    ? compiledOutputPackage.cta_ref
-    : null;
-  const destination = compiledOutputPackage?.destination &&
-      typeof compiledOutputPackage.destination === "object" &&
-      !Array.isArray(compiledOutputPackage.destination)
-    ? compiledOutputPackage.destination as Record<string, unknown>
-    : null;
-  const canonicalNode = resolveCanonicalLibraryNode({
-    destination,
-    anchorNodes,
-    leadAxis,
-  });
   const { data, error } = await client.functions.invoke("send_push", {
     body: {
-      userIds: [userId],
-      notification: { title, body },
+      userIds: [row.user_id],
+      notification: {
+        title: "These ten days",
+        body: "A few moments to return to. Your decan is ready to review.",
+      },
       data: {
         kind: "decan_reflection",
-        delivery_key: `decan_reflection:${reflectionId}`,
-        reflectionId,
-        push_source: pushResolution.source,
-        ...(ctaType ? { cta_type: ctaType } : {}),
-        ...(ctaRef ? { cta_ref: ctaRef } : {}),
-        ...canonicalLibraryNodePayload(canonicalNode),
-        ...(destination ? { destination } : {}),
-        ...(compiledOutputPackage
-          ? { compiled_output_package: compiledOutputPackage }
-          : {}),
+        delivery_key: scheduleDeliveryKey(row),
+        ...(reflectionId ? { reflectionId } : {}),
+        decan_start: row.decan_start,
+        decan_end: row.decan_end,
+        decan_name: decanName,
+        push_source: "authored_decan_invitation_v1",
       },
     },
-    headers: {
-      "x-internal-key": config.internalFunctionKey,
-    },
+    headers: { "x-internal-key": config.internalFunctionKey },
   });
   if (error) throw error;
   return data as SendPushResponse;
@@ -592,58 +404,19 @@ async function processScheduleRow(
     const decanName = row.decan_name?.trim() ||
       fallbackDecanLabel(row.decan_context_key) ||
       `Decan starting ${row.decan_start}`;
-    const decanTheme = row.decan_theme?.trim() || null;
     const existingReflection = await findExistingReflection(
       client,
       row.user_id,
       row.decan_start,
       row.decan_end,
     );
-    const generated = existingReflection
-      ? {
-        reflection: existingReflection.reflection_text ?? "",
-        badgeCount: existingReflection.badge_count ?? 0,
-        compiledOutputPackage: null,
-        anchorNodes: [] as string[],
-        leadAxis: null,
-      }
-      : await generateReflection(
-        client,
-        row.user_id,
-        decanName,
-        decanTheme,
-        row.decan_context_key,
-        row.decan_start,
-        row.decan_end,
-      );
-    const {
-      reflection,
-      badgeCount,
-      compiledOutputPackage,
-      anchorNodes,
-      leadAxis,
-    } = generated;
-
-    const reflectionId = existingReflection?.id ?? await storeReflection(
-      client,
-      row.user_id,
-      decanName,
-      decanTheme,
-      row.decan_start,
-      row.decan_end,
-      badgeCount,
-      reflection,
-    );
+    const reflectionId = existingReflection?.id ?? null;
     const pushResult = await sendPush(
       client,
       config,
-      row.user_id,
+      row,
       reflectionId,
       decanName,
-      reflection,
-      compiledOutputPackage,
-      anchorNodes,
-      leadAxis,
     );
     if (pushResult.sent <= 0) {
       if (
