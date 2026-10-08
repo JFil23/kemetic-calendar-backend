@@ -167,12 +167,25 @@ set local role authenticated;
 select pg_temp.as_user('00000000-0000-4000-8000-00000000ba01');
 do $$
 declare a uuid:='00000000-0000-4000-8000-00000000ba01'; r uuid:='10000000-0000-4000-8000-00000000ba01';
- p uuid:='30000000-0000-4000-8000-00000000ba01'; m uuid:=gen_random_uuid(); x jsonb; y jsonb;
+ p uuid:='30000000-0000-4000-8000-00000000ba01'; m uuid:=gen_random_uuid(); x jsonb; y jsonb; reading text;
 begin
  x:=public.apply_decan_post_v1(a,m,p,r,0,'Words reviewed for sharing',true,null,'2026-10-07');
  perform pg_temp.assert_true(x->>'status'='applied','reviewed public snapshot created');
  y:=public.apply_decan_post_v1(a,m,p,r,0,'Words reviewed for sharing',true,null,'2026-10-07');
  perform pg_temp.assert_true(x=y,'publish acknowledgement retry');
+ -- The reflection picker can offer every bundled Library book, including the
+ -- five records that were absent when linked posts first shipped.
+ foreach reading in array array['cosmic_order','human_emergence','green_sahara','rise_of_kush_and_kemet','haw'] loop
+   perform pg_temp.assert_true(exists(select 1 from public.nodes where slug=reading and length(body_text)>100),'shipped reading is resolvable');
+ end loop;
+ begin
+   y:=public.apply_decan_post_v1(a,gen_random_uuid(),p,r,1,'Linked reflection',true,'cosmic_order','2026-10-07');
+   perform pg_temp.assert_true(y->>'status'='applied','linked Cosmic Order post acknowledged on first request');
+   perform pg_temp.assert_true(y->'row'->'reading_link'->>'slug'='cosmic_order','exact canonical reading link kept');
+   perform pg_temp.assert_true(y->'row'->'reading_link'->>'title'='Cosmic Order','canonical reading title kept');
+   raise exception 'rollback link probe' using errcode='Z0001';
+ exception when sqlstate 'Z0001' then null; end;
+
  perform pg_temp.assert_true((select node_id is null and insight_entry_id is null from public.insight_posts where id=p),'no fabricated Library source');
  perform pg_temp.assert_true((select count(*)=1 from jsonb_array_elements(public.get_profile_feed_cards()) c where c->>'id'=p::text and c->>'source_kind'='decan'),'canonical feed contains typed decan');
  perform pg_temp.assert_true((select count(*)=1 from jsonb_array_elements(public.get_profile_feed_together_cards()) c where c->>'id'=p::text),'Together feed retains decan');
