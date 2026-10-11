@@ -7,8 +7,9 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/features/ledger/ledger-model.test.ts",
     "guard:service-role": "bash scripts/guard-no-service-role.sh",
-    "lint": "npm run typecheck && npm run guard:service-role"
+    "lint": "npm run typecheck && npm run guard:service-role && npm test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",
