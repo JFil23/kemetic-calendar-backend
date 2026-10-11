@@ -11,8 +11,8 @@ filing, or personal-calendar ownership.
 - `external_calendar_events_v1` contains disposable imported projections only.
   Authenticated users can select their rows but cannot insert/update/delete.
 - Every connection, OAuth attempt, source and request has an explicit `staging`
-  or `production` lane. No lane default exists. The current production app does
-  not read this table; RC rows cannot appear in its authored calendar query.
+  or `production` lane. No lane default exists. Each app reads only its own
+  projection lane; imported copies remain separate from authored calendar rows.
 - Google credentials, provider subject, selected sources, leases and diagnostic
   counts live in private tables. Only a service-role RPC can mutate them.
 - Device sources have a separate connection, one explicit owning device, and a
@@ -37,15 +37,19 @@ JWT. The JSON body always includes `action` and `lane`.
 | `pause`, `resume`, `disconnect` | `expected_revision` | Status |
 | `refresh` | optional ISO `start`, `end`, IANA `time_zone` | Status + `changed` |
 
-Status is `{available, connection, sources, syncing, retry_at}`. Connection is null
+Status is `{available, connection, sources, syncing, retry_at, imported_event_count}`. Connection is null
 or `{id, provider:google, account_label, status, automatic, revision,
 last_synced_at, error_code}`. Status values are `connected`, `paused`, or
 `reconnect_required`. Each source has `{id,label,selected,color,read_only:true,
-last_synced_at,error_code}`. Sources always exist as an array. Failure bodies are
+last_synced_at,error_code,imported_event_count}`. Counts are computed from confirmed
+projection rows using existing connection/source indexes, not another counter
+store. Sources always exist as an array. Failure bodies are
 `{error:{code,retryable}}` with a corresponding non-200 HTTP status.
 
 Google consent selects **zero calendars**. Only explicitly selected calendars
-are imported. Hidden Google calendars remain available to select. Pause retains
+are imported. A non-catalog claim or apply with no selected sources fails with
+`no_calendars_selected`; it cannot update `last_synced_at` or record a completed
+import. Hidden Google calendars remain available to select. Pause retains
 copies and stops scheduled imports. An explicit Import now request can refresh
 once while leaving the connection paused; its lease is still invalidated by any
 subsequent pause, resume, selection change or disconnect. Deselect removes only
@@ -59,6 +63,14 @@ never creates or changes a Hꜣw session. It verifies the immutable Google OIDC
 `sub` using Google's HTTPS userinfo endpoint. A different Google account is
 rejected until an explicit disconnect. Tokens are AES-256-GCM encrypted with
 account/lane additional authenticated data. Refresh-token rotation is preserved.
+Healthy existing grants omit forced consent and use the stored immutable subject
+as `login_hint`. First connections and revoked grants request consent for offline
+access. A missing refresh token in a repeat authorization exchange may reuse the
+existing token only for the same account, lane, connection and generation; revoked
+grants never supply fallback credentials. The callback still checks scopes and
+immutable identity before storing anything. Reconnecting preserves source choices
+and the user's automatic-import setting. Google and OS permission requirements
+remain in force.
 
 The callback only redirects to a fixed URL:
 
@@ -72,10 +84,10 @@ one-use encrypted OAuth request; callback URL parameters cannot replace it.
 
 The same authenticated endpoint accepts `device_status`, `device_connect`,
 `device_select_sources`, `device_snapshot`, `device_pause`, `device_resume`, and
-`device_disconnect`. The function dispatches these to a separate service-only
+`device_disconnect`, and `device_remove_source`. The function dispatches these to a separate service-only
 RPC; it derives user ID from the validated user JWT, never a payload field.
 
-- Every mutation supplies `device_id` and, for an existing connection,
+- Native mutations supply `device_id` and, for an existing connection,
   `expected_revision`. `device_status` is readable from another device.
 - `device_connect` supplies `sources: [{native_id,label,account_label,kind,color}]`.
   A new connection starts paused with nothing selected. Refreshing the same
@@ -193,3 +205,56 @@ checksum before/after, as well as account/lane/source/lease/provider fences.
 - [Google immutable OIDC identity](https://developers.google.com/identity/openid-connect/openid-connect)
 - [Supabase Edge Function authentication](https://supabase.com/docs/guides/functions/auth)
 - [Supabase scheduling](https://supabase.com/docs/guides/functions/schedule-functions)
+
+
+## October 10, 2026 repair candidate and Google review
+
+`20261010223059_calendar_import_setup_and_consent.sql` replaces the existing
+`external_calendar_service_v1` owner; it adds no tables, RPCs, jobs, caches or
+credential stores. Apply it before deploying the updated `external_calendar`
+function, then release the RC app through its existing gate. Both service versions
+remain compatible with either response shape during that sequence. Production
+release needs its own exact-source gate and explicit cutover.
+
+Inspection of Google project `maat-473006` on October 10 confirmed:
+
+- Audience is already External / In production. Do not switch back to Testing.
+- Branding already uses Hꜣw and `https://haw-info.pages.dev/`, with `/privacy` and
+  `/terms`. The existing site contains its Search Console verification meta tag.
+- Search Console reports Jarale Phillips as a verified owner of the same URL
+  property, added October 2. Do not create another site or domain authority.
+- After explicit user approval, branding re-verification was submitted on
+  October 10. Google displayed “Verification in progress” and then returned the
+  same homepage-ownership rejection for `https://haw-info.pages.dev/`.
+  The submission is confirmed; branding approval is not. Google's additional
+  review option remains available to resolve the ownership discrepancy.
+- Sensitive-scope verification is blocked in Google's UI until branding is verified
+  and published. Passing code tests does not remove Google's warning or user cap.
+
+For the subsequent sensitive-scope request, the existing implementation requires
+only `openid`, `email`, `calendar.events.readonly` (read selected event details)
+and `calendar.calendarlist.readonly` (show available calendars for explicit
+selection). A review demonstration must show connection, those read-only scopes,
+source selection, imported copies, pause and disconnect. Use a dedicated fixture
+account/calendar; do not upload a user's personal calendar recording. Reuse the
+existing public privacy/terms links and project. Never claim Google's approval
+until its verification receipt exists.
+
+## Imported calendars in the Calendars sheet
+
+The existing Google `select_sources` mutation removes a selected source without
+provider calls. The additive `device_remove_source` action takes `source_id` and
+`expected_revision` and removes only that selected device-owned import. The
+verified account and explicit lane own this operation; no native device identity
+or OS permission is needed to stop importing. It never changes native ownership,
+other selections, Google bindings, automatic-import preferences, or authored rows.
+The existing device RPC serializes removal with snapshots and increments its
+generation so a late native snapshot cannot restore deleted copies. Repeating
+removal at the current revision is harmless. Old-revision writes still fail.
+
+Deploy the migration before the updated Edge Function, then qualify/deploy the
+app candidate. The change is additive for older apps. An app pointed at the old
+backend retains the row and reports failure for unsupported phone removal; it
+never pretends that removal succeeded. Rollback of the app/Edge Function can leave
+the additive migration in place. Earlier calendar consent/count changes in this
+checkout remain a separate, not-yet-deployed change set.

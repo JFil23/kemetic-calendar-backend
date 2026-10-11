@@ -21,7 +21,14 @@ do $$declare
  payload jsonb;
 begin
  con:=public.external_calendar_service_v1('connect',uid,'staging','{"provider_subject":"google-sub-one","account_label":"Fixture","credentials":{"sealed":true}}');
- cl:=public.external_calendar_service_v1('claim',uid,'staging','{}');
+ begin
+   perform public.external_calendar_service_v1('claim',uid,'staging','{}');
+   raise exception 'Unselected connection claimed an import';
+ exception when invalid_parameter_value then
+   if sqlerrm<>'no_calendars_selected' then raise; end if;
+ end;
+ perform pg_temp.require((select last_synced_at is null and lease_token is null from private.external_calendar_connections where id=(con->>'id')::uuid),'Empty setup cannot appear synchronized or acquire a lease');
+ cl:=public.external_calendar_service_v1('claim',uid,'staging','{"catalog":true}');
  perform public.external_calendar_service_v1('sources',uid,'staging',cl||'{"sources":[{"provider_calendar_id":"outside@example.test","label":"Work"}]}');
  result:=public.external_calendar_service_v1('status',uid,'staging','{}');
  source_id:=(result->'sources'->0->>'id')::uuid;revision:=(result->'connection'->>'revision')::bigint;
@@ -32,6 +39,20 @@ begin
  payload:=cl||jsonb_build_object('start','2026-10-01T00:00:00Z','end','2026-11-01T00:00:00Z','sources',jsonb_build_array(jsonb_build_object('id',source_id,'events',jsonb_build_array(event))));
  perform public.external_calendar_service_v1('apply',uid,'staging',payload);
  perform pg_temp.require((select count(*)=1 from public.external_calendar_events_v1 where user_id=uid),'First snapshot');
+ result:=public.external_calendar_service_v1('status',uid,'staging','{}');
+ perform pg_temp.require((result->>'imported_event_count')::int=1 and (result->'sources'->0->>'imported_event_count')::int=1,'Counts reflect confirmed projection rows');
+ result:=public.external_calendar_service_v1('create_oauth',uid,'staging','{"state_hash":"reuse-fixture","envelope":{}}');
+ perform pg_temp.require(result->>'reuse_grant'='true' and result->>'provider_subject'='google-sub-one','Healthy reconnect can reuse its grant');
+ result:=public.external_calendar_service_v1('consume_oauth',null,'staging','{"state_hash":"reuse-fixture"}');
+ perform pg_temp.require(result->'reusable_credentials'='{"sealed":true}'::jsonb,'One-use callback carries only the fenced existing credentials');
+ -- A changed connection cannot supply credentials to an old OAuth request.
+ perform public.external_calendar_service_v1('create_oauth',uid,'staging','{"state_hash":"stale-reuse","envelope":{}}');
+ update private.external_calendar_connections set generation=generation+1 where id=(con->>'id')::uuid;
+ result:=public.external_calendar_service_v1('consume_oauth',null,'staging','{"state_hash":"stale-reuse"}');
+ perform pg_temp.require(result->'reusable_credentials'='null'::jsonb,'Generation changes fence credential reuse');
+ -- Restore the fixture generation so existing lease assertions stay exact.
+ update private.external_calendar_connections set generation=generation-1 where id=(con->>'id')::uuid;
+
  begin perform public.external_calendar_service_v1('apply',uid,'staging',payload);raise exception 'Replay accepted';exception when invalid_parameter_value then null;end;
  cl:=public.external_calendar_service_v1('claim',uid,'staging','{}');
  perform public.external_calendar_service_v1('apply',uid,'staging',payload||cl||jsonb_build_object('sources',jsonb_build_array(jsonb_build_object('id',source_id,'events',jsonb_build_array(event||'{"starts_at":"2026-10-02T12:00:00Z","ends_at":"2026-10-02T13:00:00Z"}')))));
@@ -84,6 +105,15 @@ begin
  perform pg_temp.require((select title='Manual import while paused' from public.external_calendar_events_v1 where user_id=uid),'Pause fences preserve last good manual snapshot');
  perform pg_temp.require(jsonb_array_length(public.external_calendar_service_v1('due',null,'staging','{}'))=0,'Paused worker remains excluded after manual import');
  result:=public.external_calendar_service_v1('status',uid,'staging','{}');
+ perform public.external_calendar_service_v1('connect',uid,'staging',jsonb_build_object(
+   'expected_connection',con->'id','expected_generation',result->'connection'->'revision',
+   'provider_subject','google-sub-one','account_label','Fixture','credentials','{}'::jsonb));
+ result:=public.external_calendar_service_v1('status',uid,'staging','{}');
+ perform pg_temp.require(result->'connection'->>'automatic'='false' and result->'connection'->>'status'='paused',
+   'Reconnecting preserves the existing automatic-import preference');
+ perform pg_temp.require(result->'sources'->0->>'selected'='true','Reconnecting preserves chosen calendars');
+
+ result:=public.external_calendar_service_v1('status',uid,'staging','{}');
  revision:=(result->'connection'->>'revision')::bigint-1;
  begin perform public.external_calendar_service_v1('connect',uid,'staging',jsonb_build_object('provider_subject','different-sub','account_label','Different','credentials','{}'::jsonb,'expected_connection',con->>'id','expected_generation',revision+1));raise exception 'Account switch accepted';exception when invalid_parameter_value then null;end;
  perform public.external_calendar_service_v1('connect',uid,'production','{"provider_subject":"google-sub-one","account_label":"Fixture","credentials":{"sealed":true}}');
@@ -108,6 +138,60 @@ begin
  revision:=(result->'connection'->>'revision')::bigint;
  perform public.external_calendar_device_service_v1('device_disconnect',uid,'staging',jsonb_build_object('device_id','device-owner-000001','expected_revision',revision));
  perform pg_temp.require((select count(*)=1 from public.external_calendar_events_v1 where user_id=uid),'Device disconnect preserves Google copies');
+end$$;
+-- Account-level removal reuses the native projection owner and its generation.
+do $$declare
+ uid uuid:='90000000-0000-4000-8000-000000000001';
+ other_uid uuid:='90000000-0000-4000-8000-000000000002';
+ result jsonb; other_result jsonb; payload jsonb; first_id uuid; second_id uuid; foreign_id uuid;
+ revision bigint; google_id uuid;
+ event jsonb:='{"provider_event_id":"remove-fixture","recurrence_id":"time:2026-10-02T10:00:00Z","title":"Imported copy","all_day":false,"starts_at":"2026-10-02T10:00:00Z","ends_at":"2026-10-02T11:00:00Z"}';
+begin
+ result:=public.external_calendar_device_service_v1('device_connect',uid,'staging','{"device_id":"device-owner-000001","sources":[{"native_id":"first","label":"First"},{"native_id":"second","label":"Second"}]}');
+ select id into first_id from private.external_calendar_device_sources where native_id='first' and connection_id=(result->'connection'->>'id')::uuid;
+ select id into second_id from private.external_calendar_device_sources where native_id='second' and connection_id=(result->'connection'->>'id')::uuid;
+ result:=public.external_calendar_device_service_v1('device_select_sources',uid,'staging',jsonb_build_object('device_id','device-owner-000001','expected_revision',result->'connection'->'revision','source_ids',jsonb_build_array(first_id,second_id)));
+ payload:=jsonb_build_object('device_id','device-owner-000001','expected_revision',result->'connection'->'revision','manual',true,'start','2026-10-01','end','2026-11-01','sources',jsonb_build_array(jsonb_build_object('id',first_id,'events',jsonb_build_array(event)),jsonb_build_object('id',second_id,'events',jsonb_build_array(event))));
+ result:=public.external_calendar_device_service_v1('device_snapshot',uid,'staging',payload);
+ revision:=(result->'connection'->>'revision')::bigint;
+ payload:=payload||jsonb_build_object('expected_revision',revision);
+ other_result:=public.external_calendar_device_service_v1('device_connect',other_uid,'staging','{"device_id":"another-device-00001","sources":[{"native_id":"other","label":"Other"}]}');
+ foreign_id:=(other_result->'sources'->0->>'id')::uuid;
+ begin
+   perform public.external_calendar_device_service_v1('device_remove_source',uid,'staging',jsonb_build_object('source_id',foreign_id,'expected_revision',revision));
+   raise exception 'Removal crossed account ownership';
+ exception when invalid_parameter_value then if sqlerrm<>'invalid_sources' then raise; end if; end;
+ begin
+   perform public.external_calendar_device_service_v1('device_remove_source',uid,'production',jsonb_build_object('source_id',first_id,'expected_revision',revision));
+   raise exception 'Removal crossed release lanes';
+ exception when invalid_parameter_value then if sqlerrm<>'not_connected' then raise; end if; end;
+ begin
+   perform public.external_calendar_device_service_v1('device_remove_source',uid,'staging',jsonb_build_object('source_id',first_id,'expected_revision',revision-1));
+   raise exception 'Removal accepted stale revision';
+ exception when invalid_parameter_value then if sqlerrm<>'stale_attempt' then raise; end if; end;
+ -- Unavailable source calendars can still be removed without an OS permission.
+ update private.external_calendar_device_sources set available=false where id=first_id;
+ result:=public.external_calendar_device_service_v1('device_remove_source',uid,'staging',jsonb_build_object('source_id',first_id,'expected_revision',revision));
+ perform pg_temp.require((result->'connection'->>'revision')::bigint=revision+1,'Removal advances the existing snapshot fence');
+ perform pg_temp.require(result->'connection'->>'owner_device_id'='device-owner-000001' and result->'connection'->>'status'='paused','Removal preserves native ownership and pause');
+ perform pg_temp.require(not exists(select 1 from public.external_calendar_events_v1 where native_source_id=first_id),'Confirmed removal deletes all copies of that source');
+ perform pg_temp.require((select count(*)=1 from public.external_calendar_events_v1 where native_source_id=second_id),'Removal preserves another imported calendar');
+ perform pg_temp.require((select count(*)=1 from public.external_calendar_events_v1 where provider='google' and user_id=uid),'Removal preserves Google copies');
+ perform pg_temp.require((select not selected from private.external_calendar_device_sources where id=first_id),'Removed source remains unselected');
+ begin
+   perform public.external_calendar_device_service_v1('device_snapshot',uid,'staging',payload);
+   raise exception 'Late device snapshot recreated deleted import';
+ exception when invalid_parameter_value then if sqlerrm<>'stale_attempt' then raise; end if; end;
+ result:=public.external_calendar_device_service_v1('device_remove_source',uid,'staging',jsonb_build_object('source_id',first_id,'expected_revision',result->'connection'->'revision'));
+ perform pg_temp.require((result->'connection'->>'revision')::bigint=revision+1,'Repeat removal at current revision is harmless');
+ select s.id into google_id from private.external_calendar_sources s join private.external_calendar_connections c on c.id=s.connection_id where c.user_id=uid and c.lane='staging' limit 1;
+ result:=public.external_calendar_device_service_v1('device_select_sources',uid,'staging',jsonb_build_object('device_id','device-owner-000001','expected_revision',result->'connection'->'revision','source_ids',jsonb_build_array(second_id),'google_bindings',jsonb_build_object(second_id::text,google_id)));
+ begin
+   perform public.external_calendar_device_service_v1('device_remove_source',uid,'staging',jsonb_build_object('source_id',second_id,'expected_revision',result->'connection'->'revision'));
+   raise exception 'Removal changed Google-owned native binding';
+ exception when invalid_parameter_value then if sqlerrm<>'invalid_sources' then raise; end if; end;
+ perform public.external_calendar_device_service_v1('device_disconnect',uid,'staging',jsonb_build_object('device_id','device-owner-000001','expected_revision',result->'connection'->'revision'));
+ perform public.external_calendar_device_service_v1('device_disconnect',other_uid,'staging',jsonb_build_object('device_id','another-device-00001','expected_revision',other_result->'connection'->'revision'));
 end$$;
 select pg_temp.require(not has_function_privilege('authenticated','public.external_calendar_service_v1(text,uuid,text,jsonb)','EXECUTE'),'User cannot invoke server Google mutations');
 select pg_temp.require(not has_function_privilege('authenticated','public.external_calendar_device_service_v1(text,uuid,text,jsonb)','EXECUTE'),'User cannot impersonate owner through RPC');

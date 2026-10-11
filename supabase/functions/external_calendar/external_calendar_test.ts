@@ -876,3 +876,129 @@ Deno.test("oversized event fields are rejected rather than silently truncated", 
   }
   assert(rejected);
 });
+
+Deno.test("authorization keeps consent only for missing or revoked grants and hints the established account", () => {
+  const google = new GoogleCalendar();
+  const first = new URL(
+    google.authorizationUrl(laneConfig, "state", "challenge"),
+  );
+  assertEquals(first.searchParams.get("prompt"), "consent");
+  assertEquals(first.searchParams.get("login_hint"), null);
+  const reused = new URL(
+    google.authorizationUrl(laneConfig, "state", "challenge", {
+      reuseGrant: true,
+      providerSubject: "immutable-google-sub",
+    }),
+  );
+  assertEquals(reused.searchParams.get("prompt"), null);
+  assertEquals(reused.searchParams.get("login_hint"), "immutable-google-sub");
+  assertEquals(reused.searchParams.get("scope"), SCOPES.join(" "));
+  assertEquals(reused.searchParams.get("code_challenge_method"), "S256");
+  const revoked = new URL(
+    google.authorizationUrl(laneConfig, "state", "challenge", {
+      reuseGrant: false,
+      providerSubject: "immutable-google-sub",
+    }),
+  );
+  assertEquals(revoked.searchParams.get("prompt"), "consent");
+  assertEquals(revoked.searchParams.get("login_hint"), "immutable-google-sub");
+});
+
+for (
+  const scenario of [
+    "same-account",
+    "different-account",
+    "revoked",
+    "missing-scope",
+  ]
+) {
+  Deno.test(`OAuth grant reuse: ${scenario}`, async () => {
+    const f = await fixture();
+    const pending = await cipher.seal(
+      { verifier: "fixture-verifier" },
+      "user-one:staging",
+    );
+    const base = f.store.call;
+    f.store.call = (action, user, lane, payload, signal) =>
+      action === "consume_oauth"
+        ? Promise.resolve({
+          user_id: "user-one",
+          envelope: pending,
+          expected_connection: "connection-one",
+          expected_generation: 7,
+          provider_subject: "google-sub-one",
+          reusable_credentials: scenario === "revoked" ? null : f.credentials,
+        })
+        : base(action, user, lane, payload, signal);
+    const handler = createExternalCalendarHandler({
+      store: f.store,
+      config,
+      google: new GoogleCalendar(
+        ((input) =>
+          Promise.resolve(
+            String(input).includes("/token")
+              ? fetchResponse({
+                access_token: "new-access",
+                expires_in: 3600,
+                scope: scenario === "missing-scope"
+                  ? "openid email"
+                  : SCOPES.join(" "),
+              })
+              : fetchResponse({
+                sub: scenario === "different-account"
+                  ? "someone-else"
+                  : "google-sub-one",
+              }),
+          )) as typeof fetch,
+      ),
+    });
+    const response = await handler(
+      new Request(
+        laneConfig.callback + "?state=staging.fixture&code=private-code",
+      ),
+    );
+    const writes = f.calls.filter((c) => c.action === "connect");
+    if (scenario === "same-account") {
+      assertEquals(
+        response.headers.get("Location"),
+        laneConfig.origin + "/#/settings?external_calendar=connected",
+      );
+      assertEquals(writes.length, 1);
+      const saved = await cipher.open<{ refresh_token: string }>(
+        writes[0].payload.credentials as Json,
+        "user-one:staging",
+      );
+      assertEquals(saved.refresh_token, "test-refresh");
+      assertEquals(writes[0].payload.expected_generation, 7);
+    } else {
+      assertEquals(writes.length, 0);
+      assert(
+        response.headers.get("Location")!.endsWith(
+          scenario === "different-account"
+            ? "account_mismatch"
+            : scenario === "missing-scope"
+            ? "denied"
+            : "reconnect_required",
+        ),
+      );
+    }
+    assert(!(await response.text()).includes("access"));
+  });
+}
+
+Deno.test("removing a device import uses the verified account without native permission", async () => {
+  const f = await fixture();
+  const response = await f.handler(request({
+    action: "device_remove_source",
+    lane: "staging",
+    source_id: "source-one",
+    expected_revision: 7,
+    user_id: "forged-account",
+  }));
+  assertEquals(response.status, 200);
+  assertEquals(f.calls.length, 1);
+  assertEquals(f.calls[0].action, "device_remove_source");
+  assertEquals(f.calls[0].user, "user-one");
+  assertEquals(f.calls[0].payload.source_id, "source-one");
+  assertEquals(f.calls[0].payload.device_id, undefined);
+});

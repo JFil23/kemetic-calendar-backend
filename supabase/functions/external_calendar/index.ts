@@ -55,6 +55,7 @@ const knownDatabaseErrors = new Set([
   "stale_attempt",
   "account_mismatch",
   "not_connected",
+  "no_calendars_selected",
   "invalid_sources",
   "reconnect_required",
   "paused",
@@ -76,6 +77,7 @@ function safeError(error: unknown) {
           "stale_attempt",
           "account_mismatch",
           "not_connected",
+          "no_calendars_selected",
           "reconnect_required",
           "paused",
           "device_owner_conflict",
@@ -274,13 +276,26 @@ export function createExternalCalendarHandler(
         if (!code || code.length > 4096) {
           throw new CalendarError("invalid_oauth_state");
         }
+        const previous = request.reusable_credentials
+          ? await config.cipher!.open<Credentials>(
+            asRecord(request.reusable_credentials),
+            user + ":" + lane,
+          )
+          : null;
         const token = await google.exchange(
           target,
           code,
           pending.verifier,
           deadline,
+          previous?.refresh_token,
         );
         const identity = await google.identity(token.access_token, deadline);
+        if (
+          request.provider_subject &&
+          identity.provider_subject !== request.provider_subject
+        ) {
+          throw new CalendarError("account_mismatch", 409);
+        }
         await call("connect", user, lane, {
           ...identity,
           credentials: await config.cipher!.seal(token, user + ":" + lane),
@@ -294,7 +309,9 @@ export function createExternalCalendarHandler(
       } catch (error) {
         const failure = safeError(error);
         if (target) {
-          const code = ["denied", "account_mismatch"].includes(failure.code)
+          const code = failure.code === "calendar_access_denied"
+            ? "denied"
+            : ["denied", "account_mismatch"].includes(failure.code)
             ? failure.code
             : "reconnect_required";
           return redirect(
@@ -416,6 +433,7 @@ export function createExternalCalendarHandler(
             "device_status",
             "device_connect",
             "device_select_sources",
+            "device_remove_source",
             "device_snapshot",
             "device_pause",
             "device_resume",
@@ -440,18 +458,26 @@ export function createExternalCalendarHandler(
         const provider = configured(lane),
           verifier = randomToken(),
           state = lane + "." + randomToken();
-        await call("create_oauth", user, lane, {
-          state_hash: await hash(state),
-          envelope: await config.cipher!.seal({
-            verifier,
-            return_target: body.return_target ?? "web",
-          }, user + ":" + lane),
-        }, deadline);
+        const existing = asRecord(
+          await call("create_oauth", user, lane, {
+            state_hash: await hash(state),
+            envelope: await config.cipher!.seal({
+              verifier,
+              return_target: body.return_target ?? "web",
+            }, user + ":" + lane),
+          }, deadline),
+        );
         return json({
           authorization_url: google.authorizationUrl(
             provider,
             state,
             await hash(verifier),
+            {
+              reuseGrant: existing.reuse_grant === true,
+              providerSubject: typeof existing.provider_subject === "string"
+                ? existing.provider_subject
+                : undefined,
+            },
           ),
         });
       }

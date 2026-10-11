@@ -272,7 +272,12 @@ export class GoogleCalendar {
       return data;
     });
   }
-  authorizationUrl(config: GoogleConfig, state: string, challenge: string) {
+  authorizationUrl(
+    config: GoogleConfig,
+    state: string,
+    challenge: string,
+    options: { reuseGrant?: boolean; providerSubject?: string } = {},
+  ) {
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     url.search = new URLSearchParams({
       client_id: config.clientId,
@@ -283,7 +288,10 @@ export class GoogleCalendar {
       code_challenge: challenge,
       code_challenge_method: "S256",
       access_type: "offline",
-      prompt: "consent select_account",
+      ...(options.reuseGrant ? {} : { prompt: "consent" }),
+      ...(options.providerSubject
+        ? { login_hint: options.providerSubject }
+        : {}),
     }).toString();
     return url.toString();
   }
@@ -292,6 +300,7 @@ export class GoogleCalendar {
     code: string,
     verifier: string,
     deadline: Deadline,
+    previousRefreshToken = "",
   ): Promise<Credentials> {
     const result = await this.json("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -315,12 +324,13 @@ export class GoogleCalendar {
         granted.has(s)
       )
     ) throw new CalendarError("calendar_access_denied", 403);
-    if (!string(result.access_token) || !string(result.refresh_token)) {
+    const refreshToken = string(result.refresh_token) || previousRefreshToken;
+    if (!string(result.access_token) || !refreshToken) {
       throw new CalendarError("reconnect_required", 409);
     }
     return {
       access_token: string(result.access_token),
-      refresh_token: string(result.refresh_token),
+      refresh_token: refreshToken,
       expires_at: Date.now() + Number(result.expires_in) * 1000,
     };
   }
