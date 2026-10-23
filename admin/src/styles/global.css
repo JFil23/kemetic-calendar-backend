@@ -125,7 +125,7 @@ h1 em { font-style: normal; color: var(--gold); }
 .user-avatar { height: 45px; width: 45px; flex: none; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 24% 12%, rgba(206,168,113,.12), transparent 71%), var(--avatar-bg, #3c2d2c); border: 1px solid var(--avatar-edge,rgba(221,174,127,.2)); color: var(--avatar-color,#e2c6a9); font-family: var(--serif); font-size: 17px; letter-spacing: -.025em; line-height: 1; }
 .identity { min-width: 0; }
 .identity-title { font-size: 15px; letter-spacing: .005em; color: #ede4db; font-weight: 450; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.identity-sub { color: #93867c; font-size: 11px; font-weight: 350; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.identity-sub { display: block; color: #93867c; font-size: 11px; font-weight: 350; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .last-activity { text-align: right; min-width: 0; }
 .activity-time { display: block; color: #d6c8b9; font-size: 12px; font-weight: 400; white-space: nowrap; }
 .activity-caption { display: block; color: #85796f; margin-top: 4px; font-size: 10px; white-space: nowrap; }
