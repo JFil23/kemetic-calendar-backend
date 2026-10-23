@@ -1,215 +1,76 @@
-# ḥꜣw Admin Console
+# ḥꜣw Admin Activity Ledger
 
-Private operator web app for the ḥꜣw / Kemetic Calendar project.
+The private admin application is a single-purpose activity ledger. It lists
+registered accounts, searches names/emails/handles, filters recorded activity,
+and expands each person into a timeline grouped by their local calendar day.
+The 7/30/90-day controls and account sorting share this same view.
 
-This app is a static Vite + React shell. It uses the Supabase anon key in the browser and calls `admin_*` Edge Functions with the signed-in user's JWT. Never put a service role key in `admin/src`.
+The implementation reuses the ledger merged in backend PR #85. The existing
+Supabase staff gate and the `admin_activity_users` / `admin_activity_user_detail`
+RPCs remain the authorization and data owners. The browser uses a public
+Supabase key and the signed-in staff session. Private journal, message and
+calendar content is not part of the ledger payload.
 
-## Prerequisites
+## Run locally
 
-- Node.js and npm
-- Supabase CLI
-- Access to the same Supabase project used by the consumer app
-- A Supabase Auth user for the founder/operator account
+From `admin/`:
 
-## Local Setup
-
-```bash
-cd admin
-cp .env.example .env
+```sh
 npm ci
+cp .env.example .env.local
 ```
 
-Set `admin/.env`:
+Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to the existing project's
+public browser values, then run:
 
-```bash
-VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+```sh
+npm run dev -- --host 127.0.0.1 --strictPort
 ```
 
-Run the app:
+Open `http://127.0.0.1:5174/` and sign in with the existing staff account.
+An optional development UI preview uses the authored fictional accounts;
+its banner identifies the data as illustrative. A production build always
+uses the existing staff authorization flow.
 
-```bash
-cd admin
-npm run dev
-```
+## Verification
 
-Open `http://127.0.0.1:5174/`.
-
-## Apply Phase 1 Migration
-
-From the repo root:
-
-```bash
-supabase db push
-```
-
-Or apply the migration directly:
-
-```text
-supabase/migrations/20260518090000_admin_console_phase1.sql
-```
-
-This creates:
-
-- `public.staff_members`
-- `public.admin_audit_log`
-- `public.is_staff(uid)`
-- `public.staff_has_scope(uid, scope)`
-
-## Deploy `admin_auth`
-
-Deploy with JWT verification disabled at the Supabase gateway so the function can handle CORS, return consistent 401/403 responses, and write denied-access audit rows itself:
-
-```bash
-supabase functions deploy admin_auth --no-verify-jwt
-```
-
-The function still verifies the user JWT internally and checks active staff membership server-side.
-
-Phase 2 adds the read-only War Room function. Deploy it with the same gateway pattern:
-
-```bash
-supabase functions deploy admin_war_room --no-verify-jwt
-```
-
-`admin_war_room` verifies the JWT internally, checks active staff membership plus `war_room.read`, calls `admin_war_room_summary`, and writes `admin_audit_log` entries for allowed and denied access.
-
-Phase 3 adds the echo-only ops runtime functions:
-
-```bash
-supabase functions deploy admin_archive --no-verify-jwt
-supabase functions deploy admin_armory --no-verify-jwt
-supabase functions deploy admin_approvals --no-verify-jwt
-supabase functions deploy admin_treasury --no-verify-jwt
-supabase functions deploy admin_agent_run --no-verify-jwt
-```
-
-These functions verify the JWT internally, check active staff membership plus the required scope, and use the service role only inside the Edge Function process.
-
-Phase 4 enables real Research and Copy agent handlers through `admin_agent_run`.
-Set the model API key only in the Supabase function environment:
-
-```bash
-supabase secrets set OPENAI_API_KEY=YOUR_OPENAI_API_KEY
-```
-
-Optional model override:
-
-```bash
-supabase secrets set OPENAI_ADMIN_MODEL=gpt-4o-mini
-```
-
-Phase 5 enables Social, Suggest Updates, Product QA, and Chief Operator through the same function. The browser app never receives model keys. Default CI uses injected mock LLM responses and does not make live model calls.
-
-Phase 6 adds Ma'at ops and ADR-002 interim Node CMS functions:
-
-```bash
-supabase functions deploy admin_maat_ops --no-verify-jwt
-supabase functions deploy admin_maat_dry_run --no-verify-jwt
-supabase functions deploy admin_nodes --no-verify-jwt
-```
-
-`admin_maat_dry_run` is no-write. `admin_nodes` creates drafts, versions, and approval records only; it does not mutate `KemeticNodeLibrary.dart` or publish app-visible node content.
-
-Phase 7 adds Content Lab previews for real user-specific decan reflections, decan openings, Ma'at/Isfet nudges, and push packaging:
-
-```bash
-supabase functions deploy admin_content_preview --no-verify-jwt
-```
-
-`admin_content_preview` verifies the operator JWT internally, requires `product.content.read`, `product.content.test`, or `product.content.write` depending on action, writes `admin_audit_log`, and stores operator reviews in `admin_content_evaluations`. Preview generation never sends a push or overwrites live user content.
-
-Required function environment:
-
-```bash
-SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
-```
-
-If your project uses `SERVICE_ROLE_KEY` instead, the function accepts that name too.
-
-## Bootstrap Founder Staff Row
-
-Find your auth user id:
-
-```sql
-select id, email
-from auth.users
-where email = '<founder-email>';
-```
-
-Insert or refresh the owner row:
-
-```sql
-insert into public.staff_members (user_id, role, scopes)
-values ('<founder-auth-user-id>', 'owner', '{}')
-on conflict (user_id) do update
-set role = 'owner',
-    scopes = excluded.scopes,
-    is_active = true,
-    updated_at = timezone('utc', now());
-```
-
-Owners are treated as full-scope by `staff_has_scope` for known scopes.
-
-## Verify Access
-
-1. Start the admin app with `npm run dev`.
-2. Sign in with the founder account.
-3. The admin app calls `admin_auth`.
-4. A valid owner should land on Product Overview and see the full placeholder navigation.
-
-Optional API check with a current Supabase access token:
-
-```bash
-curl "$VITE_SUPABASE_URL/functions/v1/admin_auth/me" \
-  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"
-```
-
-Expected success shape:
-
-```json
-{
-  "user": { "id": "...", "email": "f******@example.com" },
-  "staff": { "role": "owner", "scopes": [] }
-}
-```
-
-Expected failures:
-
-- missing token: `401 auth_required`
-- signed-in non-staff: `403 staff_required`
-- inactive staff: `403 staff_inactive`
-
-Every success/failure handled by `admin_auth` writes `admin_audit_log`.
-
-## Checks
-
-```bash
-cd admin
+```sh
 npm run lint
 npm run build
 ```
 
-From the repo root:
+Lint includes type checking, the privileged-key guard, and the ledger/PWA
+tests. Tests cover filters, search, local midnight, date-window boundaries,
+the shared four-request gate, and the service worker's private-data boundary.
 
-```bash
-deno test --allow-env \
-  supabase/functions/admin_auth/admin_auth_test.ts \
-  supabase/functions/admin_war_room/admin_war_room_test.ts \
-  supabase/functions/admin_archive/admin_archive_test.ts \
-  supabase/functions/admin_armory/admin_armory_test.ts \
-  supabase/functions/admin_approvals/admin_approvals_test.ts \
-  supabase/functions/admin_treasury/admin_treasury_test.ts \
-  supabase/functions/admin_agent_run/admin_agent_run_test.ts \
-  supabase/functions/admin_maat_ops/admin_maat_ops_test.ts \
-  supabase/functions/admin_maat_dry_run/admin_maat_dry_run_test.ts \
-  supabase/functions/admin_content_preview/admin_content_preview_test.ts \
-  supabase/functions/admin_nodes/admin_nodes_test.ts
+The reproducible browser fixture runs on loopback and contains only synthetic
+accounts. Build the same source against it without changing `.env.local`:
+
+```sh
+VITE_SUPABASE_URL=http://127.0.0.1:5176 \
+VITE_SUPABASE_ANON_KEY=fixture-public-browser-key-not-a-secret \
+npm run build -- --outDir /tmp/haw-admin-qa-dist --emptyOutDir
+python3 scripts/ledger_browser_fixture.py --directory /tmp/haw-admin-qa-dist
 ```
 
-The guard script fails if privileged key names appear under `admin/src`.
+At `http://127.0.0.1:5176/`, use `qa-owner@example.test` and any fixture-only
+password. Change 30 → 7 → 90 days while lists/details are delayed, expand all,
+then collapse and reopen the nodes. Only the newest range should render.
+`/__qa/metrics` reports actual request counts: the peak must stay at four,
+obsolete queued ranges should be skipped, and reopening loaded nodes should
+reuse their details. This fixture does not connect to Supabase.
 
-## Phase Boundary
+## Hosting and PWA
 
-Phase 7 adds controlled content-preview and operator-critique workflows. It intentionally does not include external posting APIs, auto-PRs, direct pushes to end users from admin, production content overwrites, direct `KemeticNodeLibrary.dart` mutation, mobile app changes, or live node publishing before ADR-002 moves from Option C to Option A/B.
+The existing admin host is `https://haw-admin.pages.dev`, Cloudflare Pages
+project `haw-admin`, production branch `main`. Build `admin/dist` with the
+production public Supabase values for this existing host.
+
+`manifest.webmanifest` requests standalone display and includes regular and
+maskable icons. The service worker caches the interface shell and assets;
+authentication and activity responses bypass its cache. Home-screen
+installation requires HTTPS and should be verified on the target device.
+
+The consumer hosts are independent of this admin application. The ledger's
+database migration has already been applied; publishing the frontend does
+not require another database or function deployment.
