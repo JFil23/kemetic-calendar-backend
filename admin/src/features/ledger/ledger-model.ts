@@ -9,6 +9,7 @@ export type LedgerEvent = {
   label: string;
   detail: string;
   category: string;
+  navigationKey?: string;
 };
 
 export type LedgerPerson = {
@@ -30,16 +31,6 @@ export type LedgerHistory = Omit<
 > & {
   history: LedgerEvent[];
 };
-
-const DETAIL_KEYS = [
-  "route",
-  "surface",
-  "source_surface",
-  "entry_point",
-  "presentation",
-  "level",
-  "orientation",
-] as const;
 
 export function padCount(value: number): string {
   return String(value).padStart(2, "0");
@@ -100,15 +91,42 @@ export function eventDetail(
 ): string {
   if (!fields) return "";
   const parts: string[] = [];
-  const title = fields.node_title;
-  const slug = fields.node_slug;
-  if (typeof title === "string" && title.trim()) parts.push(title.trim());
-  else if (typeof slug === "string" && slug.trim()) parts.push(slug.trim());
-  for (const key of DETAIL_KEYS) {
-    const value = fields[key];
+  for (const value of [fields.node_title ?? fields.node_slug, fields.context_label]) {
     if (typeof value === "string" && value.trim()) parts.push(value.trim());
   }
+  if (Number.isSafeInteger(fields.char_count) && Number(fields.char_count) >= 0) {
+    parts.push(`${fields.char_count} characters saved`);
+  }
   return parts.join(" · ");
+}
+
+/** Presentation only: every original record stays available in the group. */
+export function groupNavigationRecords(
+  events: readonly LedgerEvent[],
+): LedgerEvent[][] {
+  const groups: LedgerEvent[][] = [];
+  for (const event of events) {
+    const current = groups[groups.length - 1];
+    const first = current?.[0];
+    const elapsed = first
+      ? new Date(first.occurredAt).getTime() - new Date(event.occurredAt).getTime()
+      : Infinity;
+    if (
+      event.navigationKey && first?.navigationKey === event.navigationKey &&
+      elapsed >= 0 && elapsed <= 120_000
+    ) {
+      current.push(event);
+    } else {
+      groups.push([event]);
+    }
+  }
+  return groups;
+}
+
+export function formatRecordTime(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true, timeZone,
+  }).format(date);
 }
 
 export function dayKey(date: Date, timeZone: string): string {

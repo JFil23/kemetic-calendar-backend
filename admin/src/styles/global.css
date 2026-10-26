@@ -383,3 +383,10 @@ h1 em { font-style: normal; color: var(--gold); }
   background: #2a1b1d;
   color: #f0a6a6;
 }
+
+.navigation-records { margin-top: 6px; font-size: 11px; color: #a89a8a; }
+.navigation-records summary { color: #cfb98f; cursor: pointer; width: fit-content; line-height: 1.7; }
+.navigation-records summary:focus-visible { outline: 1px solid #cfb98f; outline-offset: 4px; }
+.navigation-record-list { border-left: 1px solid rgba(225,195,153,.2); margin-top: 8px; padding-left: 12px; }
+.navigation-record { display: grid; gap: 3px; padding: 6px 0; }
+.navigation-record time { color: #c4af8e; font-variant-numeric: tabular-nums; }

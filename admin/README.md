@@ -3,7 +3,11 @@
 The private admin application is a single-purpose activity ledger. It lists
 registered accounts, searches names/emails/handles, filters recorded activity,
 and expands each person into a timeline grouped by their local calendar day.
-The 7/30/90-day controls and account sorting share this same view.
+The 7/30/90-day controls and account sorting share this same view. Known screen
+routes and Pages card selections use readable names. Consecutive visits to the
+same screen within two minutes are grouped; expanding the group retains every
+original timestamp. Counts remain raw recorded events. Historical navigation
+records cannot establish actions that the consumer did not record.
 
 The implementation reuses the ledger merged in backend PR #85. The existing
 Supabase staff gate and the `admin_activity_users` / `admin_activity_user_detail`
@@ -72,5 +76,7 @@ authentication and activity responses bypass its cache. Home-screen
 installation requires HTTPS and should be verified on the target device.
 
 The consumer hosts are independent of this admin application. The ledger's
-database migration has already been applied; publishing the frontend does
-not require another database or function deployment.
+readable-label migration must qualify through the complete backend gate and be
+applied before publishing a frontend that uses its presentation metadata. It
+changes read projections only and remains compatible with the existing consumer
+and previous admin frontend. No Edge Function deployment is needed.

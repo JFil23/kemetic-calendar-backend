@@ -11,6 +11,9 @@ import {
   DETAIL_CONCURRENCY,
   formatShortDate,
   formatTime,
+  formatRecordTime,
+  eventDetail,
+  groupNavigationRecords,
   initials,
   ownerInitials,
   padCount,
@@ -175,7 +178,13 @@ export function ActivityLedgerPage({
           id: row.id,
           occurredAt: row.occurred_at,
           label: row.label,
-          detail: detailFromFields(row.safe_fields),
+          detail: eventDetail(row.safe_fields),
+          navigationKey:
+            typeof row.safe_fields?.navigation_key === "string"
+              ? row.safe_fields.navigation_key
+              : row.event_name === "screen_view" && typeof row.safe_fields?.route === "string"
+                ? row.safe_fields.route
+                : undefined,
           category: categoryLabel(row.category),
         }));
         setDetails((current) => ({
@@ -507,27 +516,6 @@ function mapSummary(user: ActivityUserSummary): LedgerPerson {
   };
 }
 
-function detailFromFields(
-  fields: Record<string, unknown> | null | undefined,
-): string {
-  if (!fields) return "";
-  const parts: string[] = [];
-  for (const key of [
-    "node_title",
-    "node_slug",
-    "route",
-    "surface",
-    "source_surface",
-    "entry_point",
-    "presentation",
-    "level",
-    "orientation",
-  ]) {
-    const value = fields[key];
-    if (typeof value === "string" && value.trim()) parts.push(value.trim());
-  }
-  return parts.join(" · ");
-}
 
 function PersonNode({
   person,
@@ -580,7 +568,7 @@ function PersonNode({
         </span>
         <span className="event-count">
           <strong>{padCount(person.eventCount)}</strong>
-          <span>{person.eventCount === 1 ? "action" : "actions"}</span>
+          <span>{person.eventCount === 1 ? "event" : "events"}</span>
         </span>
         <span className="chevron" aria-hidden="true">
           <Icon name="chevron-icon" className="ico ico-lg" />
@@ -604,7 +592,7 @@ function PersonNode({
           </div>
           <div className="timeline-heading">
             <h3>Daily activity</h3>
-            <p>Newest first · Action metadata only</p>
+            <p>Newest first · Views and recorded actions</p>
           </div>
           {detail?.loading ? (
             <div className="empty-user">
@@ -639,30 +627,12 @@ function PersonNode({
                         </div>
                         <span className="day-count">
                           {group.events.length}{" "}
-                          {group.events.length === 1 ? "action" : "actions"}
+                          {group.events.length === 1 ? "event" : "events"}
                         </span>
                       </div>
                       <div className="timeline">
-                        {group.events.map((event) => (
-                          <div
-                            className="event"
-                            key={event.id}
-                            aria-label={`${event.label} at ${formatTime(new Date(event.occurredAt), zone)}`}
-                          >
-                            <div className="event-time">
-                              {formatTime(new Date(event.occurredAt), zone)}
-                            </div>
-                            <span className="event-mark" aria-hidden="true" />
-                            <div className="event-main">
-                              <div className="event-title">{event.label}</div>
-                              {event.detail ? (
-                                <div className="event-sub">{event.detail}</div>
-                              ) : null}
-                            </div>
-                            <span className="event-category">
-                              {event.category}
-                            </span>
-                          </div>
+                        {groupNavigationRecords(group.events).map((records) => (
+                          <TimelineRecord key={records[0].id} records={records} zone={zone} />
                         ))}
                       </div>
                     </section>
@@ -699,5 +669,35 @@ function PersonNode({
         </div>
       ) : null}
     </article>
+  );
+}
+
+function TimelineRecord({ records, zone }: { records: LedgerEvent[]; zone: string }) {
+  const event = records[0];
+  const repeated = records.length > 1;
+  return (
+    <div className="event" aria-label={`${event.label} at ${formatTime(new Date(event.occurredAt), zone)}`}>
+      <div className="event-time">{formatTime(new Date(event.occurredAt), zone)}</div>
+      <span className="event-mark" aria-hidden="true" />
+      <div className="event-main">
+        <div className="event-title">{event.label}</div>
+        {event.detail ? <div className="event-sub">{event.detail}</div> : null}
+        {repeated ? (
+          <details className="navigation-records">
+            <summary>Recorded {records.length} times · Show records</summary>
+            <div className="navigation-record-list">
+              {records.map((record) => (
+                <div className="navigation-record" key={record.id}>
+                  <time dateTime={record.occurredAt}>{formatRecordTime(new Date(record.occurredAt), zone)}</time>
+                  <span>{record.label}</span>
+                  {record.detail ? <span>{record.detail}</span> : null}
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
+      </div>
+      <span className="event-category">{event.navigationKey ? "Navigation" : event.category}</span>
+    </div>
   );
 }
