@@ -3,7 +3,7 @@
 from pathlib import Path
 import subprocess
 import sys
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 
 if len(sys.argv) != 2:
@@ -14,6 +14,25 @@ if parsed_url.scheme not in ('postgres', 'postgresql') or parsed_url.hostname no
     'localhost', '127.0.0.1', '::1'
 ):
     raise SystemExit('This fixture smoke requires a disposable loopback database.')
+if {'host', 'hostaddr', 'service', 'servicefile', 'user'} & set(parse_qs(parsed_url.query)):
+    raise SystemExit('Connection overrides are not allowed in the local fixture URL.')
+
+# The CLI local stack gives its administrative role the same configured DB
+# password. Preserve the supplied password/host/port; change only the username.
+# Administrative privileges construct historical managed-schema fixtures only.
+userinfo, separator, address = parsed_url.netloc.rpartition('@')
+if not separator:
+    address = parsed_url.netloc
+if ',' in address:
+    raise SystemExit('Multiple database hosts are not allowed in the local fixture URL.')
+try:
+    parsed_url.port
+except ValueError as error:
+    raise SystemExit('Invalid local fixture database port.') from error
+password_suffix = userinfo[userinfo.index(':'):] if ':' in userinfo else ''
+fixture_url = parsed_url._replace(
+    netloc=f'supabase_admin{password_suffix}@{address}'
+).geturl()
 
 migration = (
     Path(__file__).resolve().parents[1]
@@ -28,6 +47,7 @@ begin;
 set local statement_timeout = '15s';
 create schema if not exists realtime;
 create schema if not exists private;
+set local role postgres;
 
 do $$
 begin
@@ -41,6 +61,9 @@ $$;
 create function pg_temp.apply_room_broadcast_move()
 returns void language plpgsql as $apply$
 begin
+  if current_user <> 'postgres' then
+    raise exception 'Migration must execute as the ordinary postgres role';
+  end if;
   execute $migration_source$''' + migration + r'''$migration_source$;
 end;
 $apply$;
@@ -60,6 +83,7 @@ select pg_temp.assert_true(
   'Fresh rebuild unexpectedly created a room broadcast function'
 );
 
+reset role;
 create function realtime.room_broadcast_trigger()
 returns trigger language plpgsql security definer as $$
 begin
@@ -67,6 +91,13 @@ begin
   return new;
 end;
 $$;
+alter function realtime.room_broadcast_trigger() owner to postgres;
+set local role postgres;
+select pg_temp.assert_true(
+  (select pg_get_userbyid(proowner) = 'postgres'
+   from pg_proc where oid = 'realtime.room_broadcast_trigger()'::regprocedure),
+  'Legacy fixture must retain the production postgres owner'
+);
 create temporary table room_broadcast_probe(payload text);
 create trigger room_broadcast_probe_trigger
 before insert on room_broadcast_probe
@@ -111,8 +142,12 @@ select pg_temp.assert_true(
   'Already-moved migration was not idempotent'
 );
 
+-- Only fixture construction needs the managed-schema administrator.
+-- The actual migration and all ordinary assertions execute as postgres.
 -- Explicit ACL and function-local settings must also survive intact.
+reset role;
 alter function private.room_broadcast_trigger() set schema realtime;
+set local role postgres;
 revoke execute on function realtime.room_broadcast_trigger() from public;
 alter function realtime.room_broadcast_trigger() set search_path = pg_catalog, pg_temp;
 update function_before b
@@ -132,8 +167,11 @@ select pg_temp.assert_true(
 );
 
 -- A target collision must fail closed and preserve both existing functions.
+reset role;
 create function realtime.room_broadcast_trigger()
 returns trigger language plpgsql as $$ begin return new; end; $$;
+alter function realtime.room_broadcast_trigger() owner to postgres;
+set local role postgres;
 create temporary table conflicting_function_before as
 select p.oid, to_jsonb(p) as attributes
 from pg_proc p
@@ -157,7 +195,9 @@ select pg_temp.assert_true(
 drop function realtime.room_broadcast_trigger();
 
 -- Extension members must never be moved, including an already-moved target.
+reset role;
 alter extension plpgsql add function private.room_broadcast_trigger();
+set local role postgres;
 do $$
 begin
   begin
@@ -167,9 +207,11 @@ begin
   end;
 end;
 $$;
+reset role;
 alter extension plpgsql drop function private.room_broadcast_trigger();
 alter function private.room_broadcast_trigger() set schema realtime;
 alter extension plpgsql add function realtime.room_broadcast_trigger();
+set local role postgres;
 do $$
 begin
   begin
@@ -192,7 +234,7 @@ select pg_temp.assert_true(
 rollback;
 '''
 result = subprocess.run(
-    ['psql', database_url, '-X', '-v', 'ON_ERROR_STOP=1', '-q'],
+    ['psql', fixture_url, '-X', '-v', 'ON_ERROR_STOP=1', '-q'],
     input=sql, text=True, capture_output=True,
 )
 if result.returncode:
