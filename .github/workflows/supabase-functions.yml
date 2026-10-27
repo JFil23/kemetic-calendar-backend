@@ -86,6 +86,7 @@ jobs:
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/reading_house_invite_delivery_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/dm_conversations_rls_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/owned_filing_page_smoke.sql
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/filing_projection_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/flow_action_fallback_lookup_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/planner_account_storage_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/decan_review_storage_smoke.sql

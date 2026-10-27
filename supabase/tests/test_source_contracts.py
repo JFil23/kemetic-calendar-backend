@@ -29,6 +29,25 @@ def reject_all(test: unittest.TestCase, body: str, needles: list[str]) -> None:
 
 
 class MigrationSourceContractsTest(unittest.TestCase):
+    def test_filing_projection_refactor_preserves_the_canonical_owner(self) -> None:
+        body = source("supabase/migrations/20261027185820_simplify_filing_read_projection.sql")
+        require_all(self, body, [
+            "pg_get_viewdef('public.user_event_filing_items_client'::regclass, true)",
+            "WHERE is_deleted = false;",
+            "security_invoker = true",
+            "Unrecognized canonical filing deletion predicate",
+        ])
+        reject_all(self, body, ["security definer", "insert into", "update public.", "delete from", "create table"])
+        smoke = source("supabase/dev/filing_projection_smoke.sql")
+        require_all(self, smoke, [
+            "fixtures/filing_view_before_projection_refactor.v1.sql",
+            "Full filing payload changed", "Page ordering, offsets, kind or date coverage changed",
+            "Other account gained private filing rows", "Filing bypasses caller RLS",
+            "Refactor did not reduce repeated timezone work", "rollback;",
+        ])
+        workflow = source(".github/workflows/supabase-functions.yml")
+        self.assertIn("supabase/dev/filing_projection_smoke.sql", workflow)
+
     def test_legacy_flow_reference_index_uses_the_canonical_resolver(self) -> None:
         body = source(
             "supabase/migrations/"
