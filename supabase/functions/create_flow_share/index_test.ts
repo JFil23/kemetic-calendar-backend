@@ -28,6 +28,7 @@ const flow = {
   start_date: "2026-03-06",
   end_date: "2026-03-10",
   rules: [],
+  assistance: { version: 1, steps: [{ id: "begin", duration_minutes: 10 }] },
 };
 
 Deno.test("snapshot preserves image, local times, initial gap and DST calendar days", () => {
@@ -37,6 +38,7 @@ Deno.test("snapshot preserves image, local times, initial gap and DST calendar d
     ends_at: "2026-03-09T08:00:00Z",
   }], "America/Los_Angeles");
   assertEquals(snapshot.appearance, appearance);
+  assertEquals(snapshot.assistance, flow.assistance);
   assertEquals(snapshot.events.map((e) => e.offset_days), [1, 2]);
   assertEquals(snapshot.events.map((e) => e.start_time), ["09:00", "09:00"]);
   assertEquals(snapshot.events[1].end_time, "01:00");

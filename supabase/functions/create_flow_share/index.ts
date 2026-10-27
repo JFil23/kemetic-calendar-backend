@@ -191,7 +191,7 @@ export function createFlowShareHandler({
           "flows",
         )
           .select(
-            "id,name,color,notes,rules,appearance,start_date,end_date,user_id",
+            "id,name,color,notes,rules,appearance,assistance,start_date,end_date,user_id",
           )
           .eq("id", flow_id).single();
         if (flowError || !flow || flow.user_id !== user_id) {

@@ -39,6 +39,7 @@ export function buildFlowShareSnapshot(
     notes: flow.notes ?? null,
     rules: Array.isArray(flow.rules) ? flow.rules : [],
     appearance: flow.appearance ?? null,
+    assistance: flow.assistance ?? null,
     start_date: flow.start_date ?? null,
     end_date: flow.end_date ?? null,
     events: events.map((event) => {
