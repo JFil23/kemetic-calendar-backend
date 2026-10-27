@@ -53,7 +53,7 @@ create temp table measured_calls as select 'before'::text as phase,
 select count(*) from public.get_owned_filing_page_v1('reminder',0,50,null);
 update measured_calls set calls=coalesce((select calls from pg_stat_xact_user_functions where funcid='public._get_user_timezone(uuid)'::regprocedure),0)-calls, ownership_calls=coalesce((select calls from pg_stat_xact_user_functions where funcid='public.flow_id_from_action_id(uuid,text)'::regprocedure),0)-ownership_calls;
 reset role;
-\ir ../migrations/20261027185820_simplify_filing_read_projection.sql
+\ir ../migrations/20261027194710_simplify_filing_read_projection.sql
 set local role authenticated;
 select pg_temp.assert_true(not exists(
  (select row from before_rows except select to_jsonb(x) from public.user_event_filing_items_client x)

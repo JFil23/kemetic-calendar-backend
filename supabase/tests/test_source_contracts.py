@@ -30,7 +30,7 @@ def reject_all(test: unittest.TestCase, body: str, needles: list[str]) -> None:
 
 class MigrationSourceContractsTest(unittest.TestCase):
     def test_filing_projection_refactor_preserves_the_canonical_owner(self) -> None:
-        body = source("supabase/migrations/20261027185820_simplify_filing_read_projection.sql")
+        body = source("supabase/migrations/20261027194710_simplify_filing_read_projection.sql")
         require_all(self, body, [
             "pg_get_viewdef('public.user_event_filing_items_client'::regclass, true)",
             "WHERE is_deleted = false;",
