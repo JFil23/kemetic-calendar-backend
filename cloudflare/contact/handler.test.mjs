@@ -16,7 +16,9 @@ test('valid submission sends only to info and preserves Unicode in a plain-text 
   const { env, sent } = harness(); const res = await handleContact(request(), env);
   assert.equal(res.status, 200); assert.deepEqual(await res.json(), { ok: true });
   assert.equal(sent.length, 1); assert.equal(sent[0].to, 'info@thisishaw.com');
-  assert.equal(sent[0].from, 'website@contact.thisishaw.com');
+  assert.equal(sent[0].from, 'website@thisishaw.com');
+  // The visible author must align with Email Routing's root-domain signer.
+  assert.match(sent[0].raw, /^From: [^\r\n]+ <website@thisishaw\.com>\r\n/);
   assert.match(sent[0].raw, /Reply-To: visitor@example.com\r\n/);
   const body = Buffer.from(sent[0].raw.split('\r\n\r\n')[1].replaceAll('\r\n', ''), 'base64').toString('utf8');
   assert.match(body, /ḥꜣw 🌙/); assert.match(body, /Device \/ app version: Mobile browser/);

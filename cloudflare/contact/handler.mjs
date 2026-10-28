@@ -1,5 +1,6 @@
 const ORIGIN = 'https://thisishaw.com';
-const SENDER = 'website@contact.thisishaw.com';
+// Email Routing signs for the zone root; keep strict DMARC alignment.
+const SENDER = 'website@thisishaw.com';
 const RECIPIENT = 'info@thisishaw.com';
 const MAX_BODY_BYTES = 32768;
 const TOPICS = new Set([

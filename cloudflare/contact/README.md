@@ -25,11 +25,15 @@ not automatically retry ambiguous network failures.
 1. Create and verify the user's chosen receiving inbox or forwarding destination
    for `info@thisishaw.com`. Do not provision a paid subscription, enter a new
    password, or accept service terms on the user's behalf.
-2. Configure Cloudflare Email Routing for the dedicated `contact.thisishaw.com`
-   sender subdomain and verify `info@thisishaw.com` as a destination. Retain the
-   root domain's selected mailbox provider and MX records. The EmailMessage
-   binding is restricted to this single verified recipient. Do not substitute
-   unrestricted arbitrary-recipient Email Sending or purchase Workers Paid.
+2. Configure Cloudflare Email Routing for `thisishaw.com`, with the selected
+   forwarding destination verified, and verify `info@thisishaw.com` as a sending
+   destination. The sender is `website@thisishaw.com` in both the envelope and
+   visible From header. Email Routing signs for the zone root; a From address on
+   `contact.thisishaw.com` failed the deployed strict DMARC alignment even though
+   SPF and DKIM individually passed. Keep the root From aligned with the signer
+   and retain the strict DMARC policy. The EmailMessage binding is restricted to
+   the single info recipient. Do not substitute unrestricted arbitrary-recipient
+   Email Sending or purchase Workers Paid.
 3. Confirm DNSSEC, the existing root website CNAME, www redirect, and HTML
    preservation rules remain intact. Leave `kemet.pages.dev` unchanged.
 
