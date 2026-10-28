@@ -138,12 +138,29 @@ jobs:
         if: always()
         run: supabase stop --no-backup || true
 
+  website-contact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify isolated website contact delivery
+        run: node --test cloudflare/contact/handler.test.mjs
+      - name: Build isolated contact Worker without upload
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: npx --yes wrangler@4.114.0 deploy --config cloudflare/contact/wrangler.jsonc --dry-run --outdir "$RUNNER_TEMP/haw-contact-worker"
+
   lock-gate-required:
     name: LOCK-GATE required
     if: always()
     needs:
       - edge-functions
+      - website-contact
     runs-on: ubuntu-latest
     steps:
       - name: Require the complete backend gate
-        run: test "${{ needs.edge-functions.result }}" = "success"
+        run: |
+          test "${{ needs.edge-functions.result }}" = "success"
+          test "${{ needs.website-contact.result }}" = "success"

@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "haw-website-contact",
+  "account_id": "229bb4f9589eb460766db5dceb3a4637",
+  "main": "index.mjs",
+  "compatibility_date": "2026-10-28",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "thisishaw.com/api/contact", "zone_id": "d47d4496edf9b7230e0e75e20fbe609c" }
+  ],
+  "send_email": [
+    { "name": "CONTACT_EMAIL", "destination_address": "info@thisishaw.com" }
+  ],
+  "ratelimits": [
+    { "name": "CONTACT_RATE_LIMIT", "namespace_id": "2026102801", "simple": { "limit": 10, "period": 60 } }
+  ],
+  "version_metadata": { "binding": "VERSION_METADATA" },
+  "observability": { "enabled": false }
+}
