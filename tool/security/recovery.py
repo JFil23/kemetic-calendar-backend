@@ -60,8 +60,7 @@ class Storage:
     def request(self, path, payload=None):
         req = urllib.request.Request(self.origin + path,
             data=None if payload is None else json.dumps(payload).encode(),
-            headers={'apikey': self.key, 'Authorization': 'Bearer ' + self.key,
-                     'Content-Type': 'application/json'})
+            headers={'apikey': self.key, 'Content-Type': 'application/json'})
         return self.opener.open(req, timeout=90)
 
     def json(self, path, payload=None):
@@ -190,13 +189,20 @@ def verify(archive, key, certificate, output=None):
                 'database_replay_verified': False}
 
 
+def choose_storage_key(keys, configured=None):
+    key = configured or next((row.get('api_key') for row in keys
+        if row.get('type') == 'secret' and row.get('name') == 'default'), None)
+    if not isinstance(key, str) or not key.startswith('sb_secret_'):
+        raise ValueError('Recovery requires an opaque server secret key; legacy keys are not accepted')
+    return key
+
+
 def create(output, certificate):
     output = outside_repository(output)
     ref = (ROOT / 'supabase/.temp/project-ref').read_text().strip()
-    key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
-    if not key:
-        keys = json.loads(run(['supabase', 'projects', 'api-keys', '--project-ref', ref, '--output', 'json'], cwd=ROOT))
-        key = next(row['api_key'] for row in keys if row['name'] == 'service_role')
+    configured = os.environ.get('SUPABASE_SECRET_KEY')
+    keys = [] if configured else json.loads(run(['supabase', 'projects', 'api-keys', '--project-ref', ref, '--output', 'json'], cwd=ROOT))
+    key = choose_storage_key(keys, configured)
     client = Storage(ref, key)
     initial = client.inventory()
     with tempfile.TemporaryDirectory(prefix='haw-recovery-source-') as work:

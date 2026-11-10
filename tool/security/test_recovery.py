@@ -106,6 +106,23 @@ class RecoveryTest(unittest.TestCase):
         with mock.patch.object(client, 'json', side_effect=[[{'id': 'private'}], [{'name': '../outside', 'id': 'id'}]]):
             with self.assertRaises(ValueError): client.inventory()
 
+    def test_recovery_selects_opaque_secret_and_rejects_legacy_credentials(self):
+        keys = [{'name': 'service_role', 'type': 'legacy', 'api_key': 'legacy-fixture'},
+                {'name': 'default', 'type': 'secret', 'api_key': 'sb_secret_fixture'}]
+        self.assertEqual(recovery.choose_storage_key(keys), 'sb_secret_fixture')
+        with self.assertRaises(ValueError):
+            recovery.choose_storage_key(keys, 'legacy-fixture')
+        with self.assertRaises(ValueError):
+            recovery.choose_storage_key(keys[:1])
+
+    def test_storage_sends_secret_only_in_apikey_header(self):
+        client = recovery.Storage('a' * 20, 'sb_secret_fixture')
+        with mock.patch.object(client.opener, 'open') as opened:
+            client.request('/bucket')
+        request = opened.call_args.args[0]
+        self.assertEqual(request.get_header('Apikey'), 'sb_secret_fixture')
+        self.assertIsNone(request.get_header('Authorization'))
+
     def test_redirects_cannot_forward_a_service_credential(self):
         with self.assertRaises(ValueError):
             recovery.NoRedirects().redirect_request(None, None, 302, 'redirect', {}, 'https://outside.example')

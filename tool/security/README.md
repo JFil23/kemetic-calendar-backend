@@ -37,7 +37,9 @@ actual production-snapshot restore drill still require a chosen destination and
 encryption certificate. Do not describe archive integrity tests as a successful
 production database restore.
 
-Use the existing authenticated Supabase CLI, Docker and OpenSSL 3. The wrapper
+Use the existing authenticated Supabase CLI, Docker and OpenSSL 3. Storage
+access uses the existing opaque server secret key (or `SUPABASE_SECRET_KEY`);
+legacy keys are rejected and are never added as a new recovery dependency. The wrapper
 uses the supported roles/schema/data exports, downloads every Storage object,
 checks that the Storage inventory remained stable, records SHA-256 digests and
 seals the archive with CMS AES-256-GCM. Plain staging data is confined to a private
