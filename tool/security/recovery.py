@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import tarfile
 import tempfile
@@ -119,7 +120,7 @@ def package(staging, output, certificate, manifest):
     manifest['files'] = {p.relative_to(staging).as_posix():
         {'sha256': digest(p), 'size': p.stat().st_size} for p in sorted(files)}
     (staging / 'manifest.json').write_text(json.dumps(manifest, sort_keys=True) + '\n')
-    with tempfile.TemporaryDirectory(prefix='haw-seal-', dir=output.parent) as work:
+    with tempfile.TemporaryDirectory(prefix='haw-seal-') as work:
         work = Path(work)
         with tarfile.open(work / 'snapshot.tar', 'w') as archive:
             for p in sorted(staging.rglob('*')):
@@ -129,8 +130,17 @@ def package(staging, output, certificate, manifest):
         run(['openssl', 'cms', '-encrypt', '-aes-256-gcm', '-binary', '-outform', 'DER',
              '-in', str(work / 'snapshot.tar'), '-out', str(sealed), '-recip', str(certificate)])
         sealed.chmod(0o600)
-        # Link publishes atomically and fails if a destination appeared meanwhile.
-        os.link(sealed, output)
+        # Only ciphertext reaches the selected drive/cloud-synced destination.
+        # Exclusive creation also works on backup drives without hard links.
+        fd = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            with os.fdopen(fd, 'wb') as target, sealed.open('rb') as source:
+                shutil.copyfileobj(source, target, 1024 * 1024)
+                target.flush()
+                os.fsync(target.fileno())
+        except BaseException:
+            output.unlink(missing_ok=True)
+            raise
     return {'archive_sha256': digest(output), 'files': len(files),
             'storage_objects': len(manifest.get('storage', {}).get('objects', []))}
 

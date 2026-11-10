@@ -58,6 +58,18 @@ class RecoveryTest(unittest.TestCase):
             recovery.verify(self.archive, self.key, self.cert, target)
         self.assertFalse(target.exists())
 
+    def test_plaintext_archive_never_reaches_backup_destination(self):
+        original = recovery.run
+        def inspect(command, **kwargs):
+            if command[:3] == ['openssl', 'cms', '-encrypt']:
+                plaintext = Path(command[command.index('-in') + 1])
+                self.assertNotEqual(plaintext.parent.parent, self.root)
+                self.assertNotIn(self.root, plaintext.parents)
+                self.assertEqual(plaintext.parent.stat().st_mode & 0o777, 0o700)
+            return original(command, **kwargs)
+        with mock.patch.object(recovery, 'run', side_effect=inspect):
+            self.seal()
+
     def test_existing_backup_is_never_overwritten(self):
         self.archive.write_bytes(b'existing snapshot')
         with self.assertRaises(ValueError):
