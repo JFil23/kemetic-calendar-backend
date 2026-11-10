@@ -51,7 +51,11 @@ class MigrationSourceContractsTest(unittest.TestCase):
             "claim_due_scheduled_notifications", "compute_flow_outcome", "compute_user_preferences_impl",
             "dm_user_pref_candidates", "event_share_source_flow_payload", "flow_outcome_candidates",
             "fn_ai_quota_check_and_inc", "resolve_maat_obligation", "resolve_maat_obligations_for_field",
-            "prosecdef", "Unrecognized internal function authority"])
+            "prosecdef", "Unrecognized internal function authority",
+            "clear_event_share_import_tombstone", "prune_stale_reminder_occurrences",
+            "purge_old_event_deletion_trash", "reconcile_event_filing_backbone",
+            "repair_active_reminder_filing_backbone", "sync_event_share_calendar_copy_from_row",
+            "_is_personalization_enabled"])
         reject_all(self, body.lower(), ["create or replace function", "drop function", "update public.",
             "delete from", "create policy", "disable row level security"])
         smoke = source("supabase/dev/view_access_hardening_smoke.sql")

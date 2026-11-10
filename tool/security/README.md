@@ -17,9 +17,11 @@ calendar member, unrelated account, share recipient, authenticated staff and
 service roles. It preserves canonical Inbox snapshots and public profile counts.
 The existing migration and sharing tests remain in the backend workflow.
 
-The follow-up internal-RPC migration removes direct client execution from nine
+The follow-up internal-RPC migration removes direct client execution from sixteen
 helpers for private share payloads, worker claims, quota accounting, preferences,
-flow outcomes and ledger resolution. Their definitions and owners are unchanged.
+flow outcomes, ledger resolution and account-wide maintenance.
+The shared timezone helper retains caller access because existing invoker views
+and filing reads need it; it was not swept into the internal-only set. Their definitions and owners are unchanged.
 Service callers and existing checked SECURITY DEFINER entrypoints retain access.
 The seven-role smoke invokes every helper to prove denial, then verifies service
 snapshot/worker access and the account-owned preferences entrypoint. Real sharing,

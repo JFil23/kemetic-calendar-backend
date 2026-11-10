@@ -14,6 +14,13 @@ declare name text; command text;
 begin
   -- Invoke every reviewed helper as the caller, not merely catalog ACL checks.
   foreach command in array array[
+    'select public._is_personalization_enabled(null::uuid)',
+    'select public.clear_event_share_import_tombstone(null::uuid,null::uuid)',
+    'select public.prune_stale_reminder_occurrences()',
+    'select public.purge_old_event_deletion_trash()',
+    'select public.reconcile_event_filing_backbone(1)',
+    'select public.repair_active_reminder_filing_backbone()',
+    'select public.sync_event_share_calendar_copy_from_row(null::public.event_shares)',
     'select public.claim_due_scheduled_notifications(''1900-01-01''::timestamptz,1,30)',
     'select public.compute_flow_outcome(null::bigint)',
     'select public.compute_user_preferences_impl(null::uuid,90)',
@@ -128,12 +135,15 @@ select pg_temp.require((select public.event_share_source_flow_payload(
  'Service lost private share snapshot helper');
 select pg_temp.require(not exists(select 1 from public.claim_due_scheduled_notifications(
  '1900-01-01'::timestamptz,1,30)),'Service worker claim path changed');
-select pg_temp.require((select count(*)=9 and bool_and(has_function_privilege('service_role',p.oid,'execute'))
+select pg_temp.require((select count(*)=16 and bool_and(has_function_privilege('service_role',p.oid,'execute'))
  from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'
  and p.proname=any(array['claim_due_scheduled_notifications','compute_flow_outcome',
  'compute_user_preferences_impl','dm_user_pref_candidates','event_share_source_flow_payload',
  'flow_outcome_candidates','fn_ai_quota_check_and_inc','resolve_maat_obligation',
- 'resolve_maat_obligations_for_field'])),'Service lost internal RPC execution');
+ 'resolve_maat_obligations_for_field','_is_personalization_enabled',
+ 'clear_event_share_import_tombstone','prune_stale_reminder_occurrences',
+ 'purge_old_event_deletion_trash','reconcile_event_filing_backbone',
+ 'repair_active_reminder_filing_backbone','sync_event_share_calendar_copy_from_row'])),'Service lost internal RPC execution');
 select count(*) from public.flow_generation_daily_analytics;
 select pg_temp.require(exists(select 1 from public.flows_color_debug where id=99010101),'Service lost diagnostic read');
 select count(*) from public.inbox_share_items;

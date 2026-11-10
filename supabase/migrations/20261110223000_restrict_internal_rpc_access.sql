@@ -8,6 +8,13 @@ do $$
 declare signature text; target regprocedure;
 begin
   foreach signature in array array[
+    'public._is_personalization_enabled(uuid)',
+    'public.clear_event_share_import_tombstone(uuid,uuid)',
+    'public.prune_stale_reminder_occurrences()',
+    'public.purge_old_event_deletion_trash()',
+    'public.reconcile_event_filing_backbone(integer)',
+    'public.repair_active_reminder_filing_backbone()',
+    'public.sync_event_share_calendar_copy_from_row(event_shares)',
     'public.claim_due_scheduled_notifications(timestamp with time zone,integer,integer)',
     'public.compute_flow_outcome(bigint)',
     'public.compute_user_preferences_impl(uuid,integer)',
