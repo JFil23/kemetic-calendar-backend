@@ -5,12 +5,14 @@ Credentials stay in process memory. This tool never uploads or restores a databa
 """
 from __future__ import annotations
 import argparse
+import ctypes
 import hashlib
 import json
 import os
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import urllib.parse
@@ -193,6 +195,57 @@ def verify(archive, key, certificate, output=None):
                 'database_replay_verified': False}
 
 
+def keychain_private_key(service, account):
+    if sys.platform != 'darwin':
+        raise ValueError('Keychain verification requires macOS')
+    # Read through the same Python/framework owner that retained the key. No
+    # helper process, ACL changes, plaintext command arguments or UI prompt.
+    c = ctypes
+    cf = c.CDLL('/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation')
+    sec = c.CDLL('/System/Library/Frameworks/Security.framework/Security')
+    pointer = c.c_void_p
+    cf.CFStringCreateWithCString.argtypes = [pointer, c.c_char_p, c.c_uint32]
+    cf.CFStringCreateWithCString.restype = pointer
+    cf.CFDictionaryCreate.argtypes = [pointer, c.POINTER(pointer), c.POINTER(pointer), c.c_long, pointer, pointer]
+    cf.CFDictionaryCreate.restype = pointer
+    cf.CFDataGetLength.argtypes = [pointer]
+    cf.CFDataGetLength.restype = c.c_long
+    cf.CFDataGetBytePtr.argtypes = [pointer]
+    cf.CFDataGetBytePtr.restype = pointer
+    sec.SecItemCopyMatching.argtypes = [pointer, c.POINTER(pointer)]
+    sec.SecItemCopyMatching.restype = c.c_int32
+    def constant(lib, name): return pointer.in_dll(lib, name).value
+    def string(value): return cf.CFStringCreateWithCString(None, value.encode(), 0x08000100)
+    pairs = [
+        (constant(sec, 'kSecClass'), constant(sec, 'kSecClassGenericPassword')),
+        (constant(sec, 'kSecAttrService'), string(service)),
+        (constant(sec, 'kSecAttrAccount'), string(account)),
+        (constant(sec, 'kSecReturnData'), constant(cf, 'kCFBooleanTrue')),
+        (constant(sec, 'kSecUseAuthenticationUI'), constant(sec, 'kSecUseAuthenticationUIFail')),
+    ]
+    query = cf.CFDictionaryCreate(None, (pointer * len(pairs))(*(k for k, _ in pairs)),
+        (pointer * len(pairs))(*(v for _, v in pairs)), len(pairs),
+        c.addressof(c.c_byte.in_dll(cf, 'kCFTypeDictionaryKeyCallBacks')),
+        c.addressof(c.c_byte.in_dll(cf, 'kCFTypeDictionaryValueCallBacks')))
+    result = pointer()
+    status = sec.SecItemCopyMatching(query, c.byref(result))
+    if status != 0:
+        raise RuntimeError(f'Recovery Keychain item unavailable without interaction ({status})')
+    return c.string_at(cf.CFDataGetBytePtr(result), cf.CFDataGetLength(result))
+
+
+def verify_keychain(archive, service, account, certificate, output=None):
+    value = keychain_private_key(service, account)
+    if not value.startswith(b'-----BEGIN PRIVATE KEY-----'):
+        raise ValueError('Selected Keychain item is not a recovery private key')
+    with tempfile.TemporaryDirectory(prefix='haw-keychain-recovery-') as work:
+        key = Path(work) / 'recipient.pem'
+        fd = os.open(key, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'wb') as handle:
+            handle.write(value)
+        return verify(archive, key, certificate, output)
+
+
 def choose_storage_key(keys, configured=None):
     key = configured or next((row.get('api_key') for row in keys
         if row.get('type') == 'secret' and row.get('name') == 'default'), None)
@@ -249,13 +302,20 @@ def main():
     c.add_argument('--certificate', type=Path, required=True)
     v = commands.add_parser('verify')
     v.add_argument('--archive', type=Path, required=True)
-    v.add_argument('--key', type=Path, required=True)
+    key_source = v.add_mutually_exclusive_group(required=True)
+    key_source.add_argument('--key', type=Path)
+    key_source.add_argument('--keychain-service')
+    v.add_argument('--keychain-account')
     v.add_argument('--certificate', type=Path, required=True)
     v.add_argument('--restore-files', type=Path)
     args = parser.parse_args()
     os.umask(0o077)
     if args.command == 'create':
         result = create(args.output, args.certificate)
+    elif args.keychain_service:
+        if not args.keychain_account:
+            parser.error('--keychain-account is required with --keychain-service')
+        result = verify_keychain(args.archive, args.keychain_service, args.keychain_account, args.certificate, args.restore_files)
     else:
         result = verify(args.archive, args.key, args.certificate, args.restore_files)
     print(json.dumps(result, sort_keys=True))

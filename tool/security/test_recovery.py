@@ -74,6 +74,23 @@ class RecoveryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Missing managed service schema'):
             recovery.verify(self.archive, self.key, self.cert)
 
+    def test_keychain_verification_never_logs_or_retains_the_private_key(self):
+        self.seal()
+        original = recovery.run
+        key_paths = []
+        def run(command, **kwargs):
+            if command[:3] == ['openssl', 'cms', '-decrypt']:
+                key = Path(command[command.index('-inkey') + 1])
+                key_paths.append(key)
+                self.assertEqual(key.stat().st_mode & 0o777, 0o600)
+            return original(command, **kwargs)
+        with mock.patch.object(recovery, 'keychain_private_key', return_value=self.key.read_bytes()) as selected, mock.patch.object(recovery, 'run', side_effect=run):
+            result = recovery.verify_keychain(self.archive, 'fixture-service', 'fixture-account', self.cert)
+        selected.assert_called_once_with('fixture-service', 'fixture-account')
+        self.assertEqual(result['verified_files'], 4)
+        self.assertTrue(key_paths)
+        self.assertTrue(all(not key.exists() for key in key_paths))
+
     def test_corrupted_ciphertext_never_publishes_restored_files(self):
         self.seal()
         data = bytearray(self.archive.read_bytes())

@@ -10,8 +10,26 @@ begin
   perform set_config('request.jwt.claims',jsonb_build_object('sub',uid,'role','authenticated')::text,true);
 end $$;
 create function pg_temp.assert_internal_denied() returns void language plpgsql as $$
-declare name text;
+declare name text; command text;
 begin
+  -- Invoke every reviewed helper as the caller, not merely catalog ACL checks.
+  foreach command in array array[
+    'select public.claim_due_scheduled_notifications(''1900-01-01''::timestamptz,1,30)',
+    'select public.compute_flow_outcome(null::bigint)',
+    'select public.compute_user_preferences_impl(null::uuid,90)',
+    'select public.dm_user_pref_candidates(0)',
+    'select public.event_share_source_flow_payload(''20000000-0000-4000-8000-00000000e101''::uuid)',
+    'select public.flow_outcome_candidates(0)',
+    'select public.fn_ai_quota_check_and_inc(''00000000-0000-4000-8000-00000000e101''::uuid,current_date,10)',
+    'select public.resolve_maat_obligation(null::uuid,''test'',null,''{}''::jsonb,now(),''exact_source_match'',null)',
+    'select public.resolve_maat_obligations_for_field(null::uuid,''test'',''test'',null,''{}''::jsonb,now(),current_date,null,null)'
+  ] loop
+    begin
+      execute command;
+      raise exception 'Client role % can invoke internal RPC: %',current_user,command;
+    exception when insufficient_privilege then null;
+    end;
+  end loop;
   foreach name in array array['flow_generation_daily_analytics','flows_color_debug',
     'inbox_share_items','maat_ledger_restoration_health'] loop
     begin
@@ -34,7 +52,11 @@ insert into auth.users(id,email,aud,role) select
 from generate_series(1,5) n;
 insert into public.profiles(id,email,handle,display_name,is_discoverable)
 select id,email,'viewaccess'||right(id::text,1),'View access fixture',true
-from auth.users where id::text like '00000000-0000-4000-8000-00000000e10%';
+from auth.users where id::text like '00000000-0000-4000-8000-00000000e10%'
+-- A restored platform Auth trigger may already have created these profiles.
+on conflict (id) do update set
+  email=excluded.email, handle=excluded.handle,
+  display_name=excluded.display_name, is_discoverable=excluded.is_discoverable;
 insert into public.staff_members(user_id,role,is_active,scopes)
 values('00000000-0000-4000-8000-00000000e105','owner',true,array['product.users.read']);
 insert into public.shared_calendars(id,owner_id,name)
@@ -45,8 +67,8 @@ insert into public.shared_calendar_members(calendar_id,user_id,role,status) valu
 insert into public.flows(id,user_id,calendar_id,name,notes,rules,active)
 values(99010101,'00000000-0000-4000-8000-00000000e101','10000000-0000-4000-8000-00000000e101',
   'Private live title','Private live notes','[]',true);
-insert into public.user_events(user_id,calendar_id,client_event_id,title,starts_at,ends_at,flow_local_id)
-values('00000000-0000-4000-8000-00000000e101','10000000-0000-4000-8000-00000000e101',
+insert into public.user_events(id,user_id,calendar_id,client_event_id,title,starts_at,ends_at,flow_local_id)
+values('20000000-0000-4000-8000-00000000e101','00000000-0000-4000-8000-00000000e101','10000000-0000-4000-8000-00000000e101',
  'view-access-event','Private event title',now()+interval '1 day',now()+interval '1 day 1 hour',99010101);
 insert into public.flow_shares(id,flow_id,sender_id,recipient_id,channel,status,payload_json)
 values('30000000-0000-4000-8000-00000000e101',99010101,
@@ -71,6 +93,8 @@ set local role authenticated;
 select pg_temp.as_user('00000000-0000-4000-8000-00000000e101');
 select pg_temp.assert_internal_denied();
 select pg_temp.require(exists(select 1 from public.flows where id=99010101),'Owner lost private flow');
+-- This checked account entrypoint still reaches its internal definer helper.
+select public.compute_user_preferences(90);
 select pg_temp.require((select to_jsonb(p)=(select payload from expected_profile) from public.profile_stats p
  where id='00000000-0000-4000-8000-00000000e101'),'Owner profile aggregates changed');
 
@@ -99,6 +123,17 @@ select pg_temp.require(public.admin_activity_users(30,100,'viewaccess') is not n
 reset role;
 
 set local role service_role;
+select pg_temp.require((select public.event_share_source_flow_payload(
+ '20000000-0000-4000-8000-00000000e101')->>'notes'='Private live notes'),
+ 'Service lost private share snapshot helper');
+select pg_temp.require(not exists(select 1 from public.claim_due_scheduled_notifications(
+ '1900-01-01'::timestamptz,1,30)),'Service worker claim path changed');
+select pg_temp.require((select count(*)=9 and bool_and(has_function_privilege('service_role',p.oid,'execute'))
+ from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public'
+ and p.proname=any(array['claim_due_scheduled_notifications','compute_flow_outcome',
+ 'compute_user_preferences_impl','dm_user_pref_candidates','event_share_source_flow_payload',
+ 'flow_outcome_candidates','fn_ai_quota_check_and_inc','resolve_maat_obligation',
+ 'resolve_maat_obligations_for_field'])),'Service lost internal RPC execution');
 select count(*) from public.flow_generation_daily_analytics;
 select pg_temp.require(exists(select 1 from public.flows_color_debug where id=99010101),'Service lost diagnostic read');
 select count(*) from public.inbox_share_items;
