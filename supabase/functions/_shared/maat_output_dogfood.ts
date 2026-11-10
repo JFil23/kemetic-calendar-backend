@@ -1,3 +1,4 @@
+import { serviceSecretKey } from "./supabase_keys.ts";
 import type { MaatOutputSurface, MaatSpeechAct } from "./maat_constitution.ts";
 
 export type MaatDogfoodFailureTag =
@@ -185,7 +186,7 @@ export async function fetchMaatDogfoodRows(
   const response = await fetch(query, {
     headers: {
       apikey: args.serviceKey,
-      authorization: `Bearer ${args.serviceKey}`,
+
     },
   });
   if (!response.ok) {
@@ -647,10 +648,7 @@ function isDominantFailure(
 
 async function main() {
   const projectUrl = requireEnv("SUPABASE_URL", "PROJECT_URL");
-  const serviceKey = requireEnv(
-    "SUPABASE_SERVICE_ROLE_KEY",
-    "SERVICE_ROLE_KEY",
-  );
+  const serviceKey = serviceSecretKey();
   const days = Number(env("MAAT_OUTPUT_DOGFOOD_DAYS") ?? "7");
   const limit = Number(env("MAAT_OUTPUT_DOGFOOD_LIMIT") ?? "200");
   const annotationPath = env("MAAT_OUTPUT_DOGFOOD_ANNOTATIONS");

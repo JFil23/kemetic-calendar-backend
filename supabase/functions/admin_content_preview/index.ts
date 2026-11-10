@@ -1,4 +1,5 @@
 // deno-lint-ignore-file no-import-prefix
+import { serviceSecretKey } from "../_shared/supabase_keys.ts";
 
 // Edge Function: admin_content_preview
 // Staff-gated Content Lab for previewing and critiquing reflection, opening,
@@ -174,8 +175,7 @@ type NutritionItemRow = Record<string, unknown> & {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ??
   Deno.env.get("PROJECT_URL") ?? "";
-const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-  Deno.env.get("SERVICE_ROLE_KEY") ?? "";
+const SERVICE_KEY = serviceSecretKey();
 
 const ARTIFACTS = new Set<Artifact>([
   "decan_reflection",
@@ -1574,7 +1574,6 @@ async function defaultReflectionGenerator(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${SERVICE_KEY}`,
         "apikey": SERVICE_KEY,
       },
       body: JSON.stringify(input),

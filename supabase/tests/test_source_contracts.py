@@ -2974,5 +2974,23 @@ class ExternalCalendarIsolationContract(unittest.TestCase):
             self.assertIn(fragment, sql)
 
 
+class CredentialOwnershipContract(unittest.TestCase):
+    def test_server_keys_have_one_runtime_owner(self):
+        root = ROOT / "supabase/functions"
+        for path in root.rglob("*.ts"):
+            if path.name.endswith("_test.ts") or path.name == "supabase_keys.ts":
+                continue
+            self.assertNotRegex(path.read_text(), r'Deno\.env\.get\(\s*"(?:SUPABASE_SERVICE_ROLE_KEY|SERVICE_ROLE_KEY|SUPABASE_ANON_KEY)"', str(path))
+
+    def test_reflection_authorizes_before_private_context(self):
+        body = source("supabase/functions/ai_generate_reflection/index.ts")
+        boundary = body[body.index("serve(async (req)"):]
+        self.assertLess(boundary.index("await authorizeAccountContext("), boundary.index("await fetchBadges("))
+        self.assertLess(boundary.index("permission.ok === false"), boundary.index("await fetchBadges("))
+        sender = source("supabase/functions/admin_content_preview/index.ts")
+        self.assertIn('"apikey": SERVICE_KEY', sender)
+        self.assertNotIn('"Authorization": `Bearer ${SERVICE_KEY}`', sender)
+
+
 if __name__ == "__main__":
     unittest.main()

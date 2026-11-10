@@ -1,9 +1,10 @@
+import { publishableKey, serviceSecretKey } from "../_shared/supabase_keys.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_ANON_KEY = publishableKey();
+const SUPABASE_SERVICE_KEY = serviceSecretKey();
 
 function asPositiveInt(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) {

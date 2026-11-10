@@ -1,4 +1,5 @@
 // deno-lint-ignore-file no-import-prefix
+import { serviceSecretKey } from "../_shared/supabase_keys.ts";
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
@@ -43,7 +44,7 @@ type NodeRow = {
 };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const SERVICE_ROLE_KEY = serviceSecretKey();
 
 const EVENT_WEIGHTS: Record<string, number> = {
   node_opened: 1,

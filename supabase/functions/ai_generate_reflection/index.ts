@@ -1,3 +1,5 @@
+import { authorizeAccountContext } from "../_shared/account_context_authorization.ts";
+import { serviceSecretKey } from "../_shared/supabase_keys.ts";
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
 import { getDecanContext } from "../_shared/decan_context.ts";
@@ -316,7 +318,7 @@ type PlannerSummary = {
 // Use the Supabase-specific envs only; avoid generic keys that may point to a different project.
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ??
   Deno.env.get("PROJECT_URL")!;
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SERVICE_ROLE_KEY = serviceSecretKey();
 const MAX_HISTORY_WINDOWS = 2;
 const PROGRESS_MARKERS = [
   "reps",
@@ -4001,6 +4003,22 @@ serve(async (req) => {
 
   try {
     const payload = (await req.json()) as ReflectionPayload;
+    const authClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const permission = await authorizeAccountContext(
+      req, payload.user_id, SERVICE_ROLE_KEY,
+      async (token) => {
+        const { data, error } = await authClient.auth.getUser(token);
+        return error ? null : data.user;
+      },
+    );
+    if (permission.ok === false) {
+      return new Response(JSON.stringify({ error: permission.status === 403 ? "Forbidden" : "Unauthorized" }), {
+        status: permission.status,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     const hasDecanWindow =
       !!(payload.user_id && payload.decan_start && payload.decan_end);
     const useV2 = payload.v2 !== false;

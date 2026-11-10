@@ -1,3 +1,4 @@
+import { serviceSecretKey } from "../_shared/supabase_keys.ts";
 // Keep the repository's pinned, functioning Supabase client dependency.
 // deno-lint-ignore no-import-prefix
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
@@ -556,8 +557,7 @@ export function createExternalCalendarHandler(
 
 export function defaultRuntime() {
   const url = Deno.env.get("SUPABASE_URL") ?? Deno.env.get("PROJECT_URL") ?? "";
-  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-    Deno.env.get("SERVICE_ROLE_KEY") ?? "";
+  const key = serviceSecretKey();
   const client = createClient(url, key, {
     auth: {
       persistSession: false,

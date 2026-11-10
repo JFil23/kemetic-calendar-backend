@@ -1,3 +1,4 @@
+import { serviceSecretKey } from "./supabase_keys.ts";
 type TruthLoopRow = {
   output_id: string;
   source_type: string;
@@ -116,10 +117,7 @@ async function main() {
     /\/+$/,
     "",
   );
-  const serviceKey = requireEnv(
-    "SUPABASE_SERVICE_ROLE_KEY",
-    "SERVICE_ROLE_KEY",
-  );
+  const serviceKey = serviceSecretKey();
   const limit = Number(env("MAAT_OUTPUT_REVIEW_LIMIT") ?? "50");
   const query = new URL(
     `${projectUrl}/rest/v1/maat_output_truth_loop`,
@@ -172,7 +170,7 @@ async function main() {
   const response = await fetch(query, {
     headers: {
       apikey: serviceKey,
-      authorization: `Bearer ${serviceKey}`,
+
     },
   });
   if (!response.ok) {

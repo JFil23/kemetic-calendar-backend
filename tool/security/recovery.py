@@ -158,18 +158,20 @@ def verify(archive, key, certificate, output=None):
             if raw is None or tar.getmember('manifest.json').size > 64 * 1024 * 1024:
                 raise ValueError('Missing or oversized manifest')
             manifest = json.load(raw)
-            if manifest.get('schema_version') != 1:
+            if manifest.get('schema_version') not in (1, 2):
                 raise ValueError('Unsupported recovery schema')
             files = manifest['files']
             if not {'database/roles.sql', 'database/schema.sql', 'database/data.sql'} <= set(files):
                 raise ValueError('Incomplete database backup')
+            if manifest.get('schema_version') == 2 and 'database/managed.sql' not in files:
+                raise ValueError('Missing managed service schema')
             for item in manifest.get('storage', {}).get('objects', []):
                 if item.get('backup_file') not in files:
                     raise ValueError('Missing Storage recovery file')
             if set(names) != set(files) | {'manifest.json'}:
                 raise ValueError('Backup inventory mismatch')
             for name, expected in files.items():
-                if not re.fullmatch(r'database/(?:roles|schema|data)\.sql|storage/[0-9a-f]{64}', name):
+                if not re.fullmatch(r'database/(?:roles|schema|managed|data)\.sql|storage/[0-9a-f]{64}', name):
                     raise ValueError('Unsafe backup path')
                 member = tar.getmember(name)
                 if member.size != expected['size']:
@@ -211,6 +213,8 @@ def create(output, certificate):
         (work / 'storage').mkdir(mode=0o700)
         for name, flags in [('roles', ['--role-only']), ('schema', []), ('data', ['--data-only', '--use-copy'])]:
             run(['supabase', 'db', 'dump', '--linked', '--file', str(work / 'database' / (name + '.sql')), *flags], cwd=ROOT)
+        run(['supabase', 'db', 'dump', '--linked', '--schema', 'auth,storage',
+             '--file', str(work / 'database/managed.sql')], cwd=ROOT)
         for item in initial['objects']:
             blob = hashlib.sha256(json.dumps([item['bucket'], item['name']]).encode()).hexdigest()
             item['backup_file'] = 'storage/' + blob
@@ -219,7 +223,7 @@ def create(output, certificate):
         comparable = [{k: v for k, v in row.items() if k != 'backup_file'} for row in initial['objects']]
         if initial['buckets'] != final['buckets'] or comparable != final['objects']:
             raise ValueError('Storage changed during backup; no archive published')
-        manifest = {'schema_version': 1, 'project_ref': ref,
+        manifest = {'schema_version': 2, 'project_ref': ref,
                     'created_at': datetime.now(timezone.utc).isoformat(), 'storage': initial,
                     'backend_commit': run(['git', 'rev-parse', 'HEAD'], cwd=ROOT).decode().strip(),
                     'database_format': 'Supabase CLI logical roles/schema/data',

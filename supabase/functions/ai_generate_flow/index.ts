@@ -1,3 +1,4 @@
+import { publishableKey, serviceSecretKey } from "../_shared/supabase_keys.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.27.0";
 import {
   buildConcreteActionDefaultsRule,
@@ -5317,10 +5318,8 @@ Deno.serve(async (req) => {
     }
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get(
-      "SUPABASE_SERVICE_ROLE_KEY",
-    );
+    const SUPABASE_ANON_KEY = publishableKey();
+    const SUPABASE_SERVICE_ROLE_KEY = serviceSecretKey();
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
       return new Response(
         JSON.stringify({
@@ -5407,8 +5406,7 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-      Deno.env.get("SERVICE_ROLE_KEY");
+    const serviceKey = serviceSecretKey();
     const supabaseAdmin = supabaseUrl && serviceKey
       ? createClient(supabaseUrl, serviceKey)
       : null;

@@ -1,3 +1,4 @@
+import { serviceSecretKey } from "./supabase_keys.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
 
 export type AdminUser = {
@@ -46,8 +47,7 @@ export type AdminContext = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ??
   Deno.env.get("PROJECT_URL") ?? "";
-const SERVICE_KEY = Deno.env.get("SERVICE_ROLE_KEY") ??
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const SERVICE_KEY = serviceSecretKey(["SERVICE_ROLE_KEY", "SUPABASE_SERVICE_ROLE_KEY"]);
 const ENVIRONMENT = Deno.env.get("HAW_ADMIN_ENV") ??
   Deno.env.get("SUPABASE_ENV") ??
   "unknown";

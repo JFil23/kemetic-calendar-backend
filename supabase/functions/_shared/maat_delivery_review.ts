@@ -1,3 +1,4 @@
+import { serviceSecretKey } from "./supabase_keys.ts";
 type CronHealthRow = {
   job_name: string;
   schedule: string | null;
@@ -113,7 +114,7 @@ async function fetchRestRows<T>(
   const response = await fetch(query, {
     headers: {
       apikey: serviceKey,
-      authorization: `Bearer ${serviceKey}`,
+
     },
   });
   if (!response.ok) {
@@ -281,10 +282,7 @@ export function formatMaatDeliveryReview(args: {
 
 async function main() {
   const projectUrl = requireEnv("SUPABASE_URL", "PROJECT_URL");
-  const serviceKey = requireEnv(
-    "SUPABASE_SERVICE_ROLE_KEY",
-    "SERVICE_ROLE_KEY",
-  );
+  const serviceKey = serviceSecretKey();
   const limit = Number(env("MAAT_DELIVERY_REVIEW_LIMIT") ?? "25");
 
   const [

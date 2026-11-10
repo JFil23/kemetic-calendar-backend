@@ -1,7 +1,8 @@
+import { serviceSecretKey } from "../_shared/supabase_keys.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const serviceRoleKey = serviceSecretKey();
 const supabase = createClient(supabaseUrl, serviceRoleKey);
 
 export const handler = async (req: Request): Promise<Response> => {

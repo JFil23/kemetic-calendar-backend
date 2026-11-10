@@ -1,3 +1,4 @@
+import { serviceSecretKey } from "../_shared/supabase_keys.ts";
 // Edge Function: send_push
 // Sends FCM HTTP v1 messages to user devices stored in public.push_tokens.
 // Environment variables (secrets):
@@ -52,8 +53,7 @@ type SendResponse = {
 
 const SUPABASE_URL = Deno.env.get("PROJECT_URL") ??
   Deno.env.get("SUPABASE_URL") ?? "";
-const SERVICE_ROLE = Deno.env.get("SERVICE_ROLE_KEY") ??
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const SERVICE_ROLE = serviceSecretKey(["SERVICE_ROLE_KEY", "SUPABASE_SERVICE_ROLE_KEY"]);
 const WEB_PUSH_PUBLIC_KEY = Deno.env.get("WEB_PUSH_PUBLIC_KEY") ?? "";
 const WEB_PUSH_PRIVATE_KEY = Deno.env.get("WEB_PUSH_PRIVATE_KEY") ?? "";
 const WEB_PUSH_SUBJECT = Deno.env.get("WEB_PUSH_SUBJECT") ??

@@ -1,3 +1,4 @@
+import { serviceSecretKey } from "../_shared/supabase_keys.ts";
 // Edge Function: delete_account
 // Authenticated self-service account deletion for App Store account-removal flow.
 // Requires:
@@ -12,8 +13,7 @@ import {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ??
   Deno.env.get("PROJECT_URL") ?? "";
-const SERVICE_ROLE = Deno.env.get("SERVICE_ROLE_KEY") ??
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const SERVICE_ROLE = serviceSecretKey(["SERVICE_ROLE_KEY", "SUPABASE_SERVICE_ROLE_KEY"]);
 
 type DeleteStep = {
   table: string;

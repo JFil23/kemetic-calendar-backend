@@ -1,3 +1,4 @@
+import { serviceSecretKey } from "../_shared/supabase_keys.ts";
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -73,8 +74,7 @@ class RestSelectQuery {
 function createDefaultClient(): SupabaseClientLike {
   const supabaseUrl = Deno.env.get("PROJECT_URL") ??
     Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SERVICE_ROLE_KEY") ??
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const serviceRoleKey = serviceSecretKey(["SERVICE_ROLE_KEY", "SUPABASE_SERVICE_ROLE_KEY"]);
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error("Missing SUPABASE_URL or SERVICE_ROLE_KEY");
   }

@@ -1,4 +1,5 @@
 // deno-lint-ignore-file no-import-prefix
+import { serviceSecretKey } from "../_shared/supabase_keys.ts";
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.1";
@@ -50,8 +51,7 @@ import type { ReflectionProfileRow } from "../ai_generate_reflection/maat_decisi
 function createDefaultClient() {
   const supabaseUrl = Deno.env.get("PROJECT_URL") ??
     Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SERVICE_ROLE_KEY") ??
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const serviceRoleKey = serviceSecretKey(["SERVICE_ROLE_KEY", "SUPABASE_SERVICE_ROLE_KEY"]);
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error("Missing SUPABASE_URL or SERVICE_ROLE_KEY");
   }
