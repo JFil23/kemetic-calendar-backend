@@ -48,6 +48,23 @@ class RecoveryTest(unittest.TestCase):
         self.assertEqual(receipt['archive_sha256'], recovery.digest(self.archive))
         self.assertNotIn(b'fixture image bytes', self.archive.read_bytes())
 
+    def test_managed_schema_round_trip_is_additive_to_old_archive_format(self):
+        self.manifest['schema_version'] = 2
+        managed = self.stage / 'database/managed.sql'
+        managed.write_text('-- synthetic auth and storage schemas\n')
+        self.seal()
+        target = self.root / 'managed-restore'
+        result = recovery.verify(self.archive, self.key, self.cert, target)
+        self.assertEqual(result['verified_files'], 5)
+        self.assertEqual((target / 'database/managed.sql').read_bytes(), managed.read_bytes())
+        self.assertFalse(result['database_replay_verified'])
+
+    def test_new_archive_requires_managed_service_schema(self):
+        self.manifest['schema_version'] = 2
+        self.seal()
+        with self.assertRaisesRegex(ValueError, 'Missing managed service schema'):
+            recovery.verify(self.archive, self.key, self.cert)
+
     def test_corrupted_ciphertext_never_publishes_restored_files(self):
         self.seal()
         data = bytearray(self.archive.read_bytes())

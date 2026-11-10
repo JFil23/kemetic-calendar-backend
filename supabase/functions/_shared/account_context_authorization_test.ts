@@ -6,11 +6,13 @@ const req = (headers: HeadersInit = {}) =>
 const user = async (token: string) =>
   token === "valid-user-session" ? { id: "owner" } : null;
 Deno.test("reflection rejects missing, public, invalid and forged credentials", async () => {
-  for (
-    const headers of [{}, { apikey: "sb_publishable_public" }, {
-      authorization: "Bearer forged",
-    }, { authorization: "Bearer leaked-legacy-service-token" }]
-  ) {
+  const cases: HeadersInit[] = [
+    {},
+    { apikey: "sb_publishable_public" },
+    { authorization: "Bearer forged" },
+    { authorization: "Bearer leaked-legacy-service-token" },
+  ];
+  for (const headers of cases) {
     assertEquals(
       await authorizeAccountContext(req(headers), "owner", key, user),
       { ok: false, status: 401 },
