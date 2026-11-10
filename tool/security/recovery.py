@@ -192,8 +192,8 @@ def verify(archive, key, certificate, output=None):
 def choose_storage_key(keys, configured=None):
     key = configured or next((row.get('api_key') for row in keys
         if row.get('type') == 'secret' and row.get('name') == 'default'), None)
-    if not isinstance(key, str) or not key.startswith('sb_secret_'):
-        raise ValueError('Recovery requires an opaque server secret key; legacy keys are not accepted')
+    if not isinstance(key, str) or not re.fullmatch(r'sb_secret_[A-Za-z0-9_-]{20,128}', key):
+        raise ValueError('Provide a usable opaque server key through SUPABASE_SECRET_KEY; legacy or masked keys are not accepted')
     return key
 
 

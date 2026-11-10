@@ -38,8 +38,12 @@ encryption certificate. Do not describe archive integrity tests as a successful
 production database restore.
 
 Use the existing authenticated Supabase CLI, Docker and OpenSSL 3. Storage
-access uses the existing opaque server secret key (or `SUPABASE_SECRET_KEY`);
-legacy keys are rejected and are never added as a new recovery dependency. The wrapper
+access uses a usable opaque server secret key (`SUPABASE_SECRET_KEY` in the
+invoking process; the CLI can supply it only when it reveals the actual value).
+The older local CLI masks opaque secrets. Masked values and
+legacy keys are rejected and are never added as a new recovery dependency.
+Use the credential store or authenticated Management API to supply the opaque key
+only in process memory; never paste it into chat, shell arguments or source. The wrapper
 uses the supported roles/schema/data exports, downloads every Storage object,
 checks that the Storage inventory remained stable, records SHA-256 digests and
 seals the archive with CMS AES-256-GCM. Plain staging data is confined to a private

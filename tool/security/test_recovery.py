@@ -107,13 +107,16 @@ class RecoveryTest(unittest.TestCase):
             with self.assertRaises(ValueError): client.inventory()
 
     def test_recovery_selects_opaque_secret_and_rejects_legacy_credentials(self):
+        opaque = 'sb_secret_' + 'a' * 32
         keys = [{'name': 'service_role', 'type': 'legacy', 'api_key': 'legacy-fixture'},
-                {'name': 'default', 'type': 'secret', 'api_key': 'sb_secret_fixture'}]
-        self.assertEqual(recovery.choose_storage_key(keys), 'sb_secret_fixture')
+                {'name': 'default', 'type': 'secret', 'api_key': opaque}]
+        self.assertEqual(recovery.choose_storage_key(keys), opaque)
         with self.assertRaises(ValueError):
             recovery.choose_storage_key(keys, 'legacy-fixture')
         with self.assertRaises(ValueError):
             recovery.choose_storage_key(keys[:1])
+        with self.assertRaises(ValueError):
+            recovery.choose_storage_key([], 'sb_secret_prefix' + '\u2022' * 25)
 
     def test_storage_sends_secret_only_in_apikey_header(self):
         client = recovery.Storage('a' * 20, 'sb_secret_fixture')
