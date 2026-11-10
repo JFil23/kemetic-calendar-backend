@@ -1,5 +1,6 @@
 import importlib.util
 import io
+import io
 import json
 import subprocess
 import tarfile
@@ -143,6 +144,27 @@ class RecoveryTest(unittest.TestCase):
         with mock.patch.object(client, 'json', side_effect=request):
             result = client.inventory()
         self.assertEqual(result['objects'][0]['name'], 'account/image.png')
+
+    def test_storage_download_rejects_truncated_or_overlong_body(self):
+        client = recovery.Storage('a' * 20, 'fixture-key')
+        item = {'bucket': 'private', 'name': 'image.png', 'metadata': {'size': 3}}
+        for body in [b'ab', b'abcd']:
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as work:
+                with mock.patch.object(client, 'request', return_value=io.BytesIO(body)):
+                    with self.assertRaisesRegex(ValueError, 'Storage download size mismatch'):
+                        client.download(item, Path(work) / 'blob')
+        with tempfile.TemporaryDirectory() as work:
+            with mock.patch.object(client, 'request', return_value=io.BytesIO(b'abc')):
+                client.download(item, Path(work) / 'blob')
+            self.assertEqual((Path(work) / 'blob').read_bytes(), b'abc')
+
+    def test_storage_download_requires_valid_origin_size(self):
+        client = recovery.Storage('a' * 20, 'fixture-key')
+        for size in [None, True, -1, '3']:
+            with self.subTest(size=size), mock.patch.object(client, 'request') as request:
+                with self.assertRaisesRegex(ValueError, 'Missing or invalid Storage object size'):
+                    client.download({'metadata': {'size': size}}, Path('unused'))
+                request.assert_not_called()
 
     def test_storage_inventory_rejects_traversal(self):
         client = recovery.Storage('a' * 20, 'fixture-key')

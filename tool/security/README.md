@@ -54,15 +54,17 @@ not specifically authorized; no off-site copy was made.
 
 The actual replay drill uses official image `public.ecr.aws/supabase/postgres:17.11.0.003`,
 matching the live database, with `--network none`, no published ports, memory-only
-`PGDATA`, and `cron.launch_active_jobs=off`. Initial failures are retained: the
+`PGDATA`, and `cron.launch_active_jobs=off`. Initial failures are documented in the local attempt receipt, with earlier encrypted
+snapshots and replay scripts retained (some working SQL logs were reused): the
 bootstrap Auth schema was stale, and separate managed/app schema exports expose
 cross-schema trigger and policy dependencies. The final combined schema is
 exported in one pg_dump invocation so its dependency ordering is preserved.
-The final `haw-20261110-complete.cms` replay passed: 186 tables and 60,928 rows
+After deploying the sixteen-helper restrictions, a fresh snapshot was captured.
+The final `haw-20261110-hardened.cms` replay passed: 186 tables and 60,928 rows
 matched by row count and content, all five Storage blobs verified, and all seven
-permission roles passed. Floating point fields were compared by IEEE binary value;
+permission roles passed, including sixteen internal-RPC denials per client role. Floating point fields were compared by IEEE binary value;
 other COPY fields were compared exactly, preserving duplicate rows while allowing
-physical row order to differ. The retained `restore-receipt.json` records hashes,
+physical row order to differ. The retained `restore-receipt-hardened.json` records hashes,
 image identity and isolation. The fixture handles profiles already created by the
 real Auth bootstrap trigger; no assertion was removed. Auth-service startup,
 session refresh, Storage-service upload replay, platform/integration secret
@@ -77,7 +79,8 @@ Use the credential store or authenticated Management API to supply the opaque ke
 only in process memory; never paste it into chat, shell arguments or source. The wrapper
 uses supported roles/schema/data and explicit managed-schema exports, retains a
 combined schema entrypoint for replay, downloads every Storage object,
-checks that the Storage inventory remained stable, records SHA-256 digests and
+checks that download byte counts match origin sizes and the Storage inventory
+remained stable, records SHA-256 digests and
 seals the archive with CMS AES-256-GCM. Plain staging data is confined to a private
 temporary directory. The wrapper's CLI and service credentials stay in memory and are not added to
 the manifest or logs. Database data may contain stored integration credentials
@@ -89,7 +92,7 @@ the backend checkout on this Mac:
 
 ```sh
 python3 tool/security/recovery.py verify \
-  --archive /Users/jaralephillips/Backups/kemetic-calendar/security-recovery-20261110/haw-20261110-complete.cms \
+  --archive /Users/jaralephillips/Backups/kemetic-calendar/security-recovery-20261110/haw-20261110-hardened.cms \
   --certificate /Users/jaralephillips/Backups/kemetic-calendar/security-recovery-20261110/recipient-public.pem \
   --keychain-service 'Haw encrypted recovery 2026-11-10' \
   --keychain-account vrbubwqapwkxxexkwkgu
@@ -141,3 +144,17 @@ migration to the linked project. A deployment receipt must link the candidate
 commit, successful gate run, migration digest and post-deployment permission/
 view-definition readback. No app build or deployment is needed for these backend
 and CI changes. App deployments remain subject to their own exact-lane full gate.
+
+
+## Applied follow-up identity
+
+The internal-RPC permission change was deployed from backend `149b562` after
+[backend gate 42915135383](https://github.com/JFil23/kemetic-calendar-backend/actions/runs/42915135383)
+and [admin gate 42915135593](https://github.com/JFil23/kemetic-calendar-backend/actions/runs/42915135593)
+passed. All sixteen live function hashes and owners remained unchanged; client
+execution is denied and service execution is retained. Safe null-input HTTP
+checks return 401 for the publishable caller and 200 for the opaque service caller.
+Supabase assigned migration version `20261110223529`; the local filename was
+aligned to that applied version without changing the SQL digest or rewriting
+migration history. Sanitized source, permission and HTTP receipts are in
+`.git/deployment-receipts/security-followup-20261110/`.

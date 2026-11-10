@@ -103,10 +103,15 @@ class Storage:
         return {'buckets': buckets, 'objects': sorted(objects, key=lambda row: (row['bucket'], row['name']))}
 
     def download(self, item, path):
+        expected = (item.get('metadata') or {}).get('size')
+        if not isinstance(expected, int) or isinstance(expected, bool) or expected < 0:
+            raise ValueError('Missing or invalid Storage object size')
         url = '/object/authenticated/' + urllib.parse.quote(item['bucket'], safe='') + '/' + urllib.parse.quote(item['name'], safe='/')
         with self.request(url) as response, path.open('xb') as output:
             for block in iter(lambda: response.read(1024 * 1024), b''):
                 output.write(block)
+            if output.tell() != expected:
+                raise ValueError('Storage download size mismatch; no archive published')
 
 
 def package(staging, output, certificate, manifest):

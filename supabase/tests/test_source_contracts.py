@@ -46,7 +46,7 @@ class MigrationSourceContractsTest(unittest.TestCase):
                       source(".github/workflows/supabase-functions.yml"))
 
     def test_internal_rpc_access_preserves_bodies_and_checked_entrypoints(self) -> None:
-        body = source("supabase/migrations/20261110223000_restrict_internal_rpc_access.sql")
+        body = source("supabase/migrations/20261110223529_restrict_internal_rpc_access.sql")
         require_all(self, body, ["from public, anon, authenticated", "to service_role",
             "claim_due_scheduled_notifications", "compute_flow_outcome", "compute_user_preferences_impl",
             "dm_user_pref_candidates", "event_share_source_flow_payload", "flow_outcome_candidates",
