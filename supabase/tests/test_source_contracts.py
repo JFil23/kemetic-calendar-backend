@@ -29,6 +29,31 @@ def reject_all(test: unittest.TestCase, body: str, needles: list[str]) -> None:
 
 
 class MigrationSourceContractsTest(unittest.TestCase):
+    def test_reviewed_views_preserve_definitions_and_restrict_internal_reads(self) -> None:
+        body = source("supabase/migrations/20261110210015_harden_public_view_access.sql")
+        require_all(self, body, ["security_invoker = true", "from public, anon, authenticated",
+            "public.flow_generation_daily_analytics", "public.flows_color_debug",
+            "public.inbox_share_items", "public.maat_ledger_restoration_health",
+            "public.profile_stats", "to anon, authenticated, service_role", "lock_timeout"])
+        reject_all(self, body.lower(), ["create or replace view", "drop view", "create policy",
+            "delete from", "update public.", "disable row level security"])
+        smoke = source("supabase/dev/view_access_hardening_smoke.sql")
+        require_all(self, smoke, ["Anonymous private flow leak", "Owner lost private flow",
+            "Accepted member lost shared flow", "Unrelated account private flow leak",
+            "Recipient lost canonical Inbox snapshot", "Staff bypassed private flow RLS",
+            "Authorized admin RPC failed", "Service lost diagnostic read", "rollback;"])
+        self.assertIn("supabase/dev/view_access_hardening_smoke.sql",
+                      source(".github/workflows/supabase-functions.yml"))
+
+    def test_workflow_dependencies_are_immutable_and_tokens_read_only(self) -> None:
+        for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+            body = path.read_text()
+            with self.subTest(workflow=path.name):
+                self.assertIn("permissions:\n  contents: read\n", body)
+                self.assertNotIn("pull_request_target:", body)
+                for ref in re.findall(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)", body, re.M):
+                    self.assertRegex(ref, r"^[^@]+@[0-9a-f]{40}$")
+
     def test_filing_projection_refactor_preserves_the_canonical_owner(self) -> None:
         body = source("supabase/migrations/20261027194710_simplify_filing_read_projection.sql")
         require_all(self, body, [

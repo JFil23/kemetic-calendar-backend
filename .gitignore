@@ -24,3 +24,6 @@ scripts/*
 
 # This repo should not contain a duplicate app source tree.
 /lib/
+
+# Supabase local CLI state
+supabase/.branches/

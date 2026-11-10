@@ -6,17 +6,20 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   edge-functions:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: denoland/setup-deno@v2
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
         with:
           deno-version: 2.8.3
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1
         with:
           version: 2.117.0
 
@@ -61,6 +64,9 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
         run: python3 -m unittest supabase.tests.test_source_contracts
 
+      - name: Verify encrypted recovery archives
+        run: python3 -m unittest tool.security.test_recovery
+
       - name: Migration smoke test
         run: |
           sudo apt-get update
@@ -70,6 +76,7 @@ jobs:
           supabase status
           supabase db reset
           DB_URL="$(supabase status -o env | sed -n 's/^DB_URL="\(.*\)"$/\1/p')"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/view_access_hardening_smoke.sql
           python3 supabase/dev/room_broadcast_schema_move_smoke.py "$DB_URL"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/telemetry_consent_ledger_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/activity_presentation_smoke.sql
@@ -141,8 +148,8 @@ jobs:
   website-contact:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
       - name: Verify isolated website contact delivery
