@@ -165,13 +165,15 @@ def verify(archive, key, certificate, output=None):
                 raise ValueError('Incomplete database backup')
             if manifest.get('schema_version') == 2 and 'database/managed.sql' not in files:
                 raise ValueError('Missing managed service schema')
+            if manifest.get('schema_entrypoint') is not None and manifest['schema_entrypoint'] not in files:
+                raise ValueError('Missing declared schema entrypoint')
             for item in manifest.get('storage', {}).get('objects', []):
                 if item.get('backup_file') not in files:
                     raise ValueError('Missing Storage recovery file')
             if set(names) != set(files) | {'manifest.json'}:
                 raise ValueError('Backup inventory mismatch')
             for name, expected in files.items():
-                if not re.fullmatch(r'database/(?:roles|schema|managed|data)\.sql|storage/[0-9a-f]{64}', name):
+                if not re.fullmatch(r'database/(?:roles|schema|managed|complete_schema|data)\.sql|storage/[0-9a-f]{64}', name):
                     raise ValueError('Unsafe backup path')
                 member = tar.getmember(name)
                 if member.size != expected['size']:
@@ -215,6 +217,13 @@ def create(output, certificate):
             run(['supabase', 'db', 'dump', '--linked', '--file', str(work / 'database' / (name + '.sql')), *flags], cwd=ROOT)
         run(['supabase', 'db', 'dump', '--linked', '--schema', 'auth,storage',
              '--file', str(work / 'database/managed.sql')], cwd=ROOT)
+        # Dump app and managed schemas in one pg_dump invocation as well, so
+        # cross-schema triggers, foreign keys and policies have one dependency order.
+        schema_text = (work / 'database/schema.sql').read_text()
+        schemas = set(re.findall(r'^CREATE SCHEMA IF NOT EXISTS "([A-Za-z0-9_]+)";', schema_text, re.M))
+        schemas.update(('auth', 'storage', 'public', 'private'))
+        run(['supabase', 'db', 'dump', '--linked', '--schema', ','.join(sorted(schemas)),
+             '--file', str(work / 'database/complete_schema.sql')], cwd=ROOT)
         for item in initial['objects']:
             blob = hashlib.sha256(json.dumps([item['bucket'], item['name']]).encode()).hexdigest()
             item['backup_file'] = 'storage/' + blob
@@ -227,6 +236,7 @@ def create(output, certificate):
                     'created_at': datetime.now(timezone.utc).isoformat(), 'storage': initial,
                     'backend_commit': run(['git', 'rev-parse', 'HEAD'], cwd=ROOT).decode().strip(),
                     'database_format': 'Supabase CLI logical roles/schema/data',
+                    'schema_entrypoint': 'database/complete_schema.sql',
                     'not_included': ['Edge Function deployment artifacts', 'platform configuration and secrets']}
         return package(work, output, certificate, manifest)
 

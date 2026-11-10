@@ -59,6 +59,15 @@ class RecoveryTest(unittest.TestCase):
         self.assertEqual((target / 'database/managed.sql').read_bytes(), managed.read_bytes())
         self.assertFalse(result['database_replay_verified'])
 
+    def test_combined_schema_entrypoint_round_trip(self):
+        self.manifest['schema_version'] = 2
+        self.manifest['schema_entrypoint'] = 'database/complete_schema.sql'
+        (self.stage / 'database/managed.sql').write_text('-- managed schemas\n')
+        (self.stage / 'database/complete_schema.sql').write_text('-- combined dependency order\n')
+        self.seal()
+        result = recovery.verify(self.archive, self.key, self.cert)
+        self.assertEqual(result['verified_files'], 6)
+
     def test_new_archive_requires_managed_service_schema(self):
         self.manifest['schema_version'] = 2
         self.seal()
