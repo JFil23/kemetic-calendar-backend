@@ -22,6 +22,15 @@ class CredentialCutoverTests(unittest.TestCase):
             names={f['name'] for f in result['files']}
             self.assertTrue({f['path'] for f in row['files']}<=names)
 
+    def test_every_generated_file_migrates_literal_legacy_reads(self):
+        # Source files are stored as .source.gz objects, so transformation must
+        # use the logical .ts path, not the storage object's suffix.
+        for function in cutover.inventory():
+            for file in cutover.build(function['slug'])['files']:
+                with self.subTest(slug=function['slug'], file=file['name']):
+                    for name in ['SUPABASE_SERVICE_ROLE_KEY','SERVICE_ROLE_KEY','SUPABASE_ANON_KEY']:
+                        self.assertNotIn('Deno.env.get("'+name+'")',file['content'])
+
     def test_only_credential_reads_change(self):
         original='const key = Deno.env.get("SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";\nconst data = await getPrivateRows(verifiedUser.id);\n'
         actual=cutover.replace_key_reads(original,'supabase/functions/example/index.ts')

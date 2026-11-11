@@ -56,7 +56,7 @@ def build(slug: str) -> dict:
         raw = gzip.decompress(path.read_bytes())
         if hashlib.sha256(raw).hexdigest() != entry['sha256']:
             raise ValueError('Deployed source changed: '+name)
-        files[name] = replace_key_reads(raw.decode(), name) if path.suffix == '.ts' else raw.decode()
+        files[name] = replace_key_reads(raw.decode(), name) if Path(name).suffix == '.ts' else raw.decode()
     key_owner = 'supabase/functions/_shared/supabase_keys.ts'
     files[key_owner] = (ROOT / key_owner).read_text()
     # These handlers already perform Auth.getUser or checked staff authorization.
