@@ -65,7 +65,7 @@ jobs:
         run: python3 -m unittest supabase.tests.test_source_contracts
 
       - name: Verify encrypted recovery archives
-        run: python3 -m unittest tool.security.test_recovery
+        run: python3 -m unittest tool.security.test_recovery tool.security.test_credential_cutover
 
       - name: Migration smoke test
         run: |

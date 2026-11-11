@@ -5,6 +5,10 @@ import {
   assertExists,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createFlowShareHandler } from "../functions/create_flow_share/index.ts";
+import {
+  createResolveShareDependencies,
+  createResolveShareHandler,
+} from "../functions/resolve_share/index.ts";
 const config = Object.fromEntries(
   (await new Response(Deno.stdin.readable).text()).split("\n").flatMap(
     (line) => {
@@ -26,7 +30,7 @@ function checked<T>(result: { data: T; error: unknown }) {
   return result.data;
 }
 try {
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 3; i++) {
     const email = `flow-smoke-${crypto.randomUUID()}@example.test`;
     const password = crypto.randomUUID();
     const created = await checked(
@@ -145,6 +149,39 @@ try {
     return row;
   };
   const direct = await send({ flow_id: flow.id });
+  const preview = createResolveShareHandler(
+    createResolveShareDependencies(url, config.ANON_KEY),
+  );
+  const previewAs = async (token: string) =>
+    preview(
+      new Request(`${url}/functions/v1/resolve_share`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ share_id: direct.id }),
+      }),
+    );
+  for (const person of [sender, recipient]) {
+    const result = await previewAs(person.token);
+    assertEquals(result.status, 200);
+    assertEquals((await result.json()).flow, direct.payload_json);
+  }
+  const other = await previewAs(users[2].token);
+  assertEquals(other.status, 404);
+  await other.body?.cancel();
+  const invalid = await previewAs("forged-token");
+  assertEquals(invalid.status, 401);
+  await invalid.body?.cancel();
+  const afterPreview = checked(
+    await admin.from("flow_shares").select().eq("id", direct.id).single(),
+  );
+  assertEquals(
+    afterPreview,
+    direct,
+    "Preview must not mutate share acknowledgement or payload",
+  );
   assertEquals(direct.payload_json.events.length, 1);
   assertEquals(direct.payload_json.events[0].start_time, "09:00");
   assertEquals(direct.payload_json.events[0].offset_days, 1);

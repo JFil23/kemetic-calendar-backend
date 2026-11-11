@@ -1,0 +1,1497 @@
+{
+  "schema": 1,
+  "project_ref": "vrbubwqapwkxxexkwkgu",
+  "captured_at": "2026-11-11T22:21:40.736195+00:00",
+  "purpose": "Immutable deployed-source evidence for a credential-only migration, never a second runtime owner. Canonical future feature source remains supabase/functions.",
+  "functions": [
+    {
+      "slug": "create_flow_share",
+      "version": 45,
+      "verify_jwt": true,
+      "ezbr_sha256": "2994ece23379b2fbb35b80ad484ac64106df76ff68aac4b08a09655873e2ccbc",
+      "updated_at": 1793139303186,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/flow_share_snapshot.ts",
+          "sha256": "3aa6822b3bf6b98dc815d08f3d59373d9a107270679b98a248913cf24c1b6c6a"
+        },
+        {
+          "path": "supabase/functions/create_flow_share/index.ts",
+          "sha256": "61702e69b93088fcca60de5c0a148c2bd4300da958bf80a249a16bc319c612d2"
+        }
+      ],
+      "entrypoint": "supabase/functions/create_flow_share/index.ts"
+    },
+    {
+      "slug": "ai_generate_flow",
+      "version": 190,
+      "verify_jwt": false,
+      "ezbr_sha256": "94e8d2ff410037b870d4b61f2e9feb6e221738a1d1ab6518b97b22aa31e3d08d",
+      "updated_at": 1779743004324,
+      "files": [
+        {
+          "path": "supabase/functions/ai_generate_flow/flow_plan.ts",
+          "sha256": "120b4bc5927a7c3a9158a14d06ef8f7bde3a27b19f45d39e1c6d1999020b2d22"
+        },
+        {
+          "path": "supabase/functions/ai_generate_flow/generation_hints.ts",
+          "sha256": "9f3e96adcd599bd86ba7fc29abcfd194b14d35399d34db06fc5a42ad9f7f5dd1"
+        },
+        {
+          "path": "supabase/functions/ai_generate_flow/index.ts",
+          "sha256": "162557ca3d1bcfbcf9e780df412427b93815f8a3bbfade4d51686e8a1d3da7e4"
+        },
+        {
+          "path": "supabase/functions/ai_generate_flow/plan_spec.ts",
+          "sha256": "b51b2d1ff9a7c63382bc26939c47722da5e393825b2ad7dcee8ba8ab1eb906c0"
+        },
+        {
+          "path": "supabase/functions/ai_generate_flow/planner_first_telemetry.ts",
+          "sha256": "3f4aa1f457785b3515799a45c3810968b942fe998985dfcf5922dcb68ce1c850"
+        }
+      ],
+      "entrypoint": "supabase/functions/ai_generate_flow/index.ts"
+    },
+    {
+      "slug": "send_push",
+      "version": 69,
+      "verify_jwt": false,
+      "ezbr_sha256": "ff46e447f3aecb05791d983ba53d9860137a0d004d456ce22ce74ea1800265b2",
+      "updated_at": 1781152016583,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/firebase_push_config.ts",
+          "sha256": "e44cde9c8a0bba38e5195b42cc18b444488ffd388e0170643ae15f10ffceb857"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_delivery_timing.ts",
+          "sha256": "39d1e2bf564c41448e40d420d62d9122195b2fa4ba548e30fdaa46aeb5a69c16"
+        },
+        {
+          "path": "supabase/functions/_shared/output_compiler.ts",
+          "sha256": "0dc16ed1f1aa61b0095f833871745e51e7a9ebcd6a7bf97fb7403cf0cb6e6dad"
+        },
+        {
+          "path": "supabase/functions/send_push/index.ts",
+          "sha256": "ccdc34dddd780aa2200fcfdc8684cd6ece7287ac4ebf81ea08df9b18abc4e2f7"
+        },
+        {
+          "path": "supabase/functions/send_push/user_jwt_dm_auth.ts",
+          "sha256": "783e09c7784bb288a9cbd3413eff4596d7eae7b5b8a6001ebe34ec5656a84a60"
+        },
+        {
+          "path": "supabase/functions/send_push/user_jwt_push_auth.ts",
+          "sha256": "cbc5765635a1686bd49b9fbc226ea376f910fae3338b5f1907ce8693bc577a3b"
+        }
+      ],
+      "entrypoint": "supabase/functions/send_push/index.ts"
+    },
+    {
+      "slug": "ai_generate_reflection",
+      "version": 111,
+      "verify_jwt": false,
+      "ezbr_sha256": "5eac4a94a2b9e096d06b8874c46025dbef1622b28b6c22c49358efb7ee811774",
+      "updated_at": 1794348804477,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/account_context_authorization.ts",
+          "sha256": "28cb2a5a741ced19832ebe2f0e91689d0d20dd558f81651c6b18e9367488eea0"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_context.generated.ts",
+          "sha256": "0519732ca4257804d9d1bd8f749cf0a73e6c8ef21342a01d0743581f5a5524ae"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_context.ts",
+          "sha256": "78a2319f2947c3a95e7fb84b7935958ac002c6d543c0f82bdacd5ce6bab3ef8e"
+        },
+        {
+          "path": "supabase/functions/_shared/guidance_evidence.ts",
+          "sha256": "b25d6bc96b34fb43146c5702593008d89d03623dc00dd7adc4e5c9abf738f7af"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_alignment_lens.ts",
+          "sha256": "2476837684991ff55eaae7a8a0ad065a4d6acbd665b38d1e623ffa057f3afa16"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_constitution.ts",
+          "sha256": "16a6e8ef39dbd5038cc5d685433e5b076303227f59dba07f2e12310527e7ff46"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_destination_resolver.ts",
+          "sha256": "51283808df4c08289808476bcea81a9bc1e58da16fd8926a3afb78021e68c739"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_brief.ts",
+          "sha256": "120516db82883133cbe4b98f9a59bc569519083d2f9314b260aeff7864040e01"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_reflection_prompt.ts",
+          "sha256": "aa921eeeb5b25382238f7b9ec970081daf6b044bac02acd9b7daf6b0ce297ff5"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_response_renderer.ts",
+          "sha256": "6328bb232ea91b65043b0ae27166bb3b049dd8a5d0efdb4f7ab0cf5fe9333480"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_response_spectrum.ts",
+          "sha256": "14287d8fbafec424432905c74db9aa60d319f2a5ed11c70861afd422500a7ab9"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_guidance.ts",
+          "sha256": "8bf0e42a761c120ee8eaba6f9b698fe85ce8eddc353116db11ba978230e303c7"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_ledger.ts",
+          "sha256": "54a27429dceb15035b1069c06c0b1f9bf2557ca4e0454cc8e24c515f9552895f"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_nudge_examples.ts",
+          "sha256": "824b1c71449d93b5dfd9d97a0c3f4704324871d38350735ed668f5e31351fdfd"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_obligation_threads.ts",
+          "sha256": "85fab34abb660d7e5b9490878c1b0fae1f7e626ef6132a3ca49428b799c9f9fa"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_output_examples.ts",
+          "sha256": "92e57d87a3017fc3115ac16101b9ee9caaaa2e6fcd35a69e313e3c565ee87b74"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_reflection_examples.ts",
+          "sha256": "dc34352c0b49cd001017dc8da5c8c1db25028221b7448467bc65a52c3536257e"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_situation_interpreter.ts",
+          "sha256": "846f8a5a982b156a1b1684a80f884d8d1de336eed12b950a92ed9a88f7e17198"
+        },
+        {
+          "path": "supabase/functions/_shared/output_compiler.ts",
+          "sha256": "0dc16ed1f1aa61b0095f833871745e51e7a9ebcd6a7bf97fb7403cf0cb6e6dad"
+        },
+        {
+          "path": "supabase/functions/_shared/output_control.ts",
+          "sha256": "b17d8ef281b6790a3ff70766161d97849ae58778d864252b7db2ff5a08d95ae9"
+        },
+        {
+          "path": "supabase/functions/_shared/profile_context_translator.ts",
+          "sha256": "91641f7e63a97969c444344ddc110a9af1301912af1f54e2a57c0c0dee1668d8"
+        },
+        {
+          "path": "supabase/functions/_shared/profile_fact_extractor.ts",
+          "sha256": "38df7964dd9b9ea794765a2aa5304c7e25c76334866eead9d963e228e80ad731"
+        },
+        {
+          "path": "supabase/functions/_shared/reflection_calendar.ts",
+          "sha256": "72288caa6391cd08b6ab1187725f38d37122dc5a6fe165b183ace1ee26c2d2db"
+        },
+        {
+          "path": "supabase/functions/_shared/reflection_judgment.ts",
+          "sha256": "be825f4b78aec0eda9dff8186d2d5f1bd2bd12a010551bc07e8e20bc5ef28d79"
+        },
+        {
+          "path": "supabase/functions/_shared/reflection_moral_portrait.ts",
+          "sha256": "c32e8f47f6f3b23c9faaf18a9dad8aa0632cde4ea909ed519e6516815f1a6fd2"
+        },
+        {
+          "path": "supabase/functions/_shared/reflection_plain_sacred_editor.ts",
+          "sha256": "9816e86e5781fd597faa767e411e05dd53df6112b8403e8620e936c170e3aca8"
+        },
+        {
+          "path": "supabase/functions/_shared/reflection_profile_snapshot.ts",
+          "sha256": "093ec81693bdd8c096136bc64a48621c107873ace4f9567907d084271587ba5a"
+        },
+        {
+          "path": "supabase/functions/_shared/reflection_thesis_gate.ts",
+          "sha256": "17c05f2101dbb46555d38bf8405e2cda52f72d4acb3780a791861191d292f818"
+        },
+        {
+          "path": "supabase/functions/_shared/supabase_keys.ts",
+          "sha256": "97590742505d36a397cbc852bcff43d1e7c012985c61437652b97b3509df3d74"
+        },
+        {
+          "path": "supabase/functions/_shared/user_memory_brief.ts",
+          "sha256": "1c8958a497a74fb1ce9dfe7c842142313f3ed59bbad26499ecf1627903c8455a"
+        },
+        {
+          "path": "supabase/functions/ai_generate_reflection/index.ts",
+          "sha256": "730410a81eca3a59f99d91ab06114292741c5e30f1109b5dd8a8dfedd733b869"
+        },
+        {
+          "path": "supabase/functions/ai_generate_reflection/maat_decision.ts",
+          "sha256": "ea1b28c10b07e8dab8a4f588c0bef5b8c23747b0ce7f511dbba298abea8d05e5"
+        },
+        {
+          "path": "supabase/functions/ai_generate_reflection/reflection_generation_manifest_v2.ts",
+          "sha256": "c62763f83ef4b5f3e6ad9bd42365610802e1ff9a98d566dc72c979e25561259f"
+        }
+      ],
+      "entrypoint": "supabase/functions/ai_generate_reflection/index.ts"
+    },
+    {
+      "slug": "cron_decan_reflection_push",
+      "version": 35,
+      "verify_jwt": false,
+      "ezbr_sha256": "16b6e969a7cfba3d5d10f7f60a0d863c168cb2b303a050a317bf1f3121eba1f9",
+      "updated_at": 1791401414937,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/decan_context.generated.ts",
+          "sha256": "0519732ca4257804d9d1bd8f749cf0a73e6c8ef21342a01d0743581f5a5524ae"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_context.ts",
+          "sha256": "78a2319f2947c3a95e7fb84b7935958ac002c6d543c0f82bdacd5ce6bab3ef8e"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_delivery_timing.ts",
+          "sha256": "39d1e2bf564c41448e40d420d62d9122195b2fa4ba548e30fdaa46aeb5a69c16"
+        },
+        {
+          "path": "supabase/functions/cron_decan_reflection_push/index.ts",
+          "sha256": "d7007183e4d52fa69ecbdd9c98a8cbba0fd4f1575bbca3e9281aecb7324f552a"
+        }
+      ],
+      "entrypoint": "supabase/functions/cron_decan_reflection_push/index.ts"
+    },
+    {
+      "slug": "cron_reminder_push",
+      "version": 27,
+      "verify_jwt": false,
+      "ezbr_sha256": "81466ab4a8e15c1c0e2de06698ba6f26d9ef8cce426b3f1be02c3ac94e9e9d94",
+      "updated_at": 1790292458028,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/maat_delivery_timing.ts",
+          "sha256": "39d1e2bf564c41448e40d420d62d9122195b2fa4ba548e30fdaa46aeb5a69c16"
+        },
+        {
+          "path": "supabase/functions/_shared/output_compiler.ts",
+          "sha256": "0dc16ed1f1aa61b0095f833871745e51e7a9ebcd6a7bf97fb7403cf0cb6e6dad"
+        },
+        {
+          "path": "supabase/functions/cron_reminder_push/index.ts",
+          "sha256": "7341cdb5e0afc0dc4c2853dd735234bd921efa27bb6371d6bae529bf7353bc18"
+        }
+      ],
+      "entrypoint": "supabase/functions/cron_reminder_push/index.ts"
+    },
+    {
+      "slug": "send_dm_message",
+      "version": 13,
+      "verify_jwt": true,
+      "ezbr_sha256": "c9bd23e603b596f68d58ee53456598ee1078a205ccb0c8dce6ee36241abf098e",
+      "updated_at": 1791415019703,
+      "files": [
+        {
+          "path": "supabase/functions/send_dm_message/index.ts",
+          "sha256": "b6614adfea04a9ffa66ddc5aca5bf74baa5641e9d95c2a12e9be9e9606754ce4"
+        }
+      ],
+      "entrypoint": "supabase/functions/send_dm_message/index.ts"
+    },
+    {
+      "slug": "schedule_decan_reflection",
+      "version": 13,
+      "verify_jwt": true,
+      "ezbr_sha256": "81900902724e69255bac4c35d96f4b59e1b66cb3d6ff41ebd419ae0d2fe41eb1",
+      "updated_at": 1790438983784,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/decan_context.generated.ts",
+          "sha256": "0519732ca4257804d9d1bd8f749cf0a73e6c8ef21342a01d0743581f5a5524ae"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_context.ts",
+          "sha256": "78a2319f2947c3a95e7fb84b7935958ac002c6d543c0f82bdacd5ce6bab3ef8e"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_schedule.ts",
+          "sha256": "bd7bf73c9193b85a0139dda0e941f4ca8f57f47ee583306c77c1d9041912484b"
+        },
+        {
+          "path": "supabase/functions/schedule_decan_reflection/index.ts",
+          "sha256": "e5b3cdec09661733e5e8ec1eb12083c9f6d28555688c962e9056cc00a3375a79"
+        }
+      ],
+      "entrypoint": "supabase/functions/schedule_decan_reflection/index.ts"
+    },
+    {
+      "slug": "respond_to_event_invite",
+      "version": 11,
+      "verify_jwt": true,
+      "ezbr_sha256": "a34e642745afe3e3223d15dc98c1a76ee9bc40706f88d5449255543224a03c93",
+      "updated_at": 1776645812354,
+      "files": [
+        {
+          "path": "supabase/functions/respond_to_event_invite/index.ts",
+          "sha256": "0826f403f21b258c11119cc1579bb5aa926c16695fea1d0416ecb3727ac84b7d"
+        }
+      ],
+      "entrypoint": "supabase/functions/respond_to_event_invite/index.ts"
+    },
+    {
+      "slug": "create_event_share",
+      "version": 14,
+      "verify_jwt": true,
+      "ezbr_sha256": "8b5b6d1b91ab715a56dc578c238eb9222b6465591e5b44bb43c549ca1dbed58a",
+      "updated_at": 1777930448862,
+      "files": [
+        {
+          "path": "supabase/functions/create_event_share/index.ts",
+          "sha256": "22f88f88eec5dfe3bcebb48f4223b599de6b561c6bc134c96c2b77cca6a654f2"
+        }
+      ],
+      "entrypoint": "supabase/functions/create_event_share/index.ts"
+    },
+    {
+      "slug": "cron_maat_decan_opening",
+      "version": 42,
+      "verify_jwt": false,
+      "ezbr_sha256": "347189c6ceaf2c15a99bbf0476294485d3f443425967ed233a30645f92c7207c",
+      "updated_at": 1790398036925,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/canonical_library_node.ts",
+          "sha256": "2f5b722ab22bc3071908c57b100e378f97e1bcab5594de79e1e2284aeb5641d5"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_context.generated.ts",
+          "sha256": "0519732ca4257804d9d1bd8f749cf0a73e6c8ef21342a01d0743581f5a5524ae"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_context.ts",
+          "sha256": "78a2319f2947c3a95e7fb84b7935958ac002c6d543c0f82bdacd5ce6bab3ef8e"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_schedule.ts",
+          "sha256": "8014826678e5b38dec9157706163db5ebca0d005be985a51ae40f8eb87ebf52b"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_active_users.ts",
+          "sha256": "fce3d2da494747a69278627768cd12f240233b174bcc62b8a7dafdc6676ba36c"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_constitution.ts",
+          "sha256": "16a6e8ef39dbd5038cc5d685433e5b076303227f59dba07f2e12310527e7ff46"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_delivery_timing.ts",
+          "sha256": "39d1e2bf564c41448e40d420d62d9122195b2fa4ba548e30fdaa46aeb5a69c16"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_destination_resolver.ts",
+          "sha256": "51283808df4c08289808476bcea81a9bc1e58da16fd8926a3afb78021e68c739"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_brief.ts",
+          "sha256": "120516db82883133cbe4b98f9a59bc569519083d2f9314b260aeff7864040e01"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_response_renderer.ts",
+          "sha256": "6328bb232ea91b65043b0ae27166bb3b049dd8a5d0efdb4f7ab0cf5fe9333480"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_guidance.ts",
+          "sha256": "8bf0e42a761c120ee8eaba6f9b698fe85ce8eddc353116db11ba978230e303c7"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_ledger.ts",
+          "sha256": "54a27429dceb15035b1069c06c0b1f9bf2557ca4e0454cc8e24c515f9552895f"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_nudge_examples.ts",
+          "sha256": "824b1c71449d93b5dfd9d97a0c3f4704324871d38350735ed668f5e31351fdfd"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_obligation_threads.ts",
+          "sha256": "85fab34abb660d7e5b9490878c1b0fae1f7e626ef6132a3ca49428b799c9f9fa"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_output_examples.ts",
+          "sha256": "92e57d87a3017fc3115ac16101b9ee9caaaa2e6fcd35a69e313e3c565ee87b74"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_output_telemetry.ts",
+          "sha256": "40b786cf9139e7590c2093fc7aea27465e4ace5dab91507cc0bdd2de79f9e968"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_reflection_examples.ts",
+          "sha256": "dc34352c0b49cd001017dc8da5c8c1db25028221b7448467bc65a52c3536257e"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_situation_interpreter.ts",
+          "sha256": "846f8a5a982b156a1b1684a80f884d8d1de336eed12b950a92ed9a88f7e17198"
+        },
+        {
+          "path": "supabase/functions/_shared/output_compiler.ts",
+          "sha256": "0dc16ed1f1aa61b0095f833871745e51e7a9ebcd6a7bf97fb7403cf0cb6e6dad"
+        },
+        {
+          "path": "supabase/functions/_shared/output_control.ts",
+          "sha256": "b17d8ef281b6790a3ff70766161d97849ae58778d864252b7db2ff5a08d95ae9"
+        },
+        {
+          "path": "supabase/functions/ai_generate_reflection/maat_decision.ts",
+          "sha256": "ea1b28c10b07e8dab8a4f588c0bef5b8c23747b0ce7f511dbba298abea8d05e5"
+        },
+        {
+          "path": "supabase/functions/cron_maat_decan_opening/index.ts",
+          "sha256": "215b05acf2a38d5b8f3fabc2e4449d65ed88d18219fb6bd173f0c694e91968aa"
+        }
+      ],
+      "entrypoint": "supabase/functions/cron_maat_decan_opening/index.ts"
+    },
+    {
+      "slug": "evaluate_maat_guidance",
+      "version": 45,
+      "verify_jwt": false,
+      "ezbr_sha256": "53b5966fc6c01e70bdee9eb1a990307768eba3c083ae87ad2947be8450c58455",
+      "updated_at": 1781152016583,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/decan_context.generated.ts",
+          "sha256": "0519732ca4257804d9d1bd8f749cf0a73e6c8ef21342a01d0743581f5a5524ae"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_context.ts",
+          "sha256": "78a2319f2947c3a95e7fb84b7935958ac002c6d543c0f82bdacd5ce6bab3ef8e"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_schedule.ts",
+          "sha256": "8014826678e5b38dec9157706163db5ebca0d005be985a51ae40f8eb87ebf52b"
+        },
+        {
+          "path": "supabase/functions/_shared/guidance_evidence.ts",
+          "sha256": "b25d6bc96b34fb43146c5702593008d89d03623dc00dd7adc4e5c9abf738f7af"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_constitution.ts",
+          "sha256": "16a6e8ef39dbd5038cc5d685433e5b076303227f59dba07f2e12310527e7ff46"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_destination_resolver.ts",
+          "sha256": "51283808df4c08289808476bcea81a9bc1e58da16fd8926a3afb78021e68c739"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_brief.ts",
+          "sha256": "120516db82883133cbe4b98f9a59bc569519083d2f9314b260aeff7864040e01"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_response_renderer.ts",
+          "sha256": "6328bb232ea91b65043b0ae27166bb3b049dd8a5d0efdb4f7ab0cf5fe9333480"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_response_spectrum.ts",
+          "sha256": "14287d8fbafec424432905c74db9aa60d319f2a5ed11c70861afd422500a7ab9"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_guidance.ts",
+          "sha256": "8bf0e42a761c120ee8eaba6f9b698fe85ce8eddc353116db11ba978230e303c7"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_ledger.ts",
+          "sha256": "54a27429dceb15035b1069c06c0b1f9bf2557ca4e0454cc8e24c515f9552895f"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_nudge_examples.ts",
+          "sha256": "824b1c71449d93b5dfd9d97a0c3f4704324871d38350735ed668f5e31351fdfd"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_obligation_threads.ts",
+          "sha256": "85fab34abb660d7e5b9490878c1b0fae1f7e626ef6132a3ca49428b799c9f9fa"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_output_examples.ts",
+          "sha256": "92e57d87a3017fc3115ac16101b9ee9caaaa2e6fcd35a69e313e3c565ee87b74"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_output_telemetry.ts",
+          "sha256": "40b786cf9139e7590c2093fc7aea27465e4ace5dab91507cc0bdd2de79f9e968"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_reflection_examples.ts",
+          "sha256": "dc34352c0b49cd001017dc8da5c8c1db25028221b7448467bc65a52c3536257e"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_situation_interpreter.ts",
+          "sha256": "846f8a5a982b156a1b1684a80f884d8d1de336eed12b950a92ed9a88f7e17198"
+        },
+        {
+          "path": "supabase/functions/_shared/output_compiler.ts",
+          "sha256": "0dc16ed1f1aa61b0095f833871745e51e7a9ebcd6a7bf97fb7403cf0cb6e6dad"
+        },
+        {
+          "path": "supabase/functions/_shared/output_control.ts",
+          "sha256": "b17d8ef281b6790a3ff70766161d97849ae58778d864252b7db2ff5a08d95ae9"
+        },
+        {
+          "path": "supabase/functions/_shared/user_memory_brief.ts",
+          "sha256": "1c8958a497a74fb1ce9dfe7c842142313f3ed59bbad26499ecf1627903c8455a"
+        },
+        {
+          "path": "supabase/functions/ai_generate_reflection/maat_decision.ts",
+          "sha256": "ea1b28c10b07e8dab8a4f588c0bef5b8c23747b0ce7f511dbba298abea8d05e5"
+        },
+        {
+          "path": "supabase/functions/evaluate_maat_guidance/index.ts",
+          "sha256": "3e148b215ecccc65828ddd9e7e26a428ea12aed2688437311f45b682342e820d"
+        }
+      ],
+      "entrypoint": "supabase/functions/evaluate_maat_guidance/index.ts"
+    },
+    {
+      "slug": "fetch_maat_guidance_pending",
+      "version": 13,
+      "verify_jwt": true,
+      "ezbr_sha256": "85c00afb23ebdc0f626f0a16023d038459e6c260b3ae694884ebf945e3d602f0",
+      "updated_at": 1781160327595,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/decan_context.generated.ts",
+          "sha256": "0519732ca4257804d9d1bd8f749cf0a73e6c8ef21342a01d0743581f5a5524ae"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_context.ts",
+          "sha256": "78a2319f2947c3a95e7fb84b7935958ac002c6d543c0f82bdacd5ce6bab3ef8e"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_schedule.ts",
+          "sha256": "8014826678e5b38dec9157706163db5ebca0d005be985a51ae40f8eb87ebf52b"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_constitution.ts",
+          "sha256": "16a6e8ef39dbd5038cc5d685433e5b076303227f59dba07f2e12310527e7ff46"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_destination_resolver.ts",
+          "sha256": "51283808df4c08289808476bcea81a9bc1e58da16fd8926a3afb78021e68c739"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_brief.ts",
+          "sha256": "120516db82883133cbe4b98f9a59bc569519083d2f9314b260aeff7864040e01"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_response_renderer.ts",
+          "sha256": "6328bb232ea91b65043b0ae27166bb3b049dd8a5d0efdb4f7ab0cf5fe9333480"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_guidance.ts",
+          "sha256": "8bf0e42a761c120ee8eaba6f9b698fe85ce8eddc353116db11ba978230e303c7"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_ledger.ts",
+          "sha256": "54a27429dceb15035b1069c06c0b1f9bf2557ca4e0454cc8e24c515f9552895f"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_nudge_examples.ts",
+          "sha256": "824b1c71449d93b5dfd9d97a0c3f4704324871d38350735ed668f5e31351fdfd"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_obligation_threads.ts",
+          "sha256": "85fab34abb660d7e5b9490878c1b0fae1f7e626ef6132a3ca49428b799c9f9fa"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_output_examples.ts",
+          "sha256": "92e57d87a3017fc3115ac16101b9ee9caaaa2e6fcd35a69e313e3c565ee87b74"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_reflection_examples.ts",
+          "sha256": "dc34352c0b49cd001017dc8da5c8c1db25028221b7448467bc65a52c3536257e"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_situation_interpreter.ts",
+          "sha256": "846f8a5a982b156a1b1684a80f884d8d1de336eed12b950a92ed9a88f7e17198"
+        },
+        {
+          "path": "supabase/functions/_shared/output_compiler.ts",
+          "sha256": "0dc16ed1f1aa61b0095f833871745e51e7a9ebcd6a7bf97fb7403cf0cb6e6dad"
+        },
+        {
+          "path": "supabase/functions/_shared/output_control.ts",
+          "sha256": "b17d8ef281b6790a3ff70766161d97849ae58778d864252b7db2ff5a08d95ae9"
+        },
+        {
+          "path": "supabase/functions/ai_generate_reflection/maat_decision.ts",
+          "sha256": "ea1b28c10b07e8dab8a4f588c0bef5b8c23747b0ce7f511dbba298abea8d05e5"
+        },
+        {
+          "path": "supabase/functions/fetch_maat_guidance_pending/index.ts",
+          "sha256": "044020e5266e2d22251d63a6e6b7cac9c82f1c26a04272b927e59f40e2fcbc39"
+        }
+      ],
+      "entrypoint": "supabase/functions/fetch_maat_guidance_pending/index.ts"
+    },
+    {
+      "slug": "ack_maat_guidance",
+      "version": 11,
+      "verify_jwt": true,
+      "ezbr_sha256": "ecee0dc44b0dd1f42a36dca550e1ef6c4662e64fcfe29b9f5e5855991b4c78c1",
+      "updated_at": 1781161752989,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/maat_delivery_receipt.ts",
+          "sha256": "a47f086dad262d1430071dd8787afe1a0222e6967e22f1130561ffe75eceee4f"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_ledger.ts",
+          "sha256": "54a27429dceb15035b1069c06c0b1f9bf2557ca4e0454cc8e24c515f9552895f"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_obligation_threads.ts",
+          "sha256": "85fab34abb660d7e5b9490878c1b0fae1f7e626ef6132a3ca49428b799c9f9fa"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_output_telemetry.ts",
+          "sha256": "40b786cf9139e7590c2093fc7aea27465e4ace5dab91507cc0bdd2de79f9e968"
+        },
+        {
+          "path": "supabase/functions/ack_maat_guidance/index.ts",
+          "sha256": "7eca6e7b1f344c4c8b6d025da3db2f1247ad7d748556b1b381d9f3aed82929c4"
+        }
+      ],
+      "entrypoint": "supabase/functions/ack_maat_guidance/index.ts"
+    },
+    {
+      "slug": "admin_content_preview",
+      "version": 62,
+      "verify_jwt": false,
+      "ezbr_sha256": "c95c1adbf999aa28935eb4540d81125e0b8140066789b8c33242521334b91a6b",
+      "updated_at": 1794348800963,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/admin.ts",
+          "sha256": "fd4cb70f7040239aaa1ec5983f69335225619cabe7583e237180e10c0913e3e3"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_context.generated.ts",
+          "sha256": "0519732ca4257804d9d1bd8f749cf0a73e6c8ef21342a01d0743581f5a5524ae"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_context.ts",
+          "sha256": "78a2319f2947c3a95e7fb84b7935958ac002c6d543c0f82bdacd5ce6bab3ef8e"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_schedule.ts",
+          "sha256": "bd7bf73c9193b85a0139dda0e941f4ca8f57f47ee583306c77c1d9041912484b"
+        },
+        {
+          "path": "supabase/functions/_shared/guidance_evidence.ts",
+          "sha256": "b25d6bc96b34fb43146c5702593008d89d03623dc00dd7adc4e5c9abf738f7af"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_constitution.ts",
+          "sha256": "16a6e8ef39dbd5038cc5d685433e5b076303227f59dba07f2e12310527e7ff46"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_destination_resolver.ts",
+          "sha256": "51283808df4c08289808476bcea81a9bc1e58da16fd8926a3afb78021e68c739"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_brief.ts",
+          "sha256": "120516db82883133cbe4b98f9a59bc569519083d2f9314b260aeff7864040e01"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_response_renderer.ts",
+          "sha256": "6328bb232ea91b65043b0ae27166bb3b049dd8a5d0efdb4f7ab0cf5fe9333480"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_response_spectrum.ts",
+          "sha256": "14287d8fbafec424432905c74db9aa60d319f2a5ed11c70861afd422500a7ab9"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_guidance.ts",
+          "sha256": "8bf0e42a761c120ee8eaba6f9b698fe85ce8eddc353116db11ba978230e303c7"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_ledger.ts",
+          "sha256": "54a27429dceb15035b1069c06c0b1f9bf2557ca4e0454cc8e24c515f9552895f"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_nudge_examples.ts",
+          "sha256": "824b1c71449d93b5dfd9d97a0c3f4704324871d38350735ed668f5e31351fdfd"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_obligation_threads.ts",
+          "sha256": "85fab34abb660d7e5b9490878c1b0fae1f7e626ef6132a3ca49428b799c9f9fa"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_output_examples.ts",
+          "sha256": "92e57d87a3017fc3115ac16101b9ee9caaaa2e6fcd35a69e313e3c565ee87b74"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_reflection_examples.ts",
+          "sha256": "dc34352c0b49cd001017dc8da5c8c1db25028221b7448467bc65a52c3536257e"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_situation_interpreter.ts",
+          "sha256": "846f8a5a982b156a1b1684a80f884d8d1de336eed12b950a92ed9a88f7e17198"
+        },
+        {
+          "path": "supabase/functions/_shared/output_compiler.ts",
+          "sha256": "0dc16ed1f1aa61b0095f833871745e51e7a9ebcd6a7bf97fb7403cf0cb6e6dad"
+        },
+        {
+          "path": "supabase/functions/_shared/output_control.ts",
+          "sha256": "b17d8ef281b6790a3ff70766161d97849ae58778d864252b7db2ff5a08d95ae9"
+        },
+        {
+          "path": "supabase/functions/_shared/supabase_keys.ts",
+          "sha256": "97590742505d36a397cbc852bcff43d1e7c012985c61437652b97b3509df3d74"
+        },
+        {
+          "path": "supabase/functions/_shared/user_memory_brief.ts",
+          "sha256": "1c8958a497a74fb1ce9dfe7c842142313f3ed59bbad26499ecf1627903c8455a"
+        },
+        {
+          "path": "supabase/functions/admin_content_preview/index.ts",
+          "sha256": "7bd1aa6aecc314e113f1e41ebd5c50a083f17a388f72208e2afdbd1eb281635d"
+        },
+        {
+          "path": "supabase/functions/ai_generate_reflection/maat_decision.ts",
+          "sha256": "ea1b28c10b07e8dab8a4f588c0bef5b8c23747b0ce7f511dbba298abea8d05e5"
+        }
+      ],
+      "entrypoint": "supabase/functions/admin_content_preview/index.ts"
+    },
+    {
+      "slug": "admin_auth",
+      "version": 9,
+      "verify_jwt": false,
+      "ezbr_sha256": "714cb189a17372f683be4c8cb8f34080ab8c6b7f8d4519216e9d8d960bdc0590",
+      "updated_at": 1779508454247,
+      "files": [
+        {
+          "path": "supabase/functions/admin_auth/index.ts",
+          "sha256": "38dde78aa96cd430d094f4a330ae9e795a1b09f74f949b8f7da352a5781534f2"
+        }
+      ],
+      "entrypoint": "supabase/functions/admin_auth/index.ts"
+    },
+    {
+      "slug": "ensure_user_guidance",
+      "version": 22,
+      "verify_jwt": true,
+      "ezbr_sha256": "b51cc6ce57fac6a659416cb88a754f0bdbe67f398aa2794546224be4d85a2236",
+      "updated_at": 1781161752989,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/decan_context.generated.ts",
+          "sha256": "0519732ca4257804d9d1bd8f749cf0a73e6c8ef21342a01d0743581f5a5524ae"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_context.ts",
+          "sha256": "78a2319f2947c3a95e7fb84b7935958ac002c6d543c0f82bdacd5ce6bab3ef8e"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_schedule.ts",
+          "sha256": "8014826678e5b38dec9157706163db5ebca0d005be985a51ae40f8eb87ebf52b"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_constitution.ts",
+          "sha256": "16a6e8ef39dbd5038cc5d685433e5b076303227f59dba07f2e12310527e7ff46"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_destination_resolver.ts",
+          "sha256": "51283808df4c08289808476bcea81a9bc1e58da16fd8926a3afb78021e68c739"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_brief.ts",
+          "sha256": "120516db82883133cbe4b98f9a59bc569519083d2f9314b260aeff7864040e01"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_response_renderer.ts",
+          "sha256": "6328bb232ea91b65043b0ae27166bb3b049dd8a5d0efdb4f7ab0cf5fe9333480"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_guidance.ts",
+          "sha256": "8bf0e42a761c120ee8eaba6f9b698fe85ce8eddc353116db11ba978230e303c7"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_ledger.ts",
+          "sha256": "54a27429dceb15035b1069c06c0b1f9bf2557ca4e0454cc8e24c515f9552895f"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_nudge_examples.ts",
+          "sha256": "824b1c71449d93b5dfd9d97a0c3f4704324871d38350735ed668f5e31351fdfd"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_obligation_threads.ts",
+          "sha256": "85fab34abb660d7e5b9490878c1b0fae1f7e626ef6132a3ca49428b799c9f9fa"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_output_examples.ts",
+          "sha256": "92e57d87a3017fc3115ac16101b9ee9caaaa2e6fcd35a69e313e3c565ee87b74"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_reflection_examples.ts",
+          "sha256": "dc34352c0b49cd001017dc8da5c8c1db25028221b7448467bc65a52c3536257e"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_situation_interpreter.ts",
+          "sha256": "846f8a5a982b156a1b1684a80f884d8d1de336eed12b950a92ed9a88f7e17198"
+        },
+        {
+          "path": "supabase/functions/_shared/output_compiler.ts",
+          "sha256": "0dc16ed1f1aa61b0095f833871745e51e7a9ebcd6a7bf97fb7403cf0cb6e6dad"
+        },
+        {
+          "path": "supabase/functions/_shared/output_control.ts",
+          "sha256": "b17d8ef281b6790a3ff70766161d97849ae58778d864252b7db2ff5a08d95ae9"
+        },
+        {
+          "path": "supabase/functions/ai_generate_reflection/maat_decision.ts",
+          "sha256": "ea1b28c10b07e8dab8a4f588c0bef5b8c23747b0ce7f511dbba298abea8d05e5"
+        },
+        {
+          "path": "supabase/functions/ensure_user_guidance/index.ts",
+          "sha256": "0ead75e306f52e0adeeda0348dc9962b5e473ca63830643e30018a3cd112d6c5"
+        }
+      ],
+      "entrypoint": "supabase/functions/ensure_user_guidance/index.ts"
+    },
+    {
+      "slug": "cron_evaluate_maat_guidance",
+      "version": 22,
+      "verify_jwt": false,
+      "ezbr_sha256": "eb7a3712198527831098e42f71d58659a7b6e51d69df0ab05d74d57943de06ce",
+      "updated_at": 1790398051527,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/decan_context.generated.ts",
+          "sha256": "0519732ca4257804d9d1bd8f749cf0a73e6c8ef21342a01d0743581f5a5524ae"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_context.ts",
+          "sha256": "78a2319f2947c3a95e7fb84b7935958ac002c6d543c0f82bdacd5ce6bab3ef8e"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_schedule.ts",
+          "sha256": "8014826678e5b38dec9157706163db5ebca0d005be985a51ae40f8eb87ebf52b"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_active_users.ts",
+          "sha256": "fce3d2da494747a69278627768cd12f240233b174bcc62b8a7dafdc6676ba36c"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_delivery_timing.ts",
+          "sha256": "39d1e2bf564c41448e40d420d62d9122195b2fa4ba548e30fdaa46aeb5a69c16"
+        },
+        {
+          "path": "supabase/functions/_shared/output_compiler.ts",
+          "sha256": "0dc16ed1f1aa61b0095f833871745e51e7a9ebcd6a7bf97fb7403cf0cb6e6dad"
+        },
+        {
+          "path": "supabase/functions/cron_evaluate_maat_guidance/index.ts",
+          "sha256": "eebb3f5f8f4b724bb6a4fdacb3a4a5b4171c8939760feb71261e9f8c1f07b7a0"
+        }
+      ],
+      "entrypoint": "supabase/functions/cron_evaluate_maat_guidance/index.ts"
+    },
+    {
+      "slug": "admin_maat_ops",
+      "version": 11,
+      "verify_jwt": true,
+      "ezbr_sha256": "bb11857a0db39f40b21b4b75733a49d62f5b7147b08803b36f1ca5ab20f60efe",
+      "updated_at": 1781152016583,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/admin.ts",
+          "sha256": "dbe87702b081cda68bb9dbe834d7ebcc77c63ea11fc2af361512d10d05e52552"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_constitution.ts",
+          "sha256": "16a6e8ef39dbd5038cc5d685433e5b076303227f59dba07f2e12310527e7ff46"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_destination_resolver.ts",
+          "sha256": "51283808df4c08289808476bcea81a9bc1e58da16fd8926a3afb78021e68c739"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_fixtures.json",
+          "sha256": "c3b1f69d9d442d9f9e6ef92bbf046583a756c20d60e774b97b961c36f6058c17"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_brief.ts",
+          "sha256": "120516db82883133cbe4b98f9a59bc569519083d2f9314b260aeff7864040e01"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_response_renderer.ts",
+          "sha256": "6328bb232ea91b65043b0ae27166bb3b049dd8a5d0efdb4f7ab0cf5fe9333480"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_guidance.ts",
+          "sha256": "8bf0e42a761c120ee8eaba6f9b698fe85ce8eddc353116db11ba978230e303c7"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_ledger.ts",
+          "sha256": "54a27429dceb15035b1069c06c0b1f9bf2557ca4e0454cc8e24c515f9552895f"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_nudge_examples.ts",
+          "sha256": "824b1c71449d93b5dfd9d97a0c3f4704324871d38350735ed668f5e31351fdfd"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_obligation_threads.ts",
+          "sha256": "85fab34abb660d7e5b9490878c1b0fae1f7e626ef6132a3ca49428b799c9f9fa"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_output_examples.ts",
+          "sha256": "92e57d87a3017fc3115ac16101b9ee9caaaa2e6fcd35a69e313e3c565ee87b74"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_reflection_examples.ts",
+          "sha256": "dc34352c0b49cd001017dc8da5c8c1db25028221b7448467bc65a52c3536257e"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_situation_interpreter.ts",
+          "sha256": "846f8a5a982b156a1b1684a80f884d8d1de336eed12b950a92ed9a88f7e17198"
+        },
+        {
+          "path": "supabase/functions/_shared/output_compiler.ts",
+          "sha256": "0dc16ed1f1aa61b0095f833871745e51e7a9ebcd6a7bf97fb7403cf0cb6e6dad"
+        },
+        {
+          "path": "supabase/functions/_shared/output_control.ts",
+          "sha256": "b17d8ef281b6790a3ff70766161d97849ae58778d864252b7db2ff5a08d95ae9"
+        },
+        {
+          "path": "supabase/functions/admin_maat_ops/index.ts",
+          "sha256": "49fd9352ba3d6ef484a93243d0e0d49298d84654a49d21fcbe56f59214a10507"
+        },
+        {
+          "path": "supabase/functions/ai_generate_reflection/maat_decision.ts",
+          "sha256": "ea1b28c10b07e8dab8a4f588c0bef5b8c23747b0ce7f511dbba298abea8d05e5"
+        }
+      ],
+      "entrypoint": "supabase/functions/admin_maat_ops/index.ts"
+    },
+    {
+      "slug": "admin_war_room",
+      "version": 8,
+      "verify_jwt": false,
+      "ezbr_sha256": "d1f9789684747b3e8b896164848ab48d3906c8aa5323f4d738bba561f33149c4",
+      "updated_at": 1779508456731,
+      "files": [
+        {
+          "path": "supabase/functions/admin_war_room/index.ts",
+          "sha256": "34ed9903ca1d2098bb1787c99d4d7c64afdbd41ba34340d6b5bfb8d27f63ba59"
+        }
+      ],
+      "entrypoint": "supabase/functions/admin_war_room/index.ts"
+    },
+    {
+      "slug": "admin_archive",
+      "version": 8,
+      "verify_jwt": false,
+      "ezbr_sha256": "02ab5a1c45f43b342439613a65ce6d0551e8b78b7eb46bf4483738775ac0bcbc",
+      "updated_at": 1779508459330,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/admin.ts",
+          "sha256": "dbe87702b081cda68bb9dbe834d7ebcc77c63ea11fc2af361512d10d05e52552"
+        },
+        {
+          "path": "supabase/functions/admin_archive/index.ts",
+          "sha256": "df145097012e1a3218d43779ab2d69af75b9ad318aa5229e78225b3f58aa33c5"
+        }
+      ],
+      "entrypoint": "supabase/functions/admin_archive/index.ts"
+    },
+    {
+      "slug": "admin_armory",
+      "version": 8,
+      "verify_jwt": false,
+      "ezbr_sha256": "ec6a54986f5875ffd4a0310363e35ffc0f20fba028dc1e2fe5753996578fdaaa",
+      "updated_at": 1779508461750,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/admin.ts",
+          "sha256": "dbe87702b081cda68bb9dbe834d7ebcc77c63ea11fc2af361512d10d05e52552"
+        },
+        {
+          "path": "supabase/functions/admin_armory/index.ts",
+          "sha256": "85b25faf2e70a44b4e937cb243bc09c93edf0ea2ca896ca56b589d66b9f2d9f8"
+        }
+      ],
+      "entrypoint": "supabase/functions/admin_armory/index.ts"
+    },
+    {
+      "slug": "admin_approvals",
+      "version": 8,
+      "verify_jwt": false,
+      "ezbr_sha256": "9202e1aac883280c79279d328acd6cf32d23458bd24b8393c5132a21ce9754b3",
+      "updated_at": 1779508464265,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/admin.ts",
+          "sha256": "dbe87702b081cda68bb9dbe834d7ebcc77c63ea11fc2af361512d10d05e52552"
+        },
+        {
+          "path": "supabase/functions/admin_approvals/index.ts",
+          "sha256": "8c9a0c1b221c97ab77a3162cb2e33716a7c727c8ed3a9223c58b2505c782c95b"
+        }
+      ],
+      "entrypoint": "supabase/functions/admin_approvals/index.ts"
+    },
+    {
+      "slug": "admin_treasury",
+      "version": 8,
+      "verify_jwt": false,
+      "ezbr_sha256": "8c90f9b3e37fb0eb02b5c67f39876924d83bfa3fd71a8fd71cc86b905146c264",
+      "updated_at": 1779508466755,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/admin.ts",
+          "sha256": "dbe87702b081cda68bb9dbe834d7ebcc77c63ea11fc2af361512d10d05e52552"
+        },
+        {
+          "path": "supabase/functions/admin_treasury/index.ts",
+          "sha256": "20e9ddcc5a1769a8ed0fd150ae7ab2ecaf58f27c5401333daf4007ca199a3d17"
+        }
+      ],
+      "entrypoint": "supabase/functions/admin_treasury/index.ts"
+    },
+    {
+      "slug": "admin_agent_run",
+      "version": 8,
+      "verify_jwt": false,
+      "ezbr_sha256": "03869ec37eed902245ea4bcb8dff552f082f292778c501c4f111f69aca54b7e1",
+      "updated_at": 1779508469238,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/admin.ts",
+          "sha256": "dbe87702b081cda68bb9dbe834d7ebcc77c63ea11fc2af361512d10d05e52552"
+        },
+        {
+          "path": "supabase/functions/admin_agent_run/index.ts",
+          "sha256": "19d0506097488ab61be5e6250a81bbc5855ce76cc01cadd5747b2c9c559df782"
+        }
+      ],
+      "entrypoint": "supabase/functions/admin_agent_run/index.ts"
+    },
+    {
+      "slug": "admin_maat_dry_run",
+      "version": 10,
+      "verify_jwt": true,
+      "ezbr_sha256": "3b425d7333b9b69c00f9acdf5a911aa8a36eafce49cccdaee82bfc85dba921f4",
+      "updated_at": 1781152016583,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/admin.ts",
+          "sha256": "dbe87702b081cda68bb9dbe834d7ebcc77c63ea11fc2af361512d10d05e52552"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_constitution.ts",
+          "sha256": "16a6e8ef39dbd5038cc5d685433e5b076303227f59dba07f2e12310527e7ff46"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_destination_resolver.ts",
+          "sha256": "51283808df4c08289808476bcea81a9bc1e58da16fd8926a3afb78021e68c739"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_fixtures.json",
+          "sha256": "c3b1f69d9d442d9f9e6ef92bbf046583a756c20d60e774b97b961c36f6058c17"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_brief.ts",
+          "sha256": "120516db82883133cbe4b98f9a59bc569519083d2f9314b260aeff7864040e01"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_flow_response_renderer.ts",
+          "sha256": "6328bb232ea91b65043b0ae27166bb3b049dd8a5d0efdb4f7ab0cf5fe9333480"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_guidance.ts",
+          "sha256": "8bf0e42a761c120ee8eaba6f9b698fe85ce8eddc353116db11ba978230e303c7"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_ledger.ts",
+          "sha256": "54a27429dceb15035b1069c06c0b1f9bf2557ca4e0454cc8e24c515f9552895f"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_nudge_examples.ts",
+          "sha256": "824b1c71449d93b5dfd9d97a0c3f4704324871d38350735ed668f5e31351fdfd"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_obligation_threads.ts",
+          "sha256": "85fab34abb660d7e5b9490878c1b0fae1f7e626ef6132a3ca49428b799c9f9fa"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_output_examples.ts",
+          "sha256": "92e57d87a3017fc3115ac16101b9ee9caaaa2e6fcd35a69e313e3c565ee87b74"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_reflection_examples.ts",
+          "sha256": "dc34352c0b49cd001017dc8da5c8c1db25028221b7448467bc65a52c3536257e"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_situation_interpreter.ts",
+          "sha256": "846f8a5a982b156a1b1684a80f884d8d1de336eed12b950a92ed9a88f7e17198"
+        },
+        {
+          "path": "supabase/functions/_shared/output_compiler.ts",
+          "sha256": "0dc16ed1f1aa61b0095f833871745e51e7a9ebcd6a7bf97fb7403cf0cb6e6dad"
+        },
+        {
+          "path": "supabase/functions/_shared/output_control.ts",
+          "sha256": "b17d8ef281b6790a3ff70766161d97849ae58778d864252b7db2ff5a08d95ae9"
+        },
+        {
+          "path": "supabase/functions/admin_maat_dry_run/index.ts",
+          "sha256": "376d6e148428d3498782d42f4f1bd2e8552083af19001c3f25be03d5ea4699f2"
+        },
+        {
+          "path": "supabase/functions/ai_generate_reflection/maat_decision.ts",
+          "sha256": "ea1b28c10b07e8dab8a4f588c0bef5b8c23747b0ce7f511dbba298abea8d05e5"
+        }
+      ],
+      "entrypoint": "supabase/functions/admin_maat_dry_run/index.ts"
+    },
+    {
+      "slug": "admin_nodes",
+      "version": 8,
+      "verify_jwt": false,
+      "ezbr_sha256": "65072409dd78aad08c6a714aa281ac0cbab55e4d4035f737ebaa58c3e0fb33c4",
+      "updated_at": 1779508477230,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/admin.ts",
+          "sha256": "dbe87702b081cda68bb9dbe834d7ebcc77c63ea11fc2af361512d10d05e52552"
+        },
+        {
+          "path": "supabase/functions/admin_nodes/index.ts",
+          "sha256": "e8cdb0b0458daac44dacaede5eb70aa3e1e878c0a0202cc29e5b3c046df26b17"
+        }
+      ],
+      "entrypoint": "supabase/functions/admin_nodes/index.ts"
+    },
+    {
+      "slug": "record_delivery_receipt",
+      "version": 8,
+      "verify_jwt": true,
+      "ezbr_sha256": "564795b8e04fcf079202337d4c2b3e87f4a84fdb2bbe7cfb3e558a12960d1402",
+      "updated_at": 1779514702844,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/maat_delivery_receipt.ts",
+          "sha256": "a47f086dad262d1430071dd8787afe1a0222e6967e22f1130561ffe75eceee4f"
+        },
+        {
+          "path": "supabase/functions/record_delivery_receipt/index.ts",
+          "sha256": "b7bfad1c76c707794537fc20aacaffe23cc769f3b72607514a730b256f5f0271"
+        }
+      ],
+      "entrypoint": "supabase/functions/record_delivery_receipt/index.ts"
+    },
+    {
+      "slug": "get_delivery_receipt_status",
+      "version": 8,
+      "verify_jwt": true,
+      "ezbr_sha256": "ee49f1a2fa7b0409a91f63dd4deed104753b5652e411c7c34aa729ba53d34b37",
+      "updated_at": 1779515447021,
+      "files": [
+        {
+          "path": "supabase/functions/get_delivery_receipt_status/index.ts",
+          "sha256": "519ab98318458d92263d9472887d087b368b0deb34d2836a593918469622ad60"
+        }
+      ],
+      "entrypoint": "supabase/functions/get_delivery_receipt_status/index.ts"
+    },
+    {
+      "slug": "rebuild_personal_graph",
+      "version": 8,
+      "verify_jwt": true,
+      "ezbr_sha256": "a662f294a8fe1370a23331d0007d5a7d80a8ff0e7ef8f7d4ddb8c49ca9629de8",
+      "updated_at": 1779553468909,
+      "files": [
+        {
+          "path": "supabase/functions/rebuild_personal_graph/index.ts",
+          "sha256": "37e92fc07109d77cc7f304afb56b8e8dbef4def7c873ed6d43501384443e42cf"
+        }
+      ],
+      "entrypoint": "supabase/functions/rebuild_personal_graph/index.ts"
+    },
+    {
+      "slug": "generate_reflection_profile",
+      "version": 8,
+      "verify_jwt": true,
+      "ezbr_sha256": "5a55bf38c8a48669d88ad68c8cfc7e9c8bfade40b0e12b7130e23666108e0a85",
+      "updated_at": 1779553478072,
+      "files": [
+        {
+          "path": "supabase/functions/generate_reflection_profile/index.ts",
+          "sha256": "f63b23f4f0a89255609139a4a3f6b94b41f118ec2aa5bca17e2fca7fc7a8dc3d"
+        }
+      ],
+      "entrypoint": "supabase/functions/generate_reflection_profile/index.ts"
+    },
+    {
+      "slug": "notify_shared_calendar_item_added",
+      "version": 8,
+      "verify_jwt": true,
+      "ezbr_sha256": "74b505d9b9d03dae5d4260ca437fdf7a4b598e3d9f744a470d452dc39ebe4c91",
+      "updated_at": 1781118245624,
+      "files": [
+        {
+          "path": "supabase/functions/notify_shared_calendar_item_added/index.ts",
+          "sha256": "bc6be0d31baf19e92b8af1a7665da4d6a7a14b7a575abefee0cfc0ebe099717f"
+        }
+      ],
+      "entrypoint": "supabase/functions/notify_shared_calendar_item_added/index.ts"
+    },
+    {
+      "slug": "admin_power_user",
+      "version": 8,
+      "verify_jwt": false,
+      "ezbr_sha256": "9b40bf0467f9b7b01ba7e63be95b8a329a0460a7dd212d6189aaf2a5251c8c35",
+      "updated_at": 1783183796702,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/admin.ts",
+          "sha256": "dbe87702b081cda68bb9dbe834d7ebcc77c63ea11fc2af361512d10d05e52552"
+        },
+        {
+          "path": "supabase/functions/admin_power_user/index.ts",
+          "sha256": "5922b4e19ab3bc9aff47c646acdf8ea937b8fe05d7b31966e47ddd5b7f998e80"
+        }
+      ],
+      "entrypoint": "supabase/functions/admin_power_user/index.ts"
+    },
+    {
+      "slug": "admin_activity",
+      "version": 7,
+      "verify_jwt": true,
+      "ezbr_sha256": "49df1162f0a195d74c36d9b35e26422169b5a4ca8dc080811afc5fd2c93c46a8",
+      "updated_at": 1783527680803,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/admin.ts",
+          "sha256": "dbe87702b081cda68bb9dbe834d7ebcc77c63ea11fc2af361512d10d05e52552"
+        },
+        {
+          "path": "supabase/functions/admin_activity/index.ts",
+          "sha256": "6f852d92d9472c21602738d980e37ec7874ddd2ac1517ddabb7809d2883402e5"
+        }
+      ],
+      "entrypoint": "supabase/functions/admin_activity/index.ts"
+    },
+    {
+      "slug": "resolve_full_moon_instrument",
+      "version": 7,
+      "verify_jwt": true,
+      "ezbr_sha256": "6bae03647591897354e0271f9a3afbd1c6ae5b314acc72d6c29c4422ed46fd06",
+      "updated_at": 1787794970904,
+      "files": [
+        {
+          "path": "supabase/functions/resolve_full_moon_instrument/compute.ts",
+          "sha256": "7f47f85dcb9d51b4fd497d962e585b09e8d2dcfe6d435e8812eb214b54fa51b3"
+        },
+        {
+          "path": "supabase/functions/resolve_full_moon_instrument/contract.ts",
+          "sha256": "02dfeb4be68ed3c723fbb5e1844685223fb4abf203305efdbc1ea01679c24b02"
+        },
+        {
+          "path": "supabase/functions/resolve_full_moon_instrument/deno.json",
+          "sha256": "12e47aed3d811d6e0dec5e5c423a734d0742fb700c476c2558a1b97c3069effe"
+        },
+        {
+          "path": "supabase/functions/resolve_full_moon_instrument/index.ts",
+          "sha256": "e75cc9b1b771759cceffd0046d9f9b76ffb7c05c12218b597e7325ebf320d238"
+        }
+      ],
+      "entrypoint": "supabase/functions/resolve_full_moon_instrument/index.ts",
+      "import_map": "supabase/functions/resolve_full_moon_instrument/deno.json"
+    },
+    {
+      "slug": "track_choice_event",
+      "version": 7,
+      "verify_jwt": true,
+      "ezbr_sha256": "34049eaa37cbdb16379742e062cea40378cc5eadb8bf2391da2046b9727bb6f9",
+      "updated_at": 1790367219921,
+      "files": [
+        {
+          "path": "supabase/functions/track_choice_event/index.ts",
+          "sha256": "61eeaa1b3c6ab5177b7d7d1328caf680288ecdb58e95c8937f50a68151eee879"
+        }
+      ],
+      "entrypoint": "supabase/functions/track_choice_event/index.ts"
+    },
+    {
+      "slug": "cron_decan_reflection_reconcile",
+      "version": 7,
+      "verify_jwt": false,
+      "ezbr_sha256": "1ffce4dae1b079b09d7f88b4e40ba886c122f7674500477ca1bcc2e0b8ab3b35",
+      "updated_at": 1790439020607,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/decan_context.generated.ts",
+          "sha256": "0519732ca4257804d9d1bd8f749cf0a73e6c8ef21342a01d0743581f5a5524ae"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_context.ts",
+          "sha256": "78a2319f2947c3a95e7fb84b7935958ac002c6d543c0f82bdacd5ce6bab3ef8e"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_reflection_reconcile.ts",
+          "sha256": "9d93f4e0a19289a9e8892526f0476f9c7e3de8313bbb76eb9ec35472ad994a7a"
+        },
+        {
+          "path": "supabase/functions/_shared/decan_schedule.ts",
+          "sha256": "bd7bf73c9193b85a0139dda0e941f4ca8f57f47ee583306c77c1d9041912484b"
+        },
+        {
+          "path": "supabase/functions/_shared/maat_active_users.ts",
+          "sha256": "fce3d2da494747a69278627768cd12f240233b174bcc62b8a7dafdc6676ba36c"
+        },
+        {
+          "path": "supabase/functions/cron_decan_reflection_reconcile/index.ts",
+          "sha256": "4e44c5ff4a2de38bf78f0a0bc209c8a5a2dc01504c3fc00289d7e5a61996d058"
+        }
+      ],
+      "entrypoint": "supabase/functions/cron_decan_reflection_reconcile/index.ts"
+    },
+    {
+      "slug": "external_calendar",
+      "version": 6,
+      "verify_jwt": false,
+      "ezbr_sha256": "a137069e2b9bd20e70c8c2d2c856cb71924d11c9a707f2a2e6cf2bc05f4a03e0",
+      "updated_at": 1791682427333,
+      "files": [
+        {
+          "path": "supabase/functions/external_calendar/domain.ts",
+          "sha256": "5f45ee0a4cd4e23d9bbdc3d5adb5394cd169cbeece80ff3d5f9042a7d83bef58"
+        },
+        {
+          "path": "supabase/functions/external_calendar/index.ts",
+          "sha256": "528920d316b39a770972f1f8ce284a051fbeffdb40d9b0bc9d51814bd93f7d2c"
+        }
+      ],
+      "entrypoint": "supabase/functions/external_calendar/index.ts"
+    },
+    {
+      "slug": "create_dm_conversation",
+      "version": 1,
+      "verify_jwt": true,
+      "ezbr_sha256": "4e00c20b6fd11d346aba1e68529bed87779a441ebd0ebf7438365b05953525de",
+      "updated_at": 1791259997194,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/dm_conversations.ts",
+          "sha256": "c986e9591997968908a6a7fc1bf5276ae70c9d53d4e55d2bfb7985d88914bfa0"
+        },
+        {
+          "path": "supabase/functions/create_dm_conversation/index.ts",
+          "sha256": "aed86c6ba81ce1edda092d3b3ba54f178befe2e1d780c8575a7296c4be8c55bc"
+        }
+      ],
+      "entrypoint": "supabase/functions/create_dm_conversation/index.ts"
+    },
+    {
+      "slug": "send_dm_message_v2",
+      "version": 2,
+      "verify_jwt": true,
+      "ezbr_sha256": "61670b054943696eb26c1734b0b8a6f44494bd445fa7000f2698dc371902cdb0",
+      "updated_at": 1791415039518,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/dm_conversations.ts",
+          "sha256": "c62736b5680b2fd4e15138fe286bb222bf6d0d93e2d22901e9a8c459c925abc8"
+        },
+        {
+          "path": "supabase/functions/send_dm_message_v2/index.ts",
+          "sha256": "46868d00046402002d84f94dd14497683b3497cfa750aa8818e7e19659bc215f"
+        }
+      ],
+      "entrypoint": "supabase/functions/send_dm_message_v2/index.ts"
+    },
+    {
+      "slug": "mark_dm_conversation_read",
+      "version": 1,
+      "verify_jwt": true,
+      "ezbr_sha256": "a2c939356e2ba78bb3ea8a6b022ec8a1b246cc17a03fe9f0b88d45df745b250c",
+      "updated_at": 1791260007433,
+      "files": [
+        {
+          "path": "supabase/functions/_shared/dm_conversations.ts",
+          "sha256": "c986e9591997968908a6a7fc1bf5276ae70c9d53d4e55d2bfb7985d88914bfa0"
+        },
+        {
+          "path": "supabase/functions/mark_dm_conversation_read/index.ts",
+          "sha256": "6c673f3729e6e16473b25ddd50325444b8d167d7a5c842d854c4d3303ee65709"
+        }
+      ],
+      "entrypoint": "supabase/functions/mark_dm_conversation_read/index.ts"
+    },
+    {
+      "slug": "delete_account",
+      "version": 1,
+      "verify_jwt": true,
+      "ezbr_sha256": "bd5626e1baf8741455cfbc210dde3d1bbce74a76e476c288c78ff2bbb17895dd",
+      "updated_at": 1791823760351,
+      "files": [
+        {
+          "path": "supabase/functions/delete_account/index.ts",
+          "sha256": "b63ad5d17b202d85e832a426f19c7ffd3dad9347fa26f5b32283c4623e4e6d5f"
+        }
+      ],
+      "entrypoint": "supabase/functions/delete_account/index.ts"
+    }
+  ],
+  "unavailable": [
+    {
+      "slug": "resolve_share",
+      "version": 22,
+      "verify_jwt": true,
+      "ezbr_sha256": null
+    },
+    {
+      "slug": "__fetch_sources_placeholder",
+      "version": 21,
+      "verify_jwt": true,
+      "ezbr_sha256": null
+    },
+    {
+      "slug": "ai_generate_flow_inspect",
+      "version": 18,
+      "verify_jwt": true,
+      "ezbr_sha256": null
+    },
+    {
+      "slug": "generate-ai-flow",
+      "version": 17,
+      "verify_jwt": true,
+      "ezbr_sha256": null
+    },
+    {
+      "slug": "debug_check_auth",
+      "version": 17,
+      "verify_jwt": true,
+      "ezbr_sha256": null
+    },
+    {
+      "slug": "create_flow_share_fetch_source",
+      "version": 15,
+      "verify_jwt": true,
+      "ezbr_sha256": "82c66be09f3f44ac3295554ec99656a79edaab1af3e948899f477d8b0522221e"
+    },
+    {
+      "slug": "edge-echo",
+      "version": 7,
+      "verify_jwt": true,
+      "ezbr_sha256": "4cf0c6692cd41b1dc0dd9d95bdcee5f53e05c6878c9362633da655d20ba56802"
+    },
+    {
+      "slug": "upsert_push_token",
+      "version": 9,
+      "verify_jwt": true,
+      "ezbr_sha256": "520ad67e45ab7167697adc31bd5571ce5f2edd0f75c8f033ca64da4df3816909"
+    },
+    {
+      "slug": "translate_memory_text",
+      "version": 27,
+      "verify_jwt": false,
+      "ezbr_sha256": "c7684c4ab4a6da105691e8c4d805dcb55448471daf25bde39a5d40333608047f"
+    }
+  ]
+}
