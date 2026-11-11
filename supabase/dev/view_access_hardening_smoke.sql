@@ -14,6 +14,9 @@ declare name text; command text;
 begin
   -- Invoke every reviewed helper as the caller, not merely catalog ACL checks.
   foreach command in array array[
+    'select public.ensure_shared_experience_for_flow_internal(null::bigint,null::uuid,null::uuid,false,null::bigint)',
+    'select public.user_event_has_active_reminder_flow(null::uuid,null::uuid)',
+    'select public.user_event_has_active_reminder_flow_for_occurrence(null::uuid,null::text)',
     'select public._is_personalization_enabled(null::uuid)',
     'select public.clear_event_share_import_tombstone(null::uuid,null::uuid)',
     'select public.prune_stale_reminder_occurrences()',
@@ -100,6 +103,8 @@ set local role authenticated;
 select pg_temp.as_user('00000000-0000-4000-8000-00000000e101');
 select pg_temp.assert_internal_denied();
 select pg_temp.require(exists(select 1 from public.flows where id=99010101),'Owner lost private flow');
+select pg_temp.require(public.ensure_shared_experience_for_flow(99010101,
+ '10000000-0000-4000-8000-00000000e101') is not null, 'Owner lost checked shared-experience entrypoint');
 -- This checked account entrypoint still reaches its internal definer helper.
 select public.compute_user_preferences(90);
 select pg_temp.require((select to_jsonb(p)=(select payload from expected_profile) from public.profile_stats p
@@ -114,6 +119,12 @@ select pg_temp.require((select followers_count=1 from public.profile_stats
 select pg_temp.as_user('00000000-0000-4000-8000-00000000e103');
 select pg_temp.assert_internal_denied();
 select pg_temp.require(not exists(select 1 from public.flows where id=99010101),'Unrelated account private flow leak');
+do $$ begin
+  perform public.ensure_shared_experience_for_flow(99010101,'10000000-0000-4000-8000-00000000e101');
+  raise exception 'Unrelated account bypassed checked shared-experience entrypoint';
+exception when raise_exception then
+  if sqlerrm <> 'CALENDAR_NOT_EDITABLE' then raise; end if;
+end $$;
 select pg_temp.require(not exists(select 1 from public.inbox_share_items_filtered
  where share_id='30000000-0000-4000-8000-00000000e101'),'Unrelated account Inbox leak');
 
@@ -130,6 +141,12 @@ select pg_temp.require(public.admin_activity_users(30,100,'viewaccess') is not n
 reset role;
 
 set local role service_role;
+select pg_temp.require(public.ensure_shared_experience_for_flow_internal(99010101,
+ '10000000-0000-4000-8000-00000000e101','00000000-0000-4000-8000-00000000e101',false,null) is not null,
+ 'Service lost internal shared-experience helper');
+select pg_temp.require(not public.user_event_has_active_reminder_flow(null::uuid,null::uuid)
+ and not public.user_event_has_active_reminder_flow_for_occurrence(null::uuid,null::text),
+ 'Service lost internal reminder helpers');
 select pg_temp.require((select public.event_share_source_flow_payload(
  '20000000-0000-4000-8000-00000000e101')->>'notes'='Private live notes'),
  'Service lost private share snapshot helper');

@@ -63,6 +63,18 @@ class MigrationSourceContractsTest(unittest.TestCase):
             "Service lost private share snapshot helper", "Service worker claim path changed",
             "Service lost internal RPC execution", "select public.compute_user_preferences(90)"])
 
+    def test_additional_internal_rpc_access_retains_checked_owner(self) -> None:
+        body = source("supabase/migrations/20261111233728_restrict_additional_internal_rpc_access.sql")
+        require_all(self, body, ["ensure_shared_experience_for_flow_internal", "user_event_has_active_reminder_flow",
+            "user_event_has_active_reminder_flow_for_occurrence", "from public, anon, authenticated",
+            "to service_role", "prosecdef", "Unrecognized internal function authority"])
+        reject_all(self, body.lower(), ["create or replace function", "drop function", "update public.",
+            "delete from", "create policy", "disable row level security"])
+        smoke = source("supabase/dev/view_access_hardening_smoke.sql")
+        require_all(self, smoke, ["Owner lost checked shared-experience entrypoint",
+            "Unrelated account bypassed checked shared-experience entrypoint", "CALENDAR_NOT_EDITABLE",
+            "Service lost internal shared-experience helper", "Service lost internal reminder helpers"])
+
     def test_workflow_dependencies_are_immutable_and_tokens_read_only(self) -> None:
         for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
             body = path.read_text()
