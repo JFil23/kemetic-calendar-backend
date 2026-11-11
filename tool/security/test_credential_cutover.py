@@ -1,4 +1,5 @@
 import hashlib
+import gzip
 import json
 import unittest
 from pathlib import Path
@@ -12,8 +13,8 @@ class CredentialCutoverTests(unittest.TestCase):
         for row in manifest['functions']:
             for file in row['files']:
                 with self.subTest(slug=row['slug'],file=file['path']):
-                    path=cutover.BASE/row['slug']/file['path']
-                    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(),file['sha256'])
+                    path=cutover.BASE/'objects'/(file['sha256']+'.source.gz')
+                    self.assertEqual(hashlib.sha256(gzip.decompress(path.read_bytes())).hexdigest(),file['sha256'])
             result=cutover.build(row['slug'])
             self.assertEqual(result['name'],row['slug'])
             self.assertEqual(result['entrypoint_path'],row['entrypoint'])

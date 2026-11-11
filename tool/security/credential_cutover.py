@@ -9,6 +9,7 @@ supabase/functions as usual. Credentials never enter this module's output.
 from __future__ import annotations
 import argparse
 import hashlib
+import gzip
 import json
 import re
 from pathlib import Path
@@ -49,10 +50,10 @@ def build(slug: str) -> dict:
     files = {}
     for entry in row['files']:
         name = entry['path']
-        path = BASE / slug / name
+        path = BASE / 'objects' / (entry['sha256'] + '.source.gz')
         if not path.resolve().is_relative_to(BASE.resolve()) or path.is_symlink():
             raise ValueError('Unsafe baseline path')
-        raw = path.read_bytes()
+        raw = gzip.decompress(path.read_bytes())
         if hashlib.sha256(raw).hexdigest() != entry['sha256']:
             raise ValueError('Deployed source changed: '+name)
         files[name] = replace_key_reads(raw.decode(), name) if path.suffix == '.ts' else raw.decode()
