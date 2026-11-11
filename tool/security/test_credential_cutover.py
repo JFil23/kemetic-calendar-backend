@@ -53,9 +53,15 @@ class CredentialCutoverTests(unittest.TestCase):
         self.assertIn('const PLANNER_BADGE_WEIGHTS',body)
         self.assertIn('client.auth.getUser()',body)
 
+    def test_every_gateway_setting_retains_its_existing_protection(self):
+        manifest=json.loads((cutover.BASE/'manifest.json').read_text())
+        for row in manifest['functions']:
+            with self.subTest(slug=row['slug']):
+                self.assertEqual(cutover.build(row['slug'])['verify_jwt'],row['verify_jwt'])
+
     def test_public_astronomy_gateway_not_weakened_without_handler_verifier(self):
         artifact=cutover.build('resolve_full_moon_instrument')
-        self.assertFalse(artifact['verify_jwt'])
+        self.assertTrue(artifact['verify_jwt'])
         self.assertIn('authorizePublicRequest',next(f['content'] for f in artifact['files'] if f['name']==artifact['entrypoint_path']))
 
 if __name__=='__main__':unittest.main()

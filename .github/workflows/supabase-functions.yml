@@ -78,6 +78,7 @@ jobs:
           DB_URL="$(supabase status -o env | sed -n 's/^DB_URL="\(.*\)"$/\1/p')"
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/view_access_hardening_smoke.sql
           python3 supabase/dev/room_broadcast_schema_move_smoke.py "$DB_URL"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/privileged_helper_search_path_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/telemetry_consent_ledger_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/activity_presentation_smoke.sql
           psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/dev/maat_delivery_ledger_smoke.sql

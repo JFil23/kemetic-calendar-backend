@@ -59,17 +59,6 @@ def build(slug: str) -> dict:
         files[name] = replace_key_reads(raw.decode(), name) if Path(name).suffix == '.ts' else raw.decode()
     key_owner = 'supabase/functions/_shared/supabase_keys.ts'
     files[key_owner] = (ROOT / key_owner).read_text()
-    # These handlers already perform Auth.getUser or checked staff authorization.
-    # Only this reviewed set may move off the legacy-only JWT gateway.
-    verified_users = {
-        'create_flow_share','send_dm_message','schedule_decan_reflection',
-        'respond_to_event_invite','create_event_share','fetch_maat_guidance_pending',
-        'ack_maat_guidance','ensure_user_guidance','admin_maat_ops','admin_maat_dry_run',
-        'record_delivery_receipt','get_delivery_receipt_status','rebuild_personal_graph',
-        'generate_reflection_profile','notify_shared_calendar_item_added','admin_activity',
-        'track_choice_event','create_dm_conversation','send_dm_message_v2',
-        'mark_dm_conversation_read','delete_account',
-    }
     if slug == 'resolve_full_moon_instrument':
         name = row['entrypoint']
         old = """    // Supabase's gateway verifies this JWT by default. Requiring the header
@@ -93,13 +82,9 @@ def build(slug: str) -> dict:
         for helper in ['public_request_authorization.ts', 'account_context_authorization.ts']:
             path = 'supabase/functions/_shared/' + helper
             files[path] = (ROOT / path).read_text()
+    # Live ES256 and public-key probes verified the current platform gateway.
+    # Preserve existing gateway checks as an additional authentication layer.
     verify_jwt = row['verify_jwt']
-    if slug == 'resolve_full_moon_instrument':
-        verify_jwt = False
-    if slug in verified_users:
-        if not any('getUser' in text for text in files.values()):
-            raise ValueError('Missing reviewed user verifier')
-        verify_jwt = False
     result = {'project_id':manifest['project_ref'], 'name':slug,
         'entrypoint_path':row['entrypoint'], 'verify_jwt':verify_jwt,
         'files':[{'name':name,'content':content} for name,content in sorted(files.items())]}
